@@ -1,0 +1,238 @@
+<%= form_with model: recurring_rule, class: "space-y-8" do |f| %>
+  <%# Error Alert %>
+  <% if recurring_rule.errors.any? %>
+    <div class="alert-danger">
+      <svg class="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+      </svg>
+      <div class="flex-1">
+        <h3 class="font-semibold mb-1">Please fix the following errors:</h3>
+        <ul class="space-y-0.5 text-sm">
+          <% recurring_rule.errors.full_messages.each do |message| %>
+            <li class="flex items-center gap-1.5">
+              <span class="w-1 h-1 rounded-full bg-current opacity-60"></span>
+              <%= message %>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+    </div>
+  <% end %>
+
+  <%# Description - Full Width %>
+  <div data-controller="inline-validator" data-inline-validator-rules-value='{"required": true, "minLength": 2}'>
+    <label class="form-label">Description</label>
+    <%= f.text_field :description,
+        placeholder: "e.g., Monthly Rent, Paycheck, Savings Transfer",
+        class: "form-input",
+        data: {
+          inline_validator_target: "field",
+          action: "input->inline-validator#validate blur->inline-validator#validateNow"
+        } %>
+    <div class="flex items-center justify-between mt-1.5">
+      <p data-inline-validator-target="error" class="form-error hidden"></p>
+      <p data-inline-validator-target="success" class="text-sm text-success-600 hidden flex items-center gap-1">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+        </svg>
+        Looks good
+      </p>
+    </div>
+  </div>
+
+  <%# Type Selector - Segmented Buttons %>
+  <div data-controller="type-selector conditional-fields"
+       data-conditional-fields-show-when-value='{"transfer": ["destination_account"]}'>
+
+    <label class="form-label mb-3">Transaction Type</label>
+    <%= f.hidden_field :rule_type, data: { type_selector_target: "input", conditional_fields_target: "trigger", action: "change->conditional-fields#toggle" } %>
+
+    <%# Pill Toggle Container %>
+    <div class="inline-flex items-center rounded-xl bg-neutral-100 p-1.5 mb-6">
+      <button type="button"
+              data-type-selector-target="button"
+              data-value="income"
+              data-action="click->type-selector#select"
+              class="px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-transparent text-neutral-500 hover:text-neutral-700">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+        </svg>
+        Income
+      </button>
+
+      <button type="button"
+              data-type-selector-target="button"
+              data-value="expense"
+              data-action="click->type-selector#select"
+              class="px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-transparent text-neutral-500 hover:text-neutral-700">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M20 12H4"/>
+        </svg>
+        Expense
+      </button>
+
+      <button type="button"
+              data-type-selector-target="button"
+              data-value="transfer"
+              data-action="click->type-selector#select"
+              class="px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-transparent text-neutral-500 hover:text-neutral-700">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+        </svg>
+        Transfer
+      </button>
+    </div>
+
+    <%# Two Column Grid %>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-6">
+      <%# Account %>
+      <div>
+        <label class="form-label">Account</label>
+        <%= f.collection_select :account_id, @accounts, :id, :name, {}, class: "form-select" %>
+      </div>
+
+      <%# Amount with $ prefix %>
+      <div data-controller="amount-formatter">
+        <label class="form-label">Amount</label>
+        <div class="relative" data-type-selector-target="amountWrapper">
+          <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-mono font-semibold text-neutral-400 transition-colors duration-200" data-amount-prefix>$</span>
+          <%= f.number_field :amount,
+              step: 0.01,
+              min: 0.01,
+              placeholder: "0.00",
+              value: (sprintf('%.2f', recurring_rule.amount.to_f) if recurring_rule.amount.present?),
+              class: "form-input pl-10 font-mono text-lg tabular-nums",
+              data: {
+                amount_formatter_target: "input",
+                action: "input->amount-formatter#format blur->amount-formatter#formatOnBlur"
+              } %>
+        </div>
+      </div>
+
+      <%# Destination Account (conditional for transfers) %>
+      <div data-conditional-fields-target="conditional"
+           data-field="destination_account"
+           class="transition-all duration-300 ease-out overflow-hidden lg:col-span-2">
+        <div class="bg-primary-50 rounded-xl p-4 border border-primary-100">
+          <label class="form-label text-primary-700">Destination Account</label>
+          <%= f.collection_select :destination_account_id, @accounts, :id, :name,
+              { include_blank: "Select destination account..." },
+              class: "form-select bg-white" %>
+          <p class="text-sm text-primary-600 mt-1.5">Where the money will be transferred to</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <%# Schedule Section %>
+  <div class="border-t border-neutral-200 pt-8" data-controller="frequency-fields">
+    <h3 class="text-base font-display font-semibold text-neutral-900 mb-6 flex items-center gap-2">
+      <svg class="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+      </svg>
+      Schedule
+    </h3>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-6">
+      <%# Frequency %>
+      <div>
+        <label class="form-label">Frequency</label>
+        <%= f.select :frequency, [
+          ["Daily", "daily"],
+          ["Weekly", "weekly"],
+          ["Bi-weekly (every 2 weeks)", "biweekly"],
+          ["Semi-monthly (1st and 15th)", "semimonthly"],
+          ["Monthly", "monthly"],
+          ["Monthly (last day)", "monthly_last"],
+          ["Quarterly (every 3 months)", "quarterly"],
+          ["Bi-yearly (every 6 months)", "biyearly"],
+          ["Yearly", "yearly"]
+        ], {}, class: "form-select", data: { frequency_fields_target: "frequency", action: "change->frequency-fields#toggle" } %>
+      </div>
+
+      <%# Anchor Date with shortcuts %>
+      <div data-controller="date-helper">
+        <label class="form-label">Start Date</label>
+        <%= f.date_field :anchor_date,
+            class: "form-input",
+            data: {
+              date_helper_target: "input",
+              action: "focus->date-helper#showShortcuts blur->date-helper#hideShortcuts"
+            } %>
+        <div data-date-helper-target="shortcuts" class="flex flex-wrap gap-2 mt-2 transition-all duration-200">
+          <button type="button" class="text-xs px-2.5 py-1 rounded-md bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors"
+                  data-action="click->date-helper#setDate" data-date="today">Today</button>
+          <button type="button" class="text-xs px-2.5 py-1 rounded-md bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors"
+                  data-action="click->date-helper#setDate" data-date="first-of-month">1st of Month</button>
+          <button type="button" class="text-xs px-2.5 py-1 rounded-md bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors"
+                  data-action="click->date-helper#setDate" data-date="next-week">Next Week</button>
+        </div>
+        <p class="form-hint mt-2">Reference date for calculating occurrences</p>
+      </div>
+
+      <%# Day of Month (only for monthly, semimonthly) %>
+      <div data-frequency-fields-target="dayOfMonth" class="transition-opacity duration-200">
+        <label class="form-label">Day of Month</label>
+        <%= f.number_field :day_of_month, min: 1, max: 31, placeholder: "e.g., 15", class: "form-input" %>
+      </div>
+
+      <%# Day of Week (only for weekly) %>
+      <div data-frequency-fields-target="dayOfWeek" class="transition-opacity duration-200">
+        <label class="form-label">Day of Week</label>
+        <%= f.select :day_of_week, [
+          ["Not specified", nil],
+          ["Sunday", 0],
+          ["Monday", 1],
+          ["Tuesday", 2],
+          ["Wednesday", 3],
+          ["Thursday", 4],
+          ["Friday", 5],
+          ["Saturday", 6]
+        ], {}, class: "form-select" %>
+      </div>
+    </div>
+  </div>
+
+  <%# Options Section with Toggle Switches %>
+  <div class="border-t border-neutral-200 pt-8">
+    <h3 class="text-base font-display font-semibold text-neutral-900 mb-6 flex items-center gap-2">
+      <svg class="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+      </svg>
+      Options
+    </h3>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      <%# Generate as Estimated Toggle %>
+      <div class="flex items-center justify-between p-4 bg-neutral-50 rounded-xl">
+        <div class="flex-1 pr-4">
+          <span class="block text-sm font-medium text-neutral-900">Generate as Estimated</span>
+          <span class="block text-sm text-neutral-500 mt-0.5">Transactions start as estimates until confirmed</span>
+        </div>
+        <label class="toggle">
+          <%= f.check_box :is_estimated, class: "sr-only" %>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <%# Active Toggle %>
+      <div class="flex items-center justify-between p-4 bg-neutral-50 rounded-xl">
+        <div class="flex-1 pr-4">
+          <span class="block text-sm font-medium text-neutral-900">Active Rule</span>
+          <span class="block text-sm text-neutral-500 mt-0.5">Generate transactions automatically</span>
+        </div>
+        <label class="toggle">
+          <%= f.check_box :active, class: "sr-only" %>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <%# Form Actions %>
+  <div class="flex items-center justify-end gap-3 pt-6 border-t border-neutral-200">
+    <%= link_to "Cancel", recurring_rules_path, class: "btn-secondary" %>
+    <%= f.submit recurring_rule.persisted? ? "Update Rule" : "Create Rule", class: "btn-primary cursor-pointer" %>
+  </div>
+<% end %>

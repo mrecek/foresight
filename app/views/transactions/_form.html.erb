@@ -1,0 +1,138 @@
+<%= form_with model: transaction, class: "space-y-8" do |f| %>
+  <%# Error Alert %>
+  <% if transaction.errors.any? %>
+    <div class="alert-danger">
+      <svg class="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+      </svg>
+      <div class="flex-1">
+        <h3 class="font-semibold mb-1">Please fix the following errors:</h3>
+        <ul class="space-y-0.5 text-sm">
+          <% transaction.errors.full_messages.each do |message| %>
+            <li class="flex items-center gap-1.5">
+              <span class="w-1 h-1 rounded-full bg-current opacity-60"></span>
+              <%= message %>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+    </div>
+  <% end %>
+
+  <%# Description - Full Width %>
+  <div data-controller="inline-validator" data-inline-validator-rules-value='{"required": true, "minLength": 2}'>
+    <label class="form-label">Description</label>
+    <%= f.text_field :description,
+        placeholder: "e.g., Grocery shopping, Monthly salary, Electric bill",
+        class: "form-input",
+        data: {
+          inline_validator_target: "field",
+          action: "input->inline-validator#validate blur->inline-validator#validateNow"
+        } %>
+    <div class="flex items-center justify-between mt-1.5">
+      <p data-inline-validator-target="error" class="form-error hidden"></p>
+      <p data-inline-validator-target="success" class="text-sm text-success-600 hidden flex items-center gap-1">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+        </svg>
+        Looks good
+      </p>
+    </div>
+  </div>
+
+  <%# Smart Amount Section %>
+  <% initial_type = transaction.amount.to_f < 0 ? "expense" : "income" %>
+  <div data-controller="smart-amount" data-smart-amount-type-value="<%= transaction.persisted? ? initial_type : 'expense' %>">
+
+    <label class="form-label mb-3">Transaction Type & Amount</label>
+
+    <%# Type Selector Buttons - Pill Toggle %>
+    <div class="inline-flex items-center rounded-xl bg-neutral-100 p-1.5 mb-4">
+      <button type="button"
+              data-smart-amount-target="typeButton"
+              data-type="income"
+              data-action="click->smart-amount#selectType"
+              class="px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-transparent text-neutral-500 hover:text-neutral-700">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+        </svg>
+        Income
+      </button>
+
+      <button type="button"
+              data-smart-amount-target="typeButton"
+              data-type="expense"
+              data-action="click->smart-amount#selectType"
+              class="px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-danger-500 text-white shadow-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M20 12H4"/>
+        </svg>
+        Expense
+      </button>
+    </div>
+
+    <%# Two Column Grid %>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-6">
+      <%# Amount Input %>
+      <div>
+        <label class="form-label">Amount</label>
+        <div class="relative" data-smart-amount-target="wrapper">
+          <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-mono font-semibold text-danger-600 transition-colors duration-200"
+                data-smart-amount-target="prefix">$</span>
+          <%# Hidden field stores the actual signed value %>
+          <%= f.hidden_field :amount, data: { smart_amount_target: "hiddenInput" } %>
+          <%# Display field always shows positive number %>
+          <input type="number"
+                 step="0.01"
+                 min="0.01"
+                 placeholder="0.00"
+                 value="<%= sprintf('%.2f', transaction.amount.to_f.abs) if transaction.amount.present? %>"
+                 class="form-input pl-10 font-mono text-lg tabular-nums"
+                 data-smart-amount-target="input"
+                 data-action="input->smart-amount#updateAmount blur->smart-amount#formatOnBlur">
+        </div>
+      </div>
+
+      <%# Account %>
+      <div>
+        <label class="form-label">Account</label>
+        <%= f.collection_select :account_id, @accounts, :id, :name, {}, class: "form-select" %>
+      </div>
+
+      <%# Date with shortcuts %>
+      <div data-controller="date-helper">
+        <label class="form-label">Date</label>
+        <%= f.date_field :date,
+            class: "form-input",
+            data: {
+              date_helper_target: "input",
+              action: "focus->date-helper#showShortcuts blur->date-helper#hideShortcuts"
+            } %>
+        <div data-date-helper-target="shortcuts" class="flex flex-wrap gap-2 mt-2 transition-all duration-200">
+          <button type="button" class="text-xs px-2.5 py-1 rounded-md bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors"
+                  data-action="click->date-helper#setDate" data-date="today">Today</button>
+          <button type="button" class="text-xs px-2.5 py-1 rounded-md bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors"
+                  data-action="click->date-helper#setDate" data-date="yesterday">Yesterday</button>
+          <button type="button" class="text-xs px-2.5 py-1 rounded-md bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors"
+                  data-action="click->date-helper#setDate" data-date="tomorrow">Tomorrow</button>
+        </div>
+      </div>
+
+      <%# Status %>
+      <div>
+        <label class="form-label">Status</label>
+        <%= f.select :status, [
+          ["Estimated", "estimated"],
+          ["Actual", "actual"]
+        ], {}, class: "form-select" %>
+        <p class="form-hint">Estimated transactions are projections; actual are confirmed</p>
+      </div>
+    </div>
+  </div>
+
+  <%# Form Actions %>
+  <div class="flex items-center justify-end gap-3 pt-6 border-t border-neutral-200">
+    <%= link_to "Cancel", transactions_path, class: "btn-secondary" %>
+    <%= f.submit transaction.persisted? ? "Update Transaction" : "Create Transaction", class: "btn-primary cursor-pointer" %>
+  </div>
+<% end %>

@@ -1,0 +1,140 @@
+<div class="space-y-6">
+  <%# Page Header %>
+  <div class="flex justify-between items-center">
+    <div>
+      <h1 class="text-2xl font-display font-bold text-neutral-900">Transactions</h1>
+      <p class="text-sm text-neutral-500 mt-1">View and manage your transaction history</p>
+    </div>
+    <%= link_to new_transaction_path, class: "btn-primary" do %>
+      <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+      </svg>
+      New Transaction
+    <% end %>
+  </div>
+
+  <%# Filters %>
+  <div class="card p-4">
+    <%= form_with url: transactions_path, method: :get, class: "flex items-center gap-4" do %>
+      <div class="flex-1 max-w-xs">
+        <label class="form-label">Filter by Account</label>
+        <select name="account_id" onchange="this.form.submit()" class="form-select">
+          <option value="">All Accounts</option>
+          <% @accounts.each do |account| %>
+            <option value="<%= account.id %>" <%= 'selected' if @selected_account_id == account.id.to_s %>><%= account.name %></option>
+          <% end %>
+        </select>
+      </div>
+      <div class="pt-6">
+        <%= badge "#{@settings.default_view_months} months", variant: :neutral %>
+        <span class="text-sm text-neutral-500 ml-1">default view</span>
+      </div>
+    <% end %>
+  </div>
+
+  <%# Transactions Table %>
+  <div class="card overflow-hidden">
+    <div class="table-container border-0">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Date</th>
+            <th>Description</th>
+            <th>Account</th>
+            <th class="text-right">Amount</th>
+            <th class="text-right">Balance</th>
+            <th class="text-right w-32">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% running_balances = {} %>
+          <% @accounts.each { |a| running_balances[a.id] = a.current_balance } %>
+          <% @transactions.each do |txn| %>
+            <% running_balances[txn.account_id] += txn.amount %>
+            <tr class="<%= txn.estimated? ? 'bg-warning-50/30' : '' %>">
+              <%# Status %>
+              <td>
+                <% if txn.estimated? %>
+                  <%= badge "Estimated", variant: :warning %>
+                <% else %>
+                  <%= badge "Actual", variant: :success %>
+                <% end %>
+              </td>
+
+              <%# Date %>
+              <td class="text-neutral-900">
+                <%= txn.date.strftime("%b %d, %Y") %>
+              </td>
+
+              <%# Description %>
+              <td>
+                <div class="font-medium text-neutral-900"><%= txn.description %></div>
+                <% if txn.recurring_rule %>
+                  <div class="text-xs text-neutral-400 flex items-center gap-1">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    <%= txn.recurring_rule.frequency.titleize %>
+                  </div>
+                <% else %>
+                  <div class="text-xs text-neutral-400">One-time</div>
+                <% end %>
+              </td>
+
+              <%# Account %>
+              <td class="text-neutral-600">
+                <%= txn.account.name %>
+              </td>
+
+              <%# Amount %>
+              <td class="text-right">
+                <%= format_money(txn.amount) %>
+              </td>
+
+              <%# Running Balance %>
+              <td class="text-right">
+                <% balance = running_balances[txn.account_id] %>
+                <span class="font-mono tabular-nums <%= balance >= 0 ? 'text-neutral-900' : 'text-danger-600 font-semibold' %>">
+                  $<%= money_amount(balance) %>
+                </span>
+              </td>
+
+              <%# Actions %>
+              <td class="text-right">
+                <div class="flex items-center justify-end gap-1">
+                  <% if txn.estimated? %>
+                    <%= icon_button icon: :check, path: confirm_actual_transaction_path(txn), title: "Mark as actual", variant: :success, data: { turbo_frame: "_top" } %>
+                  <% end %>
+                  <%= icon_button icon: :edit, path: edit_transaction_path(txn), title: "Edit transaction", variant: :primary %>
+                  <%= icon_button icon: :delete, path: transaction_path(txn), title: "Delete transaction", variant: :danger, method: :delete, data: { turbo_confirm: "Delete this transaction?" } %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <% if @transactions.empty? %>
+      <div class="px-6 py-12 text-center">
+        <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-neutral-100 flex items-center justify-center">
+          <svg class="w-6 h-6 text-neutral-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+          </svg>
+        </div>
+        <h3 class="text-sm font-medium text-neutral-900 mb-1">No transactions found</h3>
+        <p class="text-sm text-neutral-500 mb-4">
+          <% if @selected_account_id.present? %>
+            No transactions for this account in the selected period.
+          <% else %>
+            Get started by creating a transaction or setting up recurring rules.
+          <% end %>
+        </p>
+        <%= link_to new_transaction_path, class: "btn-primary btn-sm" do %>
+          Add Transaction
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>

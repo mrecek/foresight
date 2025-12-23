@@ -1,0 +1,83 @@
+<div class="max-w-lg mx-auto">
+  <div class="mb-8">
+    <%= link_to :back, class: "inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-700 transition-colors" do %>
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+      </svg>
+      Back
+    <% end %>
+    <h1 class="text-2xl font-display font-bold text-neutral-900 mt-2">Mark as Actual</h1>
+    <p class="text-neutral-500 mt-1">Confirm the actual amount for this transaction</p>
+  </div>
+
+  <div class="card p-8">
+    <%# Transaction Info %>
+    <div class="mb-6">
+      <div class="text-sm text-neutral-500">Transaction</div>
+      <div class="text-lg font-semibold text-neutral-900"><%= @transaction.description %></div>
+      <div class="text-sm text-neutral-500"><%= @transaction.account.name %> · <%= @transaction.date.strftime("%B %d, %Y") %></div>
+    </div>
+
+    <%# Current Estimated Amount %>
+    <div class="mb-8 p-4 bg-warning-50 rounded-xl border border-warning-100">
+      <div class="text-sm font-medium text-warning-700">Current estimated amount</div>
+      <div class="text-2xl font-display font-bold mt-1 <%= @transaction.amount >= 0 ? 'text-success-600' : 'text-danger-600' %>">
+        <%= @transaction.formatted_amount %>
+      </div>
+    </div>
+
+    <% is_expense = @transaction.amount < 0 %>
+
+    <%= form_with url: mark_actual_transaction_path(@transaction), method: :patch, class: "space-y-6" do |f| %>
+      <%# Type Indicator (read-only) %>
+      <div>
+        <label class="form-label mb-3">Transaction Type</label>
+        <div class="inline-flex items-center rounded-xl bg-neutral-100 p-1.5">
+          <span class="px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2
+                       <%= is_expense ? 'bg-danger-500 text-white shadow-sm' : 'bg-transparent text-neutral-400' %>">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M20 12H4"/>
+            </svg>
+            Expense
+          </span>
+          <span class="px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2
+                       <%= !is_expense ? 'bg-success-500 text-white shadow-sm' : 'bg-transparent text-neutral-400' %>">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+            </svg>
+            Income
+          </span>
+        </div>
+      </div>
+
+      <%# Amount Input %>
+      <div>
+        <label class="form-label">Actual Amount</label>
+        <div class="relative">
+          <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-mono font-semibold
+                       <%= is_expense ? 'text-danger-600' : 'text-success-600' %>">$</span>
+          <input type="number"
+                 name="amount"
+                 id="amount"
+                 step="0.01"
+                 min="0.01"
+                 value="<%= sprintf('%.2f', @transaction.amount.abs) %>"
+                 class="form-input pl-10 text-lg font-mono tabular-nums"
+                 autofocus>
+          <input type="hidden" name="original_sign" value="<%= is_expense ? '-1' : '1' %>" />
+        </div>
+      </div>
+
+      <%# Actions %>
+      <div class="flex justify-end gap-3 pt-4 border-t border-neutral-200">
+        <%= link_to "Cancel", :back, class: "btn-secondary" %>
+        <button type="submit" class="btn-success cursor-pointer">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+          </svg>
+          Mark as Actual
+        </button>
+      </div>
+    <% end %>
+  </div>
+</div>

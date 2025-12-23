@@ -1,0 +1,14 @@
+#!/bin/bash -e
+
+# Use baked SECRET_KEY_BASE if not provided via environment variable.
+# This ensures sessions survive container restarts without user configuration.
+if [ -z "$SECRET_KEY_BASE" ] && [ -f /rails/.secret_key_base ]; then
+  export SECRET_KEY_BASE=$(cat /rails/.secret_key_base)
+fi
+
+# If running the rails server then create or migrate existing database
+if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
+  ./bin/rails db:prepare
+fi
+
+exec "${@}"

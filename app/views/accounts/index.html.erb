@@ -1,0 +1,88 @@
+<div class="space-y-6">
+  <%# Page Header %>
+  <div class="flex justify-between items-center">
+    <div>
+      <h1 class="text-2xl font-display font-bold text-neutral-900">Accounts</h1>
+      <p class="text-sm text-neutral-500 mt-1">Manage your financial accounts and track balances</p>
+    </div>
+    <%= link_to new_account_path, class: "btn-primary" do %>
+      <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+      </svg>
+      New Account
+    <% end %>
+  </div>
+
+  <%# Accounts Table %>
+  <div class="card overflow-hidden">
+    <div class="table-container border-0">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th class="text-right">Current Balance</th>
+            <th>Balance Date</th>
+            <th class="text-right">Projected Balance</th>
+            <th class="text-right w-32">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @accounts.each do |account| %>
+            <% projected = account.projected_balance %>
+            <tr>
+              <%# Name %>
+              <td>
+                <div class="font-medium text-neutral-900"><%= account.name %></div>
+              </td>
+
+              <%# Type %>
+              <td>
+                <%= badge account.account_type.titleize, variant: :neutral %>
+              </td>
+
+              <%# Current Balance %>
+              <td class="text-right">
+                <%= format_money(account.current_balance, show_sign: false, color: false) %>
+              </td>
+
+              <%# Balance Date %>
+              <td class="text-neutral-600">
+                <%= account.balance_date.strftime("%b %d, %Y") %>
+              </td>
+
+              <%# Projected Balance %>
+              <td class="text-right">
+                <%= format_money(projected, show_sign: false) %>
+              </td>
+
+              <%# Actions %>
+              <td class="text-right">
+                <div class="flex items-center justify-end gap-1">
+                  <%= icon_button icon: :view, path: account_path(account), title: "View account" %>
+                  <%= icon_button icon: :edit, path: edit_account_path(account), title: "Edit account", variant: :primary %>
+                  <%= icon_button icon: :delete, path: account_path(account), title: "Delete account", variant: :danger, method: :delete, data: { turbo_confirm: "Delete this account and all its transactions?" } %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <% if @accounts.empty? %>
+      <div class="px-6 py-12 text-center">
+        <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-neutral-100 flex items-center justify-center">
+          <svg class="w-6 h-6 text-neutral-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+          </svg>
+        </div>
+        <h3 class="text-sm font-medium text-neutral-900 mb-1">No accounts yet</h3>
+        <p class="text-sm text-neutral-500 mb-4">Get started by adding your first account.</p>
+        <%= link_to new_account_path, class: "btn-primary btn-sm" do %>
+          Add Account
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>

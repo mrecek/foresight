@@ -1,0 +1,90 @@
+<div class="space-y-6">
+  <div class="flex justify-between items-center">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900"><%= @recurring_rule.description %></h1>
+      <p class="text-sm text-gray-500"><%= @recurring_rule.frequency.titleize %> <%= @recurring_rule.rule_type %></p>
+    </div>
+    <div class="space-x-2">
+      <%= link_to "Edit", edit_recurring_rule_path(@recurring_rule), class: "bg-white text-gray-700 px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-50 text-sm" %>
+      <%= link_to "Back", recurring_rules_path, class: "text-gray-500 hover:text-gray-700 text-sm" %>
+    </div>
+  </div>
+
+  <!-- Rule Details -->
+  <div class="bg-white rounded-lg shadow p-6">
+    <dl class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <dt class="text-sm font-medium text-gray-500">Account</dt>
+        <dd class="mt-1 text-sm text-gray-900"><%= @recurring_rule.account.name %></dd>
+      </div>
+      <% if @recurring_rule.transfer? && @recurring_rule.destination_account %>
+        <div>
+          <dt class="text-sm font-medium text-gray-500">Destination Account</dt>
+          <dd class="mt-1 text-sm text-gray-900"><%= @recurring_rule.destination_account.name %></dd>
+        </div>
+      <% end %>
+      <div>
+        <dt class="text-sm font-medium text-gray-500">Amount</dt>
+        <dd class="mt-1 text-sm font-medium <%= @recurring_rule.income? ? 'text-green-600' : 'text-red-600' %>">
+          <%= @recurring_rule.income? ? '+' : '-' %>$<%= money_amount(@recurring_rule.amount) %>
+        </dd>
+      </div>
+      <div>
+        <dt class="text-sm font-medium text-gray-500">Frequency</dt>
+        <dd class="mt-1 text-sm text-gray-900">
+          <%= @recurring_rule.frequency.titleize %>
+          <% if @recurring_rule.day_of_month %>
+            on day <%= @recurring_rule.day_of_month %>
+          <% elsif @recurring_rule.day_of_week %>
+            on <%= Date::DAYNAMES[@recurring_rule.day_of_week] %>s
+          <% end %>
+        </dd>
+      </div>
+      <div>
+        <dt class="text-sm font-medium text-gray-500">Transaction Type</dt>
+        <dd class="mt-1 text-sm text-gray-900">
+          <% if @recurring_rule.is_estimated? %>
+            <span class="text-amber-600">Generates estimated transactions</span>
+          <% else %>
+            <span class="text-green-600">Generates actual transactions</span>
+          <% end %>
+        </dd>
+      </div>
+      <div>
+        <dt class="text-sm font-medium text-gray-500">Status</dt>
+        <dd class="mt-1">
+          <% if @recurring_rule.active? %>
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
+          <% else %>
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Inactive</span>
+          <% end %>
+        </dd>
+      </div>
+    </dl>
+  </div>
+
+  <!-- Upcoming Transactions -->
+  <div class="bg-white rounded-lg shadow">
+    <div class="px-6 py-4 border-b border-gray-200">
+      <h2 class="text-lg font-semibold text-gray-900">Next Occurrences</h2>
+    </div>
+    <ul class="divide-y divide-gray-200">
+      <% @upcoming.each do |txn| %>
+        <li class="px-6 py-4 flex justify-between items-center">
+          <div>
+            <span class="text-sm text-gray-900"><%= txn.date.strftime("%B %d, %Y") %></span>
+            <span class="text-xs text-gray-500 ml-2">(<%= distance_of_time_in_words_to_now(txn.date) %>)</span>
+          </div>
+          <span class="text-sm font-medium <%= txn.amount >= 0 ? 'text-green-600' : 'text-red-600' %>">
+            <%= txn.formatted_amount %>
+          </span>
+        </li>
+      <% end %>
+    </ul>
+    <% if @upcoming.empty? %>
+      <div class="px-6 py-8 text-center text-gray-500">
+        No upcoming transactions
+      </div>
+    <% end %>
+  </div>
+</div>
