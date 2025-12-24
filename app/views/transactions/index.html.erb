@@ -1,6 +1,6 @@
 <div class="space-y-6">
   <%# Page Header %>
-  <div class="flex justify-between items-center">
+  <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
     <div>
       <h1 class="text-2xl font-display font-bold text-neutral-900">Transactions</h1>
       <p class="text-sm text-neutral-500 mt-1">View and manage your transaction history</p>
@@ -34,7 +34,61 @@
 
   <%# Transactions Table %>
   <div class="card overflow-hidden">
-    <div class="table-container border-0">
+    <%# Mobile Transaction Cards %>
+    <div class="sm:hidden divide-y divide-neutral-200">
+      <% running_balances_mobile = {} %>
+      <% @accounts.each { |a| running_balances_mobile[a.id] = a.current_balance } %>
+      <% @transactions.each do |txn| %>
+        <% running_balances_mobile[txn.account_id] += txn.amount %>
+        <% balance = running_balances_mobile[txn.account_id] %>
+        <div class="p-4 <%= txn.estimated? ? 'bg-warning-50/30' : '' %>">
+          <%# Row 1: Status, Date, Amount %>
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-3">
+              <% if txn.estimated? %>
+                <%= badge "EST", variant: :warning %>
+              <% else %>
+                <%= badge "ACT", variant: :success %>
+              <% end %>
+              <span class="text-sm font-medium text-neutral-600"><%= txn.date.strftime("%b %d") %></span>
+            </div>
+            <span class="text-money font-semibold <%= txn.amount >= 0 ? 'text-success-600' : 'text-danger-600' %>">
+              <%= format_money(txn.amount, color: false) %>
+            </span>
+          </div>
+
+          <%# Row 2: Description + Account %>
+          <div class="mt-2">
+            <div class="font-semibold text-neutral-900"><%= txn.description %></div>
+            <div class="text-xs text-neutral-500 flex items-center gap-2 mt-0.5">
+              <span><%= txn.account.name %></span>
+              <span class="text-neutral-300">•</span>
+              <span><%= txn.recurring_rule ? txn.recurring_rule.frequency.titleize : 'One-time' %></span>
+            </div>
+          </div>
+
+          <%# Row 3: Balance and Actions %>
+          <div class="mt-3 flex items-center justify-between">
+            <div class="text-sm">
+              <span class="text-neutral-500">Bal:</span>
+              <span class="text-money font-medium <%= balance >= 0 ? 'text-neutral-900' : 'text-danger-600' %>">
+                $<%= money_amount(balance) %>
+              </span>
+            </div>
+            <div class="flex items-center gap-1">
+              <% if txn.estimated? %>
+                <%= icon_button icon: :check, path: confirm_actual_transaction_path(txn), title: "Confirm", variant: :success, data: { turbo_frame: "_top" } %>
+              <% end %>
+              <%= icon_button icon: :edit, path: edit_transaction_path(txn), title: "Edit", variant: :primary %>
+              <%= icon_button icon: :delete, path: transaction_path(txn), title: "Delete", variant: :danger, method: :delete, data: { turbo_confirm: "Delete?" } %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <%# Desktop Table %>
+    <div class="hidden sm:block table-container border-0">
       <table class="table">
         <thead>
           <tr>

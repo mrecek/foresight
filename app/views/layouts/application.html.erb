@@ -25,7 +25,7 @@
   </head>
 
   <body class="bg-neutral-50 min-h-screen antialiased">
-    <nav class="bg-white shadow-soft border-b border-neutral-200">
+    <nav class="sticky top-0 z-30 bg-white shadow-soft border-b border-neutral-200" data-controller="mobile-menu">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
           <div class="flex">
@@ -42,13 +42,49 @@
             <div class="hidden sm:ml-8 sm:flex sm:space-x-8">
               <%= link_to "Dashboard", root_path, class: current_page?(root_path) ? 'nav-link-active' : 'nav-link-inactive' %>
               <%= link_to "Accounts", accounts_path, class: current_page?(accounts_path) ? 'nav-link-active' : 'nav-link-inactive' %>
+              <%= link_to "Transactions", transactions_path, class: current_page?(transactions_path) ? 'nav-link-active' : 'nav-link-inactive' %>
               <%= link_to "Rules", recurring_rules_path, class: current_page?(recurring_rules_path) ? 'nav-link-active' : 'nav-link-inactive' %>
               <%= link_to "Settings", edit_settings_path, class: current_page?(edit_settings_path) ? 'nav-link-active' : 'nav-link-inactive' %>
             </div>
           </div>
-          <div class="flex items-center">
+          <div class="flex items-center gap-2">
+            <!-- Mobile menu button -->
+            <button
+              type="button"
+              class="sm:hidden inline-flex items-center justify-center p-2 rounded-lg text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 transition-colors"
+              data-mobile-menu-target="button"
+              data-action="click->mobile-menu#toggle"
+              aria-controls="mobile-menu"
+              aria-expanded="false"
+            >
+              <span class="sr-only">Open main menu</span>
+              <!-- Hamburger icon -->
+              <svg data-mobile-menu-target="iconOpen" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+              </svg>
+              <!-- Close icon -->
+              <svg data-mobile-menu-target="iconClose" class="hidden h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
             <%= button_to "Logout", logout_path, method: :delete, class: "text-sm text-neutral-500 hover:text-neutral-700 transition-colors" %>
           </div>
+        </div>
+      </div>
+
+      <!-- Mobile menu panel -->
+      <div
+        id="mobile-menu"
+        class="sm:hidden hidden"
+        data-mobile-menu-target="menu"
+      >
+        <div class="px-4 pt-2 pb-3 space-y-1 border-t border-neutral-200 bg-white">
+          <%= link_to "Dashboard", root_path, class: current_page?(root_path) ? 'mobile-nav-link-active' : 'mobile-nav-link-inactive' %>
+          <%= link_to "Accounts", accounts_path, class: current_page?(accounts_path) ? 'mobile-nav-link-active' : 'mobile-nav-link-inactive' %>
+          <%= link_to "Transactions", transactions_path, class: current_page?(transactions_path) ? 'mobile-nav-link-active' : 'mobile-nav-link-inactive' %>
+          <%= link_to "Rules", recurring_rules_path, class: current_page?(recurring_rules_path) ? 'mobile-nav-link-active' : 'mobile-nav-link-inactive' %>
+          <%= link_to "Settings", edit_settings_path, class: current_page?(edit_settings_path) ? 'mobile-nav-link-active' : 'mobile-nav-link-inactive' %>
         </div>
       </div>
     </nav>

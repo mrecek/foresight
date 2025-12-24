@@ -4,15 +4,80 @@
     <% @accounts.each do |account| %>
       <% is_selected = @selected_account&.id == account.id %>
       <% status = account.projection_status %>
+      <%
+        # Enhanced calculation for lowest balance tracking
+        lowest_balance = account.lowest_projected_balance
+        lowest_date = nil           # When it FIRST crosses threshold
+        most_negative_date = nil    # When it reaches the LOWEST point
+        
+        if status != :normal
+          running_balance = account.current_balance
+          most_negative_balance = running_balance
+          
+          account.transactions.where("date >= ?", account.balance_date).order(:date).each do |txn|
+            running_balance += txn.amount
+            
+            # Track first time below threshold
+            if lowest_date.nil? && ((status == :danger && running_balance < 0) || (status == :warning && running_balance < account.warning_threshold))
+              lowest_date = txn.date
+            end
+            
+            # Track the most negative point
+            if status == :danger && running_balance <= most_negative_balance
+              most_negative_balance = running_balance
+              most_negative_date = txn.date
+            end
+          end
+        end
+      %>
       <%= link_to root_path(account_id: account.id, months: @months_ahead),
-          class: "relative block p-5 rounded-xl border-2 transition-all min-w-[220px] group #{is_selected ? 'border-primary-500 bg-white shadow-soft-lg' : 'card-hover border-transparent'}" do %>
-        <!-- Status indicator dot -->
+          class: "relative block p-5 rounded-xl border-2 transition-all min-w-[180px] sm:min-w-[220px] group #{is_selected ? 'border-primary-500 bg-white shadow-soft-lg' : 'card-hover border-transparent'}" do %>
+        <!-- Status indicator dot with tooltip -->
         <% if status != :normal %>
-          <span class="absolute top-3 right-3 <%= status == :danger ? 'status-dot-danger' : 'status-dot-warning' %> ring-2 ring-white"></span>
+          <div class="absolute top-3 right-3 group/tooltip">
+            <span class="<%= status == :danger ? 'status-dot-danger' : 'status-dot-warning' %> ring-2 ring-white cursor-help"></span>
+            <!-- Tooltip -->
+            <div class="absolute left-1/2 translate-x-[-20%] top-full mt-2 w-64 max-w-[calc(100vw-2rem)] bg-neutral-900 text-white text-xs rounded-lg p-3 opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-opacity duration-200 z-30 shadow-lg">
+              <div class="font-semibold mb-2 flex items-center gap-2">
+                <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                </svg>
+                <%= status == :danger ? 'Negative Balance Warning' : 'Low Balance Warning' %>
+              </div>
+              
+              <div class="text-neutral-200 leading-relaxed">
+                <% if status == :danger %>
+                  <% if most_negative_date && lowest_date != most_negative_date && (most_negative_date - lowest_date).to_i > 3 %>
+                    <%# Case 1: Different dates, significant gap %>
+                    <div>Goes negative: <%= lowest_date.strftime('%b %d') %></div>
+                    <div class="flex items-start gap-1 mt-1">
+                      <span class="text-danger-400 text-base leading-none">↓</span>
+                      <span>Lowest point: $<%= money_amount(lowest_balance) %> (<%= most_negative_date.strftime('%b %d') %>)</span>
+                    </div>
+                  <% elsif most_negative_date && lowest_date != most_negative_date %>
+                    <%# Case 2: Different dates but close together (≤3 days) %>
+                    <div>Goes negative on <%= lowest_date.strftime('%b %d') %></div>
+                    <div class="text-neutral-300 text-[11px] mt-1">Reaches $<%= money_amount(lowest_balance) %> shortly after</div>
+                  <% else %>
+                    <%# Case 3: Same date or most_negative_date not available %>
+                    <div>Goes negative: <%= lowest_date.strftime('%b %d') %></div>
+                    <div class="text-neutral-300 mt-1">Balance reaches: $<%= money_amount(lowest_balance) %></div>
+                  <% end %>
+                <% else %>
+                  <%# Warning state (below threshold but not negative) %>
+                  This account will fall below your warning threshold ($<%= money_amount(account.warning_threshold) %>)<%= lowest_date ? " on #{lowest_date.strftime('%b %d')}" : '' %>.
+                <% end %>
+              </div>
+              
+              <!-- Arrow -->
+              <div class="absolute left-[18%] bottom-full w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-neutral-900"></div>
+            </div>
+          </div>
         <% end %>
 
         <div class="text-xs font-semibold text-neutral-500 uppercase tracking-wider"><%= account.account_type %></div>
         <div class="text-base font-display font-bold text-neutral-900 mt-1"><%= account.name %></div>
+        
         <div class="mt-3 flex items-center gap-2.5 text-sm">
           <span class="text-money text-neutral-600">$<%= money_amount(account.current_balance) %></span>
           <svg class="w-4 h-4 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -23,6 +88,18 @@
             $<%= money_amount(projected) %>
           </span>
         </div>
+        
+        <!-- Show warning banner for negative balance (moved below balance) -->
+        <% if status == :danger %>
+          <div class="mt-2 px-2 py-1 bg-danger-50 border border-danger-200 rounded-md">
+            <div class="text-xs font-medium text-danger-700 flex items-center gap-1">
+              <svg class="w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+              </svg>
+              Will go negative
+            </div>
+          </div>
+        <% end %>
       <% end %>
     <% end %>
 
@@ -42,9 +119,9 @@
   <% if @selected_account %>
     <!-- Transactions List -->
     <%= turbo_frame_tag "transactions", data: { turbo_action: "advance" } do %>
-    <div class="card flex flex-col" style="height: calc(100vh - 250px); min-height: 400px;">
+    <div class="card">
       <!-- Fixed Header with Reconcile Row -->
-      <div class="flex-shrink-0 border-b border-neutral-200 bg-white rounded-t-xl">
+      <div class="border-b border-neutral-200 bg-white rounded-t-xl">
         <!-- Title Row -->
         <div class="px-6 py-5 flex justify-between items-center">
           <div>
@@ -150,20 +227,100 @@
         </div>
       </div>
 
-      <!-- Scrollable Table Area -->
-      <div class="flex-1 overflow-auto">
-        <table class="table w-full">
-          <thead class="sticky top-0 z-10 bg-white shadow-sm">
+      <!-- Table Area -->
+      <div>
+        <!-- Mobile Transaction Cards -->
+        <div class="sm:hidden divide-y divide-neutral-200">
+          <% prev_date_mobile = nil %>
+          <% today_marker_shown_mobile = false %>
+          <% @transactions_with_balances.each do |item| %>
+            <% txn = item[:transaction] %>
+            <% balance = item[:running_balance] %>
+            <% is_past = txn.date < Date.current %>
+            <% needs_attention = txn.estimated? && txn.date <= @attention_threshold %>
+            <% balance_status = balance < 0 ? :danger : (balance < @selected_account.warning_threshold ? :warning : :normal) %>
+
+            <%# Today marker %>
+            <% if !today_marker_shown_mobile && prev_date_mobile && prev_date_mobile < Date.current && txn.date >= Date.current %>
+              <% today_marker_shown_mobile = true %>
+              <div class="py-2 bg-primary-50/50 text-center">
+                <span class="inline-flex items-center gap-2 text-sm font-medium text-primary-600">
+                  <span class="w-8 h-px bg-primary-300"></span>
+                  Today
+                  <span class="w-8 h-px bg-primary-300"></span>
+                </span>
+              </div>
+            <% end %>
+
+            <%# Also show marker if first transaction is today or future but there are no past transactions %>
+            <% if !today_marker_shown_mobile && !prev_date_mobile && txn.date >= Date.current && @selected_account.balance_date < Date.current %>
+              <% today_marker_shown_mobile = true %>
+              <div class="py-2 bg-primary-50/50 text-center">
+                <span class="inline-flex items-center gap-2 text-sm font-medium text-primary-600">
+                  <span class="w-8 h-px bg-primary-300"></span>
+                  Today
+                  <span class="w-8 h-px bg-primary-300"></span>
+                </span>
+              </div>
+            <% end %>
+
+            <div class="p-4 <%= needs_attention ? 'border-l-4 border-l-warning-400' : '' %> <%= is_past ? 'opacity-60' : '' %>" data-transaction-date="<%= txn.date.to_s %>">
+              <!-- Row 1: Status, Date, Amount -->
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-3">
+                  <% if txn.estimated? %>
+                    <%= badge "EST", variant: :warning %>
+                  <% else %>
+                    <%= badge "ACT", variant: :success %>
+                  <% end %>
+                  <span class="text-sm font-medium text-neutral-600"><%= txn.date.strftime("%b %d") %></span>
+                </div>
+                <span class="text-money font-semibold <%= txn.amount >= 0 ? 'text-success-600' : 'text-danger-600' %>">
+                  <%= txn.formatted_amount %>
+                </span>
+              </div>
+
+              <!-- Row 2: Description -->
+              <div class="mt-2">
+                <div class="font-semibold text-neutral-900"><%= txn.description %></div>
+                <% if txn.recurring_rule %>
+                  <span class="text-xs text-neutral-500"><%= txn.recurring_rule.frequency.titleize %></span>
+                <% end %>
+              </div>
+
+              <!-- Row 3: Balance and Actions -->
+              <div class="mt-3 flex items-center justify-between">
+                <div class="text-sm">
+                  <span class="text-neutral-500">Bal:</span>
+                  <span class="text-money font-medium <%= balance_status == :danger ? 'text-danger-600' : (balance_status == :warning ? 'text-warning-700' : 'text-neutral-900') %>">
+                    $<%= money_amount(balance) %>
+                  </span>
+                </div>
+                <div class="flex items-center gap-1">
+                  <% if txn.estimated? %>
+                    <%= icon_button icon: :check, path: confirm_actual_transaction_path(txn), title: "Confirm", variant: :success, data: { turbo_frame: "_top" } %>
+                  <% end %>
+                  <%= icon_button icon: :edit, path: edit_transaction_path(txn), title: "Edit", variant: :primary, data: { turbo_frame: "_top" } %>
+                  <%= icon_button icon: :delete, path: transaction_path(txn), title: "Delete", variant: :danger, method: :delete, data: { turbo_confirm: "Delete?" } %>
+                </div>
+              </div>
+            </div>
+            <% prev_date_mobile = txn.date %>
+          <% end %>
+        </div>
+
+        <table class="hidden sm:table table w-full">
+          <thead class="sticky top-16 z-20 bg-white shadow-sm">
             <tr>
               <th class="w-20 bg-white">Status</th>
               <th class="bg-white">Date</th>
               <th class="bg-white">Description</th>
               <th class="text-right bg-white">Amount</th>
               <th class="text-right bg-white">Balance</th>
-              <th class="text-right w-32 bg-white">Action</th>
+              <th class="text-right w-32 bg-white">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody class="relative z-0">
             <% prev_date = nil %>
             <% today_marker_shown = false %>
             <% @transactions_with_balances.each do |item| %>
@@ -233,9 +390,13 @@
                   $<%= money_amount(balance) %>
                 </td>
                 <td class="text-right">
-                  <% if txn.estimated? %>
-                    <%= design_button "Mark Actual", confirm_actual_transaction_path(txn), variant: :ghost, size: :sm, data: { turbo_frame: "_top" } %>
-                  <% end %>
+                  <div class="flex items-center justify-end gap-1">
+                    <% if txn.estimated? %>
+                      <%= icon_button icon: :check, path: confirm_actual_transaction_path(txn), title: "Mark as actual", variant: :success, data: { turbo_frame: "_top" } %>
+                    <% end %>
+                    <%= icon_button icon: :edit, path: edit_transaction_path(txn), title: "Edit transaction", variant: :primary, data: { turbo_frame: "_top" } %>
+                    <%= icon_button icon: :delete, path: transaction_path(txn), title: "Delete transaction", variant: :danger, method: :delete, data: { turbo_confirm: "Delete this transaction?" } %>
+                  </div>
                 </td>
               </tr>
               <% prev_date = txn.date %>
@@ -253,8 +414,8 @@
         <% end %>
       </div>
 
-      <%# Time period chips - Fixed Footer %>
-      <div class="flex-shrink-0 px-6 py-4 border-t border-neutral-200 bg-white rounded-b-xl">
+      <%# Time period chips %>
+      <div class="px-6 py-4 border-t border-neutral-200 bg-white rounded-b-xl">
         <div class="flex items-center justify-center gap-2">
           <%# Primary chip options %>
           <% [1, 3, 6].each do |months| %>
