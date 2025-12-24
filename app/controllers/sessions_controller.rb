@@ -13,7 +13,7 @@ class SessionsController < ApplicationController
       session[:authenticated] = true
       session[:last_seen_at] = Time.current
       AuditLog.log_login_success(request)
-      redirect_to root_path, notice: "Welcome back!"
+      redirect_to root_path
     else
       AuditLog.log_login_failure(request, username: params[:username])
       flash.now[:alert] = "Invalid username or password"
@@ -23,7 +23,7 @@ class SessionsController < ApplicationController
 
   def destroy
     reset_session
-    redirect_to login_path, notice: "You have been logged out"
+    redirect_to login_path, flash: { info: "You've been signed out." }
   end
 
   private

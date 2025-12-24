@@ -1,82 +1,125 @@
 <div class="space-y-6">
-  <div class="flex justify-between items-center">
+  <%# Page Header %>
+  <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
     <div>
-      <h1 class="text-2xl font-bold text-gray-900"><%= @account.name %></h1>
-      <p class="text-sm text-gray-500"><%= @account.account_type.titleize %> Account</p>
+      <h1 class="text-2xl font-display font-bold text-neutral-900"><%= @account.name %></h1>
+      <p class="text-sm text-neutral-500"><%= @account.account_type.titleize %> Account</p>
     </div>
-    <div class="space-x-2">
-      <%= link_to "Edit", edit_account_path(@account), class: "bg-white text-gray-700 px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-50 text-sm" %>
-      <%= link_to "Back", accounts_path, class: "text-gray-500 hover:text-gray-700 text-sm" %>
+    <div class="flex items-center gap-2">
+      <%= link_to "Edit", edit_account_path(@account), class: "btn-secondary btn-sm" %>
+      <%= link_to "Back", accounts_path, class: "text-neutral-500 hover:text-neutral-700 text-sm" %>
     </div>
   </div>
 
-  <!-- Balance Summary -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-    <div class="bg-white rounded-lg shadow p-6">
-      <p class="text-sm font-medium text-gray-500">Current Balance</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">$<%= money_amount(@account.current_balance) %></p>
-      <p class="text-xs text-gray-400 mt-1">as of <%= @account.balance_date.strftime("%b %d, %Y") %></p>
+  <%# Balance Summary %>
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div class="card p-6">
+      <p class="text-sm font-medium text-neutral-500">Current Balance</p>
+      <p class="mt-2 text-3xl font-display font-bold text-neutral-900">$<%= money_amount(@account.current_balance) %></p>
+      <p class="text-xs text-neutral-400 mt-1">as of <%= @account.balance_date.strftime("%b %d, %Y") %></p>
     </div>
-    <div class="bg-white rounded-lg shadow p-6">
-      <p class="text-sm font-medium text-gray-500">Projected Balance (<%= @settings.default_view_months %>mo)</p>
+    <div class="card p-6">
+      <p class="text-sm font-medium text-neutral-500">Projected Balance (<%= @settings.default_view_months %>mo)</p>
       <% projected = @account.projected_balance %>
-      <p class="mt-2 text-3xl font-bold <%= projected >= 0 ? 'text-green-600' : 'text-red-600' %>">
+      <p class="mt-2 text-3xl font-display font-bold <%= projected >= 0 ? 'text-success-600' : 'text-danger-600' %>">
         $<%= money_amount(projected) %>
       </p>
-      <p class="text-xs text-gray-400 mt-1"><%= (projected - @account.current_balance) >= 0 ? '+' : '' %>$<%= money_amount((projected - @account.current_balance).abs) %> change</p>
+      <p class="text-xs text-neutral-400 mt-1"><%= (projected - @account.current_balance) >= 0 ? '+' : '' %>$<%= money_amount((projected - @account.current_balance).abs) %> change</p>
     </div>
-    <div class="bg-white rounded-lg shadow p-6">
-      <p class="text-sm font-medium text-gray-500">Transactions</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900"><%= @transactions.count %></p>
-      <p class="text-xs text-gray-400 mt-1">in projection window</p>
+    <div class="card p-6">
+      <p class="text-sm font-medium text-neutral-500">Transactions</p>
+      <p class="mt-2 text-3xl font-display font-bold text-neutral-900"><%= @transactions.count %></p>
+      <p class="text-xs text-neutral-400 mt-1">in projection window</p>
     </div>
   </div>
 
-  <!-- Transaction List -->
-  <div class="bg-white rounded-lg shadow overflow-hidden">
-    <div class="px-6 py-4 border-b border-gray-200">
-      <h2 class="text-lg font-semibold text-gray-900">Transactions</h2>
+  <%# Transaction List %>
+  <div class="card overflow-hidden">
+    <div class="px-6 py-4 border-b border-neutral-200">
+      <h2 class="text-lg font-display font-semibold text-neutral-900">Transactions</h2>
     </div>
-    <table class="min-w-full divide-y divide-gray-200">
-      <thead class="bg-gray-50">
-        <tr>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-          <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-          <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
-        </tr>
-      </thead>
-      <tbody class="bg-white divide-y divide-gray-200">
-        <% running_balance = @account.current_balance %>
-        <% @transactions.each do |txn| %>
-          <% running_balance += txn.amount %>
-          <tr class="hover:bg-gray-50 <%= txn.estimated? ? 'bg-amber-50/30' : '' %>">
-            <td class="px-6 py-4 whitespace-nowrap">
+
+    <%# Mobile Transaction Cards %>
+    <div class="sm:hidden divide-y divide-neutral-200">
+      <% running_balance_mobile = @account.current_balance %>
+      <% @transactions.each do |txn| %>
+        <% running_balance_mobile += txn.amount %>
+        <div class="p-4 <%= txn.estimated? ? 'bg-warning-50/30' : '' %>">
+          <%# Row 1: Status, Date, Amount %>
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-3">
               <% if txn.estimated? %>
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">EST</span>
+                <%= badge "EST", variant: :warning %>
               <% else %>
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">ACT</span>
+                <%= badge "ACT", variant: :success %>
               <% end %>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-              <%= txn.date.strftime("%b %d, %Y") %>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-              <%= txn.description %>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-right <%= txn.amount >= 0 ? 'text-green-600' : 'text-red-600' %>">
+              <span class="text-sm font-medium text-neutral-600"><%= txn.date.strftime("%b %d") %></span>
+            </div>
+            <span class="text-money font-semibold <%= txn.amount >= 0 ? 'text-success-600' : 'text-danger-600' %>">
               <%= txn.formatted_amount %>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-right <%= running_balance >= 0 ? 'text-gray-900' : 'text-red-600 font-medium' %>">
-              $<%= money_amount(running_balance) %>
-            </td>
+            </span>
+          </div>
+
+          <%# Row 2: Description %>
+          <div class="mt-2">
+            <div class="font-semibold text-neutral-900"><%= txn.description %></div>
+          </div>
+
+          <%# Row 3: Balance %>
+          <div class="mt-2 text-sm">
+            <span class="text-neutral-500">Bal:</span>
+            <span class="text-money font-medium <%= running_balance_mobile >= 0 ? 'text-neutral-900' : 'text-danger-600' %>">
+              $<%= money_amount(running_balance_mobile) %>
+            </span>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <%# Desktop Table %>
+    <div class="hidden sm:block">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Date</th>
+            <th>Description</th>
+            <th class="text-right">Amount</th>
+            <th class="text-right">Balance</th>
           </tr>
-        <% end %>
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          <% running_balance = @account.current_balance %>
+          <% @transactions.each do |txn| %>
+            <% running_balance += txn.amount %>
+            <tr class="<%= txn.estimated? ? 'bg-warning-50/30' : '' %>">
+              <td>
+                <% if txn.estimated? %>
+                  <%= badge "EST", variant: :warning %>
+                <% else %>
+                  <%= badge "ACT", variant: :success %>
+                <% end %>
+              </td>
+              <td class="text-neutral-900">
+                <%= txn.date.strftime("%b %d, %Y") %>
+              </td>
+              <td class="text-neutral-900">
+                <%= txn.description %>
+              </td>
+              <td class="text-right">
+                <%= format_money(txn.amount) %>
+              </td>
+              <td class="text-right text-money <%= running_balance >= 0 ? 'text-neutral-900' : 'text-danger-600 font-semibold' %>">
+                $<%= money_amount(running_balance) %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
     <% if @transactions.empty? %>
-      <div class="px-6 py-8 text-center text-gray-500">
+      <div class="px-6 py-8 text-center text-neutral-500">
         No transactions for this account
       </div>
     <% end %>

@@ -48,7 +48,7 @@
     <%= f.hidden_field :rule_type, data: { type_selector_target: "input", conditional_fields_target: "trigger", action: "change->conditional-fields#toggle" } %>
 
     <%# Pill Toggle Container %>
-    <div class="inline-flex items-center rounded-xl bg-neutral-100 p-1.5 mb-6">
+    <div class="inline-flex flex-wrap items-center rounded-xl bg-neutral-100 p-1.5 mb-6">
       <button type="button"
               data-type-selector-target="button"
               data-value="income"

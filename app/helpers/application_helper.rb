@@ -104,7 +104,7 @@ module ApplicationHelper
       icon.to_s
     end
 
-    base_classes = "inline-flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-150"
+    base_classes = "inline-flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-150"
     variant_classes = case variant
     when :danger
       "text-neutral-400 hover:text-danger-600 hover:bg-danger-50"
@@ -140,7 +140,7 @@ module ApplicationHelper
       trigger = content_tag :button,
         button_content || icon_button_svg(:more),
         type: "button",
-        class: "inline-flex items-center justify-center w-8 h-8 rounded-lg text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition-all duration-150",
+        class: "inline-flex items-center justify-center w-10 h-10 rounded-lg text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition-all duration-150",
         data: { dropdown_target: "button", action: "click->dropdown#toggle" },
         "aria-expanded": "false",
         "aria-haspopup": "true"
