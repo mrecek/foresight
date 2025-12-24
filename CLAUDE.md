@@ -1,10 +1,11 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance for AI coding assistants working with this repository.
+It applies to any AI agent (Claude, Copilot, Cursor, etc.).
 
 ## GitHub Workflow
 
-For repository management (PRs, releases, CI), strictly follow the **Maintainer Workflow** defined in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+For commits and pull requests, follow the **AI Agent Workflow** in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ai-agent-workflow).
 
 ## Build & Development Commands
 
