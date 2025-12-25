@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2025_12_25_050000) do
+ActiveRecord::Schema[8.1].define(version: 2025_12_25_180416) do
   create_table "accounts", force: :cascade do |t|
     t.integer "account_type", default: 0, null: false
     t.date "balance_date", null: false
@@ -95,6 +95,7 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_25_050000) do
     t.integer "recurring_rule_id"
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.boolean "user_modified", default: false, null: false
     t.index ["account_id", "date"], name: "index_transactions_on_account_id_and_date"
     t.index ["account_id"], name: "index_transactions_on_account_id"
     t.index ["category_id"], name: "index_transactions_on_category_id"
