@@ -62,6 +62,39 @@
   --color-neutral-900: #171717;
   --color-neutral-950: #0a0a0a;
 
+  /* Category colors - organizational grouping, NOT semantic meaning */
+  --color-cat-teal-100: #ccfbf1;
+  --color-cat-teal-600: #0d9488;
+  --color-cat-teal-700: #0f766e;
+
+  --color-cat-purple-100: #f3e8ff;
+  --color-cat-purple-600: #9333ea;
+  --color-cat-purple-700: #7e22ce;
+
+  --color-cat-rose-100: #ffe4e6;
+  --color-cat-rose-600: #e11d48;
+  --color-cat-rose-700: #be123c;
+
+  --color-cat-orange-100: #ffedd5;
+  --color-cat-orange-600: #ea580c;
+  --color-cat-orange-700: #c2410c;
+
+  --color-cat-sky-100: #e0f2fe;
+  --color-cat-sky-600: #0284c7;
+  --color-cat-sky-700: #0369a1;
+
+  --color-cat-lime-100: #ecfccb;
+  --color-cat-lime-600: #65a30d;
+  --color-cat-lime-700: #4d7c0f;
+
+  --color-cat-fuchsia-100: #fae8ff;
+  --color-cat-fuchsia-600: #c026d3;
+  --color-cat-fuchsia-700: #a21caf;
+
+  --color-cat-slate-100: #f1f5f9;
+  --color-cat-slate-600: #475569;
+  --color-cat-slate-700: #334155;
+
   --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
   --shadow-soft-lg: 0 10px 25px rgba(0, 0, 0, 0.06), 0 4px 10px rgba(0, 0, 0, 0.04);
   --shadow-inner-soft: inset 0 2px 4px rgba(0, 0, 0, 0.04);
@@ -84,6 +117,7 @@
     transform: translateY(10px);
     opacity: 0;
   }
+
   100% {
     transform: translateY(0);
     opacity: 1;
@@ -95,6 +129,7 @@
     transform: translateY(-10px);
     opacity: 0;
   }
+
   100% {
     transform: translateY(0);
     opacity: 1;
@@ -105,6 +140,7 @@
   0% {
     opacity: 0;
   }
+
   100% {
     opacity: 1;
   }
@@ -115,6 +151,7 @@
     transform: scale(0.95);
     opacity: 0;
   }
+
   100% {
     transform: scale(1);
     opacity: 1;
@@ -123,6 +160,7 @@
 
 /* Custom Component Styles */
 @layer components {
+
   /* Button Base */
   .btn-primary,
   .btn-secondary,
@@ -250,6 +288,50 @@
     @apply bg-primary-100 text-primary-700;
   }
 
+  /* Category Badge Styles - pill-shaped, distinct from semantic badges */
+  .category-badge-teal,
+  .category-badge-purple,
+  .category-badge-rose,
+  .category-badge-orange,
+  .category-badge-sky,
+  .category-badge-lime,
+  .category-badge-fuchsia,
+  .category-badge-slate {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border;
+  }
+
+  .category-badge-teal {
+    @apply bg-cat-teal-100 text-cat-teal-700 border-cat-teal-600/20;
+  }
+
+  .category-badge-purple {
+    @apply bg-cat-purple-100 text-cat-purple-700 border-cat-purple-600/20;
+  }
+
+  .category-badge-rose {
+    @apply bg-cat-rose-100 text-cat-rose-700 border-cat-rose-600/20;
+  }
+
+  .category-badge-orange {
+    @apply bg-cat-orange-100 text-cat-orange-700 border-cat-orange-600/20;
+  }
+
+  .category-badge-sky {
+    @apply bg-cat-sky-100 text-cat-sky-700 border-cat-sky-600/20;
+  }
+
+  .category-badge-lime {
+    @apply bg-cat-lime-100 text-cat-lime-700 border-cat-lime-600/20;
+  }
+
+  .category-badge-fuchsia {
+    @apply bg-cat-fuchsia-100 text-cat-fuchsia-700 border-cat-fuchsia-600/20;
+  }
+
+  .category-badge-slate {
+    @apply bg-cat-slate-100 text-cat-slate-700 border-cat-slate-600/20;
+  }
+
   /* Toggle Switch */
   .toggle {
     @apply relative inline-block w-11 h-6;
@@ -269,19 +351,19 @@
     transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
-  .toggle input:checked + .toggle-slider {
+  .toggle input:checked+.toggle-slider {
     @apply bg-primary-600;
   }
 
-  .toggle input:checked + .toggle-slider:before {
+  .toggle input:checked+.toggle-slider:before {
     @apply translate-x-5;
   }
 
-  .toggle input:focus + .toggle-slider {
+  .toggle input:focus+.toggle-slider {
     @apply ring-2 ring-primary-500 ring-offset-2;
   }
 
-  .toggle input:disabled + .toggle-slider {
+  .toggle input:disabled+.toggle-slider {
     @apply opacity-50 cursor-not-allowed;
   }
 
@@ -388,6 +470,7 @@
 
 /* Custom Utilities */
 @layer utilities {
+
   /* Money/Number Formatting */
   .text-money {
     @apply font-mono font-medium tabular-nums;

@@ -20,6 +20,13 @@ export default class extends Controller {
     this.typeValue = button.dataset.type
     this.updateUI()
     this.syncHiddenInput()
+
+    // Update conditional fields trigger
+    const trigger = this.element.querySelector('[data-conditional-fields-target="trigger"]')
+    if (trigger) {
+      trigger.value = this.typeValue
+      trigger.dispatchEvent(new Event('change', { bubbles: true }))
+    }
   }
 
   updateAmount() {
@@ -33,7 +40,7 @@ export default class extends Controller {
 
     // Apply sign based on type
     let actualValue = displayValue
-    if (this.typeValue === "expense" && displayValue > 0) {
+    if ((this.typeValue === "expense" || this.typeValue === "transfer") && displayValue > 0) {
       actualValue = -displayValue
     }
 
@@ -46,23 +53,6 @@ export default class extends Controller {
       this.inputTarget.value = Math.abs(value).toFixed(2)
     }
     this.syncHiddenInput()
-  }
-
-  // When loading an existing transaction with negative amount
-  loadExistingValue() {
-    if (!this.hasHiddenInputTarget) return
-
-    const storedValue = parseFloat(this.hiddenInputTarget.value) || 0
-
-    if (storedValue < 0) {
-      this.typeValue = "expense"
-      this.inputTarget.value = Math.abs(storedValue).toFixed(2)
-    } else if (storedValue > 0) {
-      this.typeValue = "income"
-      this.inputTarget.value = storedValue.toFixed(2)
-    }
-
-    this.updateUI()
   }
 
   updateUI() {
@@ -80,6 +70,8 @@ export default class extends Controller {
       if (isSelected) {
         if (button.dataset.type === 'income') {
           button.classList.add('bg-success-500', 'text-white', 'shadow-sm')
+        } else if (button.dataset.type === 'transfer') {
+          button.classList.add('bg-primary-500', 'text-white', 'shadow-sm')
         } else {
           button.classList.add('bg-danger-500', 'text-white', 'shadow-sm')
         }
@@ -93,6 +85,8 @@ export default class extends Controller {
       this.prefixTarget.classList.remove('text-success-600', 'text-danger-600')
       if (this.typeValue === 'income') {
         this.prefixTarget.classList.add('text-success-600')
+      } else if (this.typeValue === 'transfer') {
+        this.prefixTarget.classList.add('text-primary-600')
       } else {
         this.prefixTarget.classList.add('text-danger-600')
       }
@@ -103,11 +97,14 @@ export default class extends Controller {
     if (this.hasWrapperTarget) {
       this.wrapperTarget.classList.remove(
         'focus-within:ring-success-500', 'focus-within:border-success-300',
-        'focus-within:ring-danger-500', 'focus-within:border-danger-300'
+        'focus-within:ring-danger-500', 'focus-within:border-danger-300',
+        'focus-within:ring-primary-500', 'focus-within:border-primary-300'
       )
 
       if (this.typeValue === 'income') {
         this.wrapperTarget.classList.add('focus-within:ring-success-500', 'focus-within:border-success-300')
+      } else if (this.typeValue === 'transfer') {
+        this.wrapperTarget.classList.add('focus-within:ring-primary-500', 'focus-within:border-primary-300')
       } else {
         this.wrapperTarget.classList.add('focus-within:ring-danger-500', 'focus-within:border-danger-300')
       }

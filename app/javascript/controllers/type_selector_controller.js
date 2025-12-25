@@ -24,9 +24,11 @@ export default class extends Controller {
 
     this.selectedValue = value
 
-    // Update hidden input
+    // Update hidden input and dispatch change event for other controllers
     if (this.hasInputTarget) {
       this.inputTarget.value = value
+      // Dispatch native change event so conditional-fields controller can react
+      this.inputTarget.dispatchEvent(new Event('change', { bubbles: true }))
     }
 
     this.updateButtons()
@@ -49,7 +51,7 @@ export default class extends Controller {
       )
 
       if (isSelected) {
-        switch(type) {
+        switch (type) {
           case 'income':
             button.classList.add('bg-success-500', 'text-white', 'shadow-sm')
             break
@@ -76,7 +78,7 @@ export default class extends Controller {
       prefix.classList.remove('text-success-600', 'text-danger-600', 'text-primary-600', 'text-neutral-400')
     }
 
-    switch(this.selectedValue) {
+    switch (this.selectedValue) {
       case 'income':
         if (prefix) prefix.classList.add('text-success-600')
         break

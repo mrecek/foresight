@@ -14,6 +14,8 @@ export default class extends Controller {
   }
 
   disconnect() {
+    // Ensure dropdown is closed and listener is removed on disconnect
+    this.openValue = false
     document.removeEventListener('click', this.clickOutsideHandler)
   }
 

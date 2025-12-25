@@ -3,13 +3,13 @@
     {
       "warning_type": "Mass Assignment",
       "warning_code": 105,
-      "fingerprint": "a102fbca2ca9e6380ea5f33aee62964c8c3c015f77c2f2a03657f38fb1ab67be",
+      "fingerprint": "f7b97d6c1c17d76b27c1d542f7f1df8ed23b91ddc5198cbbf0852b6d914ae58f",
       "check_name": "PermitAttributes",
       "message": "Potentially dangerous key allowed for mass assignment",
       "file": "app/controllers/transactions_controller.rb",
-      "line": 102,
+      "line": 111,
       "link": "https://brakemanscanner.org/docs/warning_types/mass_assignment/",
-      "code": "params.require(:transaction).permit(:account_id, :description, :amount, :date, :status)",
+      "code": "params.require(:transaction).permit(:account_id, :description, :amount, :date, :status, :category_id)",
       "render_path": null,
       "location": {
         "type": "method",
@@ -21,18 +21,18 @@
       "cwe_id": [
         915
       ],
-      "note": "False positive: :status is a standard Rails enum and is intended to be user-adjustable."
+      "note": "False positive: account_id and category_id are standard foreign key references for transaction categorization."
     },
     {
       "warning_type": "Mass Assignment",
       "warning_code": 105,
-      "fingerprint": "f323f588e66fb7b99d59e7ad37ca41820f071d73f827a5c8614bc28fb7b17392",
+      "fingerprint": "1a48a48cddd13225598c977712ef36e648d2e3ecd58c8beb510cf486929913f7",
       "check_name": "PermitAttributes",
       "message": "Potentially dangerous key allowed for mass assignment",
       "file": "app/controllers/recurring_rules_controller.rb",
-      "line": 60,
+      "line": 65,
       "link": "https://brakemanscanner.org/docs/warning_types/mass_assignment/",
-      "code": "params.require(:recurring_rule).permit(:account_id, :destination_account_id, :rule_type, :description, :amount, :frequency, :anchor_date, :day_of_month, :day_of_week, :is_estimated, :active)",
+      "code": "params.require(:recurring_rule).permit(:account_id, :destination_account_id, :rule_type, :description, :amount, :frequency, :anchor_date, :day_of_month, :day_of_week, :is_estimated, :active, :category_id)",
       "render_path": null,
       "location": {
         "type": "method",
@@ -44,9 +44,9 @@
       "cwe_id": [
         915
       ],
-      "note": "False positive: :active and other fields are intended for mass assignment in this context."
+      "note": "False positive: account_id, destination_account_id, and category_id are standard foreign key references for recurring rule configuration."
     }
   ],
-  "updated": "2025-12-22 22:25:24 -0800",
-  "brakeman_version": "7.0.0"
+  "updated": "2025-12-24 18:56:00 -0800",
+  "brakeman_version": "7.1.1"
 }
