@@ -19,10 +19,15 @@ export default class extends Controller {
         const balanceInput = this.element.querySelector('input[name="current_balance"]')
 
         if (dateInput && this.hasDateTarget) {
-            // Use the already-formatted display text
-            const dateDisplay = document.getElementById('reconcile_date_display')
-            if (dateDisplay) {
-                this.dateTarget.textContent = dateDisplay.textContent
+            // Format the date from the input field
+            const dateValue = dateInput.value
+            if (dateValue) {
+                const date = new Date(dateValue + 'T00:00:00') // Avoid timezone issues
+                this.dateTarget.textContent = date.toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                })
             }
         }
 
