@@ -7,7 +7,7 @@
       "check_name": "PermitAttributes",
       "message": "Potentially dangerous key allowed for mass assignment",
       "file": "app/controllers/transactions_controller.rb",
-      "line": 122,
+      "line": 126,
       "link": "https://brakemanscanner.org/docs/warning_types/mass_assignment/",
       "code": "params.require(:transaction).permit(:account_id, :description, :amount, :date, :status, :category_id, :destination_account_id)",
       "render_path": null,
@@ -30,7 +30,7 @@
       "check_name": "PermitAttributes",
       "message": "Potentially dangerous key allowed for mass assignment",
       "file": "app/controllers/recurring_rules_controller.rb",
-      "line": 59,
+      "line": 61,
       "link": "https://brakemanscanner.org/docs/warning_types/mass_assignment/",
       "code": "params.require(:recurring_rule).permit(:account_id, :destination_account_id, :rule_type, :description, :amount, :frequency, :anchor_date, :day_of_month, :day_of_week, :is_estimated, :active, :category_id)",
       "render_path": null,
@@ -47,6 +47,6 @@
       "note": "False positive: account_id, destination_account_id, and category_id are standard foreign key references for recurring rule configuration."
     }
   ],
-  "updated": "2025-12-24 22:04:00 -0800",
-  "brakeman_version": "7.1.1"
+  "updated": "2025-12-25 12:53:00 -0800",
+  "brakeman_version": "7.1.2"
 }
