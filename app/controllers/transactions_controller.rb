@@ -1,5 +1,7 @@
 class TransactionsController < ApplicationController
-  before_action :set_transaction, only: [ :show, :edit, :update, :destroy, :confirm_actual, :mark_actual ]
+  include LoadableResources
+
+  before_action :set_transaction, only: [ :edit, :update, :destroy, :confirm_actual, :mark_actual ]
   before_action :load_accounts, only: [ :index, :new, :create, :edit, :update ]
   before_action :load_categories, only: [ :new, :create, :edit, :update ]
 
@@ -12,9 +14,6 @@ class TransactionsController < ApplicationController
       .for_account(@selected_account_id)
       .includes(:account, :recurring_rule, { category: :category_group }, { linked_transaction: :account })
       .order(:date)
-  end
-
-  def show
   end
 
   def new
@@ -39,7 +38,18 @@ class TransactionsController < ApplicationController
 
   def update
     ActiveRecord::Base.transaction do
+      # Track user modifications for rule-linked transactions
+      if @transaction.recurring_rule.present? && transaction_params[:amount].present?
+        new_amount = BigDecimal(transaction_params[:amount].to_s)
+        @transaction.user_modified = true if @transaction.amount != new_amount
+      end
+
       if @transaction.update(transaction_params)
+        # Also mark linked transaction as user_modified for transfer consistency
+        if @transaction.user_modified && @transaction.linked_transaction.present?
+          @transaction.linked_transaction.update!(user_modified: true)
+        end
+
         AuditLog.log_update(@transaction, request)
         redirect_to transactions_path, notice: "Transaction updated."
       else
@@ -91,17 +101,11 @@ class TransactionsController < ApplicationController
     new_amount = entered_amount * sign
 
     ActiveRecord::Base.transaction do
-      # Note: The model's after_save callback will NOT automatically sync the linked transaction
-      # if we only update status/amount here because 'manage_transfer' relies on explicit validation
-      # or attribute checking?
-      # Wait, manage_transfer DOES sync attributes if linked_transaction exists.
-      # It fetches lined_transaction.account_id as target if destination_account_id is not provided.
-      # So it SHOULD sync status and amount automatically!
-
-      @transaction.update!(status: :actual, amount: new_amount)
-
-      # The model callback handles updating the linked transaction, so we don't need to do it here anymore.
-      # But we should verify this optimization.
+      # The manage_transfer callback syncs status/amount to the linked transaction automatically
+      @transaction.update!(status: :actual, amount: new_amount, user_modified: true)
+      # Note: manage_transfer callback already syncs status/amount to linked_transaction,
+      # but we need to also sync user_modified
+      @transaction.linked_transaction&.update!(user_modified: true)
     end
 
     # Redirect to where the user originally came from
@@ -120,13 +124,5 @@ class TransactionsController < ApplicationController
 
   def transaction_params
     params.require(:transaction).permit(:account_id, :description, :amount, :date, :status, :category_id, :destination_account_id)
-  end
-
-  def load_accounts
-    @accounts = Account.all
-  end
-
-  def load_categories
-    @categories = Category.includes(:category_group).ordered
   end
 end
