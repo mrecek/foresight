@@ -1,6 +1,6 @@
 <div class="space-y-6">
   <%# Page Header %>
-  <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+  <div class="flex flex-col xl:flex-row xl:justify-between xl:items-center gap-4">
     <div>
       <h1 class="text-2xl font-display font-bold text-neutral-900">Recurring Rules</h1>
       <p class="text-sm text-neutral-500 mt-1">Manage your automated recurring transactions</p>
@@ -16,7 +16,7 @@
   <%# Rules Table %>
   <div class="card overflow-hidden">
     <%# Mobile Rule Cards %>
-    <div class="sm:hidden divide-y divide-neutral-200">
+    <div class="xl:hidden divide-y divide-neutral-200">
       <% @recurring_rules.each do |rule| %>
         <% type_variant = case rule.rule_type
            when 'income' then :success
@@ -24,23 +24,41 @@
            when 'transfer' then :primary
            end %>
         <% amount = rule.income? ? rule.amount : -rule.amount %>
-        <div class="p-4 <%= rule.active? ? '' : 'opacity-50' %>">
-          <%# Row 1: Status + Description + Type badge %>
-          <div class="flex items-start justify-between gap-2">
+        <div class="p-4 md:p-3 lg:p-2 flex flex-col gap-2 <%= rule.active? ? '' : 'opacity-50' %>">
+          <%# Row 1: Description + Account/Frequency info (responsive) %>
+          <div class="flex flex-col items-start gap-2 md:flex-row md:items-center md:justify-between">
+            <%# Left: Status + Description + Category + Account + Frequency (inline at md+) %>
             <div class="flex items-center gap-2 flex-wrap">
-              <% if rule.is_estimated? %>
-                <%= badge "EST", variant: :warning %>
-              <% else %>
-                <%= badge "ACT", variant: :success %>
-              <% end %>
+              <%= status_label estimated: rule.is_estimated?, abbreviated: true %>
               <span class="font-semibold text-neutral-900"><%= rule.description %></span>
               <%= category_badge(rule.category) %>
+
+              <%# Account + Frequency (visible on md+) %>
+              <span class="hidden md:inline-flex items-center gap-1 text-xs text-neutral-500">
+                <span class="text-neutral-600"><%= rule.account.name %></span>
+                <% if rule.transfer? && rule.destination_account %>
+                  <svg class="w-3 h-3 text-neutral-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+                  </svg>
+                  <span class="text-neutral-600"><%= rule.destination_account.name %></span>
+                <% end %>
+                • <%= rule.frequency.titleize %>
+                <% if rule.day_of_month %>
+                  • Day <%= rule.day_of_month %>
+                <% elsif rule.day_of_week %>
+                  • <%= Date::DAYNAMES[rule.day_of_week] %>
+                <% end %>
+              </span>
             </div>
-            <%= badge rule.rule_type.titleize, variant: type_variant %>
+
+            <%# Right: Type Badge %>
+            <div class="self-start">
+              <%= badge rule.rule_type.titleize, variant: type_variant %>
+            </div>
           </div>
 
-          <%# Row 2: Account + Frequency %>
-          <div class="mt-2 text-sm text-neutral-600">
+          <%# Account + Frequency (visible on mobile only) %>
+          <div class="md:hidden text-sm text-neutral-600">
             <div class="flex items-center gap-2">
               <span><%= rule.account.name %></span>
               <% if rule.transfer? && rule.destination_account %>
@@ -60,8 +78,8 @@
             </div>
           </div>
 
-          <%# Row 3: Amount, Active status, Actions %>
-          <div class="mt-3 flex items-center justify-between">
+          <%# Row 2: Amount + Active + Actions %>
+          <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <span class="text-money font-semibold <%= amount >= 0 ? 'text-success-600' : 'text-danger-600' %>">
                 <%= format_money(amount, color: false) %>
@@ -83,7 +101,7 @@
     </div>
 
     <%# Desktop Table %>
-    <div class="hidden sm:block table-container border-0">
+    <div class="hidden xl:block table-container border-0">
       <table class="data-table">
         <thead>
           <tr>
@@ -102,11 +120,7 @@
             <tr class="<%= rule.active? ? '' : 'opacity-50' %>">
               <%# Status (Estimated/Actual for next transaction) %>
               <td>
-                <% if rule.is_estimated? %>
-                  <%= badge "Estimated", variant: :warning %>
-                <% else %>
-                  <%= badge "Actual", variant: :success %>
-                <% end %>
+                <%= status_label estimated: rule.is_estimated? %>
               </td>
 
               <%# Description %>

@@ -1,6 +1,6 @@
 <div class="space-y-6">
   <%# Page Header %>
-  <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+  <div class="flex flex-col xl:flex-row xl:justify-between xl:items-center gap-4">
     <div>
       <h1 class="text-2xl font-display font-bold text-neutral-900"><%= @account.name %></h1>
       <p class="text-sm text-neutral-500"><%= @account.account_type.titleize %> Account</p>
@@ -12,7 +12,7 @@
   </div>
 
   <%# Balance Summary %>
-  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+  <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
     <div class="card p-6">
       <p class="text-sm font-medium text-neutral-500">Current Balance</p>
       <p class="mt-2 text-3xl font-display font-bold text-neutral-900">$<%= money_amount(@account.current_balance) %></p>
@@ -40,33 +40,30 @@
     </div>
 
     <%# Mobile Transaction Cards %>
-    <div class="sm:hidden divide-y divide-neutral-200">
+    <div class="xl:hidden divide-y divide-neutral-200">
       <% running_balance_mobile = @account.current_balance %>
       <% @transactions.each do |txn| %>
         <% running_balance_mobile += txn.amount %>
-        <div class="p-4 <%= txn.estimated? ? 'bg-warning-50/30' : '' %>">
-          <%# Row 1: Status, Date, Amount %>
-          <div class="flex items-center justify-between gap-2">
-            <div class="flex items-center gap-3">
-              <% if txn.estimated? %>
-                <%= badge "EST", variant: :warning %>
-              <% else %>
-                <%= badge "ACT", variant: :success %>
-              <% end %>
-              <span class="text-sm font-medium text-neutral-600"><%= txn.date.strftime("%b %d") %></span>
+        <div class="p-4 md:p-3 lg:p-2 flex flex-col gap-2 <%= txn.estimated? ? 'bg-warning-50/30' : '' %>">
+          <%# Row 1: Description + Date/Amount (responsive) %>
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+            <%# Left: Status + Description %>
+            <div class="flex items-center gap-2">
+              <%= status_label estimated: txn.estimated?, abbreviated: true %>
+              <span class="font-semibold text-neutral-900"><%= txn.description %></span>
             </div>
-            <span class="text-money font-semibold <%= txn.amount >= 0 ? 'text-success-600' : 'text-danger-600' %>">
-              <%= txn.formatted_amount %>
-            </span>
+
+            <%# Right: Date + Amount %>
+            <div class="flex items-center gap-3">
+              <span class="text-sm font-medium text-neutral-600"><%= txn.date.strftime("%b %d") %></span>
+              <span class="text-money font-semibold <%= txn.amount >= 0 ? 'text-success-600' : 'text-danger-600' %>">
+                <%= txn.formatted_amount %>
+              </span>
+            </div>
           </div>
 
-          <%# Row 2: Description %>
-          <div class="mt-2">
-            <div class="font-semibold text-neutral-900"><%= txn.description %></div>
-          </div>
-
-          <%# Row 3: Balance %>
-          <div class="mt-2 text-sm">
+          <%# Row 2: Balance %>
+          <div class="text-sm">
             <span class="text-neutral-500">Bal:</span>
             <span class="text-money font-medium <%= running_balance_mobile >= 0 ? 'text-neutral-900' : 'text-danger-600' %>">
               $<%= money_amount(running_balance_mobile) %>
@@ -77,7 +74,7 @@
     </div>
 
     <%# Desktop Table %>
-    <div class="hidden sm:block">
+    <div class="hidden xl:block">
       <table class="data-table">
         <thead>
           <tr>
@@ -94,11 +91,7 @@
             <% running_balance += txn.amount %>
             <tr class="<%= txn.estimated? ? 'bg-warning-50/30' : '' %>">
               <td>
-                <% if txn.estimated? %>
-                  <%= badge "EST", variant: :warning %>
-                <% else %>
-                  <%= badge "ACT", variant: :success %>
-                <% end %>
+                <%= status_label estimated: txn.estimated?, abbreviated: true %>
               </td>
               <td class="text-neutral-900">
                 <%= txn.date.strftime("%b %d, %Y") %>

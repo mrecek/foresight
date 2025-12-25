@@ -10,6 +10,7 @@ class Account < ApplicationRecord
   validates :current_balance, presence: true, numericality: true
   validates :balance_date, presence: true
   validates :warning_threshold, presence: true, numericality: { greater_than_or_equal_to: 0 }
+  validate :balance_date_not_in_future
 
   def projected_balance(as_of_date = nil)
     as_of_date ||= Setting.instance.default_view_months.months.from_now.to_date
@@ -20,10 +21,6 @@ class Account < ApplicationRecord
     else
       current_balance + transactions.where(date: balance_date..as_of_date).sum(:amount)
     end
-  end
-
-  def transactions_in_range(start_date, end_date)
-    transactions.where(date: start_date..end_date).order(:date)
   end
 
   # Returns the lowest running balance in the projection period
@@ -65,6 +62,14 @@ class Account < ApplicationRecord
     txns.map do |txn|
       running += txn.amount
       { transaction: txn, running_balance: running }
+    end
+  end
+
+  private
+
+  def balance_date_not_in_future
+    if balance_date.present? && balance_date > Date.current
+      errors.add(:balance_date, "cannot be in the future")
     end
   end
 end

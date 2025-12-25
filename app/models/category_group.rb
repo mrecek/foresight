@@ -5,6 +5,7 @@ class CategoryGroup < ApplicationRecord
 
   validates :name, presence: true, uniqueness: { case_sensitive: false }
   validates :color, presence: true, inclusion: { in: COLORS }
+  validates :display_order, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
   scope :ordered, -> { order(:display_order, :name) }
 

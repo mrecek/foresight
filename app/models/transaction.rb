@@ -18,12 +18,9 @@ class Transaction < ApplicationRecord
   scope :upcoming, -> { where("date >= ?", Date.current).order(:date) }
   scope :in_attention_window, -> { where(date: Date.current..(Date.current + 30.days), status: :estimated) }
   scope :for_account, ->(account_id) { where(account_id: account_id) if account_id.present? }
+  scope :not_user_modified, -> { where(user_modified: false) }
 
   after_save :manage_transfer, unless: :skip_transfer_callback
-
-  def one_time?
-    recurring_rule.nil?
-  end
 
   def transfer?
     linked_transaction.present? || destination_account_id.present?
@@ -71,6 +68,24 @@ class Transaction < ApplicationRecord
     end
   end
 
+  # Manages the linked transaction for transfers
+  #
+  # This callback handles the creation and synchronization of linked transaction pairs
+  # for transfer transactions. When a transaction represents a transfer between accounts,
+  # it requires two transaction records: one debit from source, one credit to destination.
+  #
+  # Flow:
+  # 1. User updates/creates a transaction with destination_account_id
+  # 2. This callback fires after_save
+  # 3. Creates or updates the linked_transaction with inverse amount
+  # 4. The linked transaction's skip_transfer_callback flag prevents infinite recursion
+  #
+  # Recursion Prevention:
+  # - Main transaction saves → callback fires → creates/updates linked transaction
+  # - Linked transaction has skip_transfer_callback = true → its callback does NOT fire
+  # - No infinite loop occurs because the linked transaction doesn't trigger another callback
+  #
+  # The callback synchronizes: description, date, status, amount (inverted), category
   def manage_transfer
     # Case 1: Explicit removal request (e.g. switched to Expense)
     # We use instance_variable_defined? to ensure we only act if the attribute was actually set on the object
@@ -106,9 +121,8 @@ class Transaction < ApplicationRecord
       category_id: category_id
     )
 
-    # Use skip_transfer_callback to prevent infinite recursion if we were to trigger saves on the other side
-    # (Though currently the other side doesn't accidentally trigger a loop because it points back to this one?)
-    # Ideally, we should set skip_transfer_callback on the LINKED transaction before saving it.
+    # Prevent infinite recursion: the linked transaction's save won't trigger this callback
+    # This is safe because the linked transaction is the inverse mirror of this one
     linked.skip_transfer_callback = true
 
     if linked.save
