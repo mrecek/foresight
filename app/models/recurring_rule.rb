@@ -4,6 +4,7 @@ class RecurringRule < ApplicationRecord
 
   belongs_to :account
   belongs_to :destination_account, class_name: "Account", optional: true
+  belongs_to :category, optional: true
   has_many :transactions, dependent: :destroy
 
   validates :description, presence: true
@@ -12,11 +13,13 @@ class RecurringRule < ApplicationRecord
   validates :frequency, presence: true
   validates :anchor_date, presence: true
   validates :destination_account, presence: true, if: :transfer?
+  validate :different_accounts, if: :transfer?
   validates :day_of_month, inclusion: { in: 1..31, allow_nil: true }
   validates :day_of_week, inclusion: { in: 0..6, allow_nil: true }
 
   after_create :generate_initial_transactions
   after_update :regenerate_transactions, if: :schedule_changed?
+  after_update :update_future_transactions_category, if: :saved_change_to_category_id?
 
   scope :active, -> { where(active: true) }
 
@@ -56,16 +59,8 @@ class RecurringRule < ApplicationRecord
   end
 
   def regenerate_transactions
-    future_transactions = transactions.where("date >= ?", Date.current)
-
-    # If is_estimated changed, update status of all future transactions
-    if saved_change_to_is_estimated?
-      new_status = is_estimated? ? :estimated : :actual
-      future_transactions.update_all(status: new_status)
-    end
-
-    # Regenerate future estimated transactions (schedule/amount changes)
-    future_transactions.where(status: :estimated).destroy_all
+    # Regenerate all future transactions when rule changes
+    transactions.where("date >= ?", Date.current).destroy_all
     generate_transactions
   end
 
@@ -81,9 +76,29 @@ class RecurringRule < ApplicationRecord
       saved_change_to_amount? || saved_change_to_rule_type? ||
       saved_change_to_account_id? || saved_change_to_destination_account_id? ||
       saved_change_to_is_estimated?
+    # NOTE: category_id changes are handled separately via update_future_transactions_category
+  end
+
+  def update_future_transactions_category
+    # Skip if schedule also changed (transactions already regenerated)
+    return if schedule_changed?
+    # Only update category on future estimated transactions, don't regenerate
+    transactions.where("date >= ?", Date.current).update_all(category_id: category_id)
+  end
+
+  def different_accounts
+    if account_id == destination_account_id
+      errors.add(:destination_account_id, "must be different from the source account")
+    end
   end
 
   def create_transaction_for_date(date)
+    # Guard: Skip if this is an invalid transfer (same source/destination)
+    if transfer? && destination_account_id == account_id
+      Rails.logger.warn "Skipping invalid transfer rule #{id}: source and destination are the same"
+      return
+    end
+
     signed_amount = case rule_type
     when "income" then amount
     when "expense" then -amount
@@ -96,7 +111,8 @@ class RecurringRule < ApplicationRecord
         description: description,
         amount: signed_amount,
         date: date,
-        status: is_estimated? ? :estimated : :actual
+        status: is_estimated? ? :estimated : :actual,
+        category: category
       )
 
       if transfer? && destination_account
@@ -106,7 +122,8 @@ class RecurringRule < ApplicationRecord
           amount: amount,
           date: date,
           status: is_estimated? ? :estimated : :actual,
-          linked_transaction_id: txn.id
+          linked_transaction_id: txn.id,
+          category: category
         )
         txn.update!(linked_transaction_id: linked_txn.id)
       end
