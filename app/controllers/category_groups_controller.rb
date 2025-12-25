@@ -1,11 +1,8 @@
 class CategoryGroupsController < ApplicationController
-  before_action :set_category_group, only: [ :show, :edit, :update, :destroy ]
+  before_action :set_category_group, only: [ :edit, :update, :destroy ]
 
   def index
     @category_groups = CategoryGroup.ordered.includes(:categories)
-  end
-
-  def show
   end
 
   def new

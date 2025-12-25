@@ -1,4 +1,6 @@
 class RecurringRulesController < ApplicationController
+  include LoadableResources
+
   before_action :set_recurring_rule, only: [ :show, :edit, :update, :destroy ]
   before_action :load_accounts, only: [ :new, :create, :edit, :update ]
   before_action :load_categories, only: [ :new, :create, :edit, :update ]
@@ -60,13 +62,5 @@ class RecurringRulesController < ApplicationController
       :amount, :frequency, :anchor_date, :day_of_month, :day_of_week,
       :is_estimated, :active, :category_id
     )
-  end
-
-  def load_accounts
-    @accounts = Account.all
-  end
-
-  def load_categories
-    @categories = Category.includes(:category_group).ordered
   end
 end

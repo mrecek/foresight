@@ -36,8 +36,4 @@ class SetupController < ApplicationController
   def redirect_if_setup_complete
     redirect_to root_path if Setting.instance.setup_complete? || env_auth_configured?
   end
-
-  def env_auth_configured?
-    ENV["AUTH_USERNAME"].present? && ENV["AUTH_PASSWORD"].present?
-  end
 end
