@@ -22,5 +22,10 @@ Rails.application.routes.draw do
   end
   resource :settings, only: [ :edit, :update ]
 
+  # Category management (Settings section)
+  resources :category_groups do
+    resources :categories, except: [ :index, :show ]
+  end
+
   get "up" => "rails/health#show", as: :rails_health_check
 end

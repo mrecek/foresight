@@ -40,14 +40,56 @@
     </div>
   </div>
 
+  <%# Category Selection (only shown for one-time transactions, not those from recurring rules) %>
+  <% unless transaction.recurring_rule.present? %>
+    <div>
+      <label class="form-label">Category</label>
+      <% if @categories.any? %>
+        <%= f.select :category_id,
+            grouped_options_for_select(
+              @categories.group_by(&:category_group).transform_keys(&:name).map { |group_name, cats|
+                [group_name, cats.map { |c| [c.name, c.id] }]
+              },
+              transaction.category_id
+            ),
+            { include_blank: "Select a category..." },
+            class: "form-select" %>
+        <p class="form-hint"><%= link_to "Manage categories", category_groups_path, class: "text-primary-600 hover:underline" %></p>
+      <% else %>
+        <p class="text-sm text-neutral-500 p-3 bg-neutral-50 rounded-lg">
+          No categories yet. <%= link_to "Create one", new_category_group_path, class: "text-primary-600 hover:underline" %> to organize your transactions.
+        </p>
+      <% end %>
+    </div>
+  <% end %>
+
   <%# Smart Amount Section %>
-  <% initial_type = transaction.amount.to_f < 0 ? "expense" : "income" %>
-  <div data-controller="smart-amount" data-smart-amount-type-value="<%= transaction.persisted? ? initial_type : 'expense' %>">
+  <% initial_type = if transaction.transfer?
+       "transfer"
+     elsif transaction.amount.to_f < 0
+       "expense"
+     else
+       "income"
+     end %>
+  <div data-controller="smart-amount conditional-fields transfer-validator" 
+       data-smart-amount-type-value="<%= transaction.persisted? ? initial_type : 'expense' %>"
+       data-conditional-fields-show-when-value='{"transfer": ["destination_account"]}'>
 
     <label class="form-label mb-3">Transaction Type & Amount</label>
 
     <%# Type Selector Buttons - Pill Toggle %>
     <div class="inline-flex flex-wrap items-center rounded-xl bg-neutral-100 p-1.5 mb-4">
+      <button type="button"
+              data-smart-amount-target="typeButton"
+              data-type="expense"
+              data-action="click->smart-amount#selectType"
+              class="px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-danger-500 text-white shadow-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M20 12H4"/>
+        </svg>
+        Expense
+      </button>
+
       <button type="button"
               data-smart-amount-target="typeButton"
               data-type="income"
@@ -61,15 +103,18 @@
 
       <button type="button"
               data-smart-amount-target="typeButton"
-              data-type="expense"
+              data-type="transfer"
               data-action="click->smart-amount#selectType"
-              class="px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-danger-500 text-white shadow-sm">
+              class="px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-transparent text-neutral-500 hover:text-neutral-700">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M20 12H4"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
         </svg>
-        Expense
+        Transfer
       </button>
     </div>
+
+    <!-- Hidden trigger for conditional fields based on smart-amount type -->
+    <input type="hidden" data-conditional-fields-target="trigger" data-action="change->conditional-fields#toggle" value="<%= initial_type %>">
 
     <%# Two Column Grid %>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-6">
@@ -96,7 +141,9 @@
       <%# Account %>
       <div>
         <label class="form-label">Account</label>
-        <%= f.collection_select :account_id, @accounts, :id, :name, {}, class: "form-select" %>
+        <%= f.collection_select :account_id, @accounts, :id, :name, {}, 
+            class: "form-select",
+            data: { transfer_validator_target: "source", action: "change->transfer-validator#validate" } %>
       </div>
 
       <%# Date with shortcuts %>
@@ -127,12 +174,28 @@
         ], {}, class: "form-select" %>
         <p class="form-hint">Estimated transactions are projections; actual are confirmed</p>
       </div>
+
+      <%# Destination Account (conditional for transfers) %>
+      <%= f.hidden_field :destination_account_id, value: "", id: nil %>
+      <div data-conditional-fields-target="conditional"
+           data-field="destination_account"
+           class="transition-all duration-300 ease-out overflow-hidden lg:col-span-2">
+        <div class="bg-primary-50 rounded-xl p-4 border border-primary-100">
+          <label class="form-label text-primary-700">Destination Account</label>
+          <%= f.collection_select :destination_account_id, @accounts, :id, :name,
+              { include_blank: "Select destination account...", selected: (transaction.linked_transaction&.account_id) },
+              class: "form-select bg-white",
+              data: { transfer_validator_target: "destination", action: "change->transfer-validator#validate" } %>
+          <p data-transfer-validator-target="error" class="text-sm text-danger-600 mt-1.5 hidden"></p>
+          <p class="text-sm text-primary-600 mt-1.5">Where the money will be transferred to</p>
+        </div>
+      </div>
     </div>
   </div>
 
   <%# Form Actions %>
   <div class="flex items-center justify-end gap-3 pt-6 border-t border-neutral-200">
     <%= link_to "Cancel", transactions_path, class: "btn-secondary" %>
-    <%= f.submit transaction.persisted? ? "Update Transaction" : "Create Transaction", class: "btn-primary cursor-pointer" %>
+    <%= f.submit transaction.persisted? ? "Update Transaction" : "Create Transaction", class: "btn-primary cursor-pointer", data: { turbo_submits_with: "Saving..." } %>
   </div>
 <% end %>

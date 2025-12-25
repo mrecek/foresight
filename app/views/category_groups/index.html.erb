@@ -1,0 +1,72 @@
+<div class="space-y-6">
+  <%# Page Header %>
+  <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+    <div>
+      <h1 class="text-2xl font-display font-bold text-neutral-900">Categories</h1>
+      <p class="text-sm text-neutral-500 mt-1">Organize your transactions with color-coded category groups</p>
+    </div>
+    <%= link_to new_category_group_path, class: "btn-primary" do %>
+      <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+      </svg>
+      New Group
+    <% end %>
+  </div>
+
+  <%# Category Groups %>
+  <% if @category_groups.any? %>
+    <div class="space-y-4">
+      <% @category_groups.each do |group| %>
+        <div class="card">
+          <div class="p-4 border-b border-neutral-200 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span class="category-badge-<%= group.color %>"><%= group.name %></span>
+              <span class="text-sm text-neutral-500"><%= pluralize(group.categories.count, 'category') %></span>
+            </div>
+            <div class="flex items-center gap-1">
+              <%= link_to new_category_group_category_path(group), class: "btn-ghost btn-sm", title: "Add category" do %>
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+                </svg>
+                Add Category
+              <% end %>
+              <%= icon_button icon: :edit, path: edit_category_group_path(group), title: "Edit group", variant: :primary %>
+              <%= icon_button icon: :delete, path: category_group_path(group), title: "Delete group", variant: :danger, method: :delete, data: { turbo_confirm: "Delete this group and all its categories?" } %>
+            </div>
+          </div>
+          
+          <% if group.categories.any? %>
+            <div class="divide-y divide-neutral-100">
+              <% group.categories.ordered.each do |category| %>
+                <div class="px-4 py-3 flex items-center justify-between hover:bg-neutral-50">
+                  <span class="text-sm text-neutral-900"><%= category.name %></span>
+                  <div class="flex items-center gap-1">
+                    <%= icon_button icon: :edit, path: edit_category_group_category_path(group, category), title: "Edit category", variant: :primary %>
+                    <%= icon_button icon: :delete, path: category_group_category_path(group, category), title: "Delete category", variant: :danger, method: :delete, data: { turbo_confirm: "Delete this category?" } %>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="px-4 py-6 text-center text-sm text-neutral-500">
+              No categories yet. <%= link_to "Add one", new_category_group_category_path(group), class: "text-primary-600 hover:underline" %>.
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="card p-12 text-center">
+      <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-neutral-100 flex items-center justify-center">
+        <svg class="w-6 h-6 text-neutral-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+        </svg>
+      </div>
+      <h3 class="text-sm font-medium text-neutral-900 mb-1">No category groups</h3>
+      <p class="text-sm text-neutral-500 mb-4">Create your first category group to organize transactions.</p>
+      <%= link_to new_category_group_path, class: "btn-primary btn-sm" do %>
+        Create Group
+      <% end %>
+    </div>
+  <% end %>
+</div>

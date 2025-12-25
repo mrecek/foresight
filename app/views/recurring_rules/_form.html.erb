@@ -40,8 +40,29 @@
     </div>
   </div>
 
+  <%# Category Selection %>
+  <div>
+    <label class="form-label">Category</label>
+    <% if @categories.any? %>
+      <%= f.select :category_id,
+          grouped_options_for_select(
+            @categories.group_by(&:category_group).transform_keys(&:name).map { |group_name, cats|
+              [group_name, cats.map { |c| [c.name, c.id] }]
+            },
+            recurring_rule.category_id
+          ),
+          { include_blank: "Select a category..." },
+          class: "form-select" %>
+      <p class="form-hint"><%= link_to "Manage categories", category_groups_path, class: "text-primary-600 hover:underline" %></p>
+    <% else %>
+      <p class="text-sm text-neutral-500 p-3 bg-neutral-50 rounded-lg">
+        No categories yet. <%= link_to "Create one", new_category_group_path, class: "text-primary-600 hover:underline" %> to organize your transactions.
+      </p>
+    <% end %>
+  </div>
+
   <%# Type Selector - Segmented Buttons %>
-  <div data-controller="type-selector conditional-fields"
+  <div data-controller="type-selector conditional-fields transfer-validator"
        data-conditional-fields-show-when-value='{"transfer": ["destination_account"]}'>
 
     <label class="form-label mb-3">Transaction Type</label>
@@ -51,17 +72,6 @@
     <div class="inline-flex flex-wrap items-center rounded-xl bg-neutral-100 p-1.5 mb-6">
       <button type="button"
               data-type-selector-target="button"
-              data-value="income"
-              data-action="click->type-selector#select"
-              class="px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-transparent text-neutral-500 hover:text-neutral-700">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-        </svg>
-        Income
-      </button>
-
-      <button type="button"
-              data-type-selector-target="button"
               data-value="expense"
               data-action="click->type-selector#select"
               class="px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-transparent text-neutral-500 hover:text-neutral-700">
@@ -69,6 +79,17 @@
           <path stroke-linecap="round" stroke-linejoin="round" d="M20 12H4"/>
         </svg>
         Expense
+      </button>
+
+      <button type="button"
+              data-type-selector-target="button"
+              data-value="income"
+              data-action="click->type-selector#select"
+              class="px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-transparent text-neutral-500 hover:text-neutral-700">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+        </svg>
+        Income
       </button>
 
       <button type="button"
@@ -88,7 +109,9 @@
       <%# Account %>
       <div>
         <label class="form-label">Account</label>
-        <%= f.collection_select :account_id, @accounts, :id, :name, {}, class: "form-select" %>
+        <%= f.collection_select :account_id, @accounts, :id, :name, {}, 
+            class: "form-select", 
+            data: { transfer_validator_target: "source", action: "change->transfer-validator#validate" } %>
       </div>
 
       <%# Amount with $ prefix %>
@@ -117,7 +140,9 @@
           <label class="form-label text-primary-700">Destination Account</label>
           <%= f.collection_select :destination_account_id, @accounts, :id, :name,
               { include_blank: "Select destination account..." },
-              class: "form-select bg-white" %>
+              class: "form-select bg-white",
+              data: { transfer_validator_target: "destination", action: "change->transfer-validator#validate" } %>
+          <p data-transfer-validator-target="error" class="text-sm text-danger-600 mt-1.5 hidden"></p>
           <p class="text-sm text-primary-600 mt-1.5">Where the money will be transferred to</p>
         </div>
       </div>
@@ -233,6 +258,6 @@
   <%# Form Actions %>
   <div class="flex items-center justify-end gap-3 pt-6 border-t border-neutral-200">
     <%= link_to "Cancel", recurring_rules_path, class: "btn-secondary" %>
-    <%= f.submit recurring_rule.persisted? ? "Update Rule" : "Create Rule", class: "btn-primary cursor-pointer" %>
+    <%= f.submit recurring_rule.persisted? ? "Update Rule" : "Create Rule", class: "btn-primary cursor-pointer", data: { turbo_submits_with: "Saving..." } %>
   </div>
 <% end %>
