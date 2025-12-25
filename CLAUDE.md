@@ -3,10 +3,18 @@
 This file provides guidance for AI coding assistants working with this repository.
 It applies to any AI agent (Claude, Copilot, Cursor, etc.).
 
-## GitHub Workflow
+## Development Workflow
 
-For commits and pull requests, follow the **AI Agent Workflow** in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ai-agent-workflow).
-**IMPORTANT:** Always wait for and verify green CI status before merging PRs.
+For local development and testing, see [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+
+**Default AI Agent Behavior:**
+When working on code changes, make the changes and test locally. Stop and present results to the user. Do not proceed to commits or PRs automatically.
+
+## Git Operations (Explicit Request Only)
+
+When the user **explicitly requests** a commit or pull request, follow the workflow in [`docs/GIT_WORKFLOW.md`](docs/GIT_WORKFLOW.md).
+
+**CRITICAL**: Do not automatically commit or create PRs. Only proceed with git operations when the user specifically requests them.
 
 ## Build & Development Commands
 
