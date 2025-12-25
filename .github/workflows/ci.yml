@@ -7,6 +7,7 @@ on:
 
 jobs:
   scan_ruby:
+    name: CI/scan_ruby (pull_request)
     runs-on: ubuntu-latest
 
     steps:
@@ -25,6 +26,7 @@ jobs:
         run: bin/bundler-audit
       
   scan_js:
+    name: CI/scan_js (pull_request)
     runs-on: ubuntu-latest
 
     steps:
@@ -40,6 +42,7 @@ jobs:
         run: bin/importmap audit
 
   lint:
+    name: CI/lint (pull_request)
     runs-on: ubuntu-latest
     env:
       RUBOCOP_CACHE_ROOT: tmp/rubocop
@@ -64,4 +67,3 @@ jobs:
 
       - name: Lint code for consistent style
         run: bin/rubocop -f github
-
