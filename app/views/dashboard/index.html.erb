@@ -156,21 +156,22 @@
 
               <div class="flex items-center gap-2">
                 <span class="text-sm text-neutral-600">as of</span>
-                <span id="reconcile_date_display" class="text-sm font-semibold text-neutral-800"></span>
-                <input type="hidden" name="balance_date" id="reconcile_balance_date">
+                <span class="text-sm font-semibold text-neutral-800"><%= @selected_account.balance_date.strftime("%b %d, %Y") %></span>
+                <%= f.date_field :balance_date,
+                    id: "reconcile_balance_date",
+                    class: "form-input py-1 w-36 text-sm",
+                    max: Date.current.to_s %>
                 <script>
-                  // Set date to browser's local date (today only, no future dates)
+                  // Default reconcile date to today (in browser's local timezone)
                   (function() {
-                    var today = new Date();
-                    var yyyy = today.getFullYear();
-                    var mm = String(today.getMonth() + 1).padStart(2, '0');
-                    var dd = String(today.getDate()).padStart(2, '0');
-                    document.getElementById('reconcile_balance_date').value = yyyy + '-' + mm + '-' + dd;
-                    document.getElementById('reconcile_date_display').textContent = today.toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
-                    });
+                    var field = document.getElementById('reconcile_balance_date');
+                    if (field && !field.value) {
+                      var today = new Date();
+                      var yyyy = today.getFullYear();
+                      var mm = String(today.getMonth() + 1).padStart(2, '0');
+                      var dd = String(today.getDate()).padStart(2, '0');
+                      field.value = yyyy + '-' + mm + '-' + dd;
+                    }
                   })();
                 </script>
               </div>
