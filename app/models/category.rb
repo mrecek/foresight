@@ -4,6 +4,7 @@ class Category < ApplicationRecord
   has_many :recurring_rules, dependent: :nullify
 
   validates :name, presence: true, uniqueness: { scope: :category_group_id, case_sensitive: false }
+  validates :display_order, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
   scope :ordered, -> { order(:display_order, :name) }
 

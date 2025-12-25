@@ -1,6 +1,6 @@
 <div class="space-y-6">
   <%# Page Header %>
-  <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+  <div class="flex flex-col xl:flex-row xl:justify-between xl:items-center gap-4">
     <div>
       <h1 class="text-2xl font-display font-bold text-neutral-900">Transactions</h1>
       <p class="text-sm text-neutral-500 mt-1">View and manage your transaction history</p>
@@ -35,44 +35,63 @@
   <%# Transactions Table %>
   <div class="card overflow-hidden">
     <%# Mobile Transaction Cards %>
-    <div class="sm:hidden divide-y divide-neutral-200">
+    <div class="xl:hidden divide-y divide-neutral-200">
       <% running_balances_mobile = {} %>
       <% @accounts.each { |a| running_balances_mobile[a.id] = a.current_balance } %>
       <% @transactions.each do |txn| %>
         <% running_balances_mobile[txn.account_id] += txn.amount %>
         <% balance = running_balances_mobile[txn.account_id] %>
-        <div class="p-4 <%= txn.estimated? ? 'bg-warning-50/30' : '' %>">
-          <%# Row 1: Status, Date, Amount %>
-          <div class="flex items-center justify-between gap-2">
-            <div class="flex items-center gap-3">
-              <% if txn.estimated? %>
-                <%= badge "EST", variant: :warning %>
-              <% else %>
-                <%= badge "ACT", variant: :success %>
-              <% end %>
-              <span class="text-sm font-medium text-neutral-600"><%= txn.date.strftime("%b %d") %></span>
-            </div>
-            <span class="text-money font-semibold <%= txn.amount >= 0 ? 'text-success-600' : 'text-danger-600' %>">
-              <%= format_money(txn.amount, color: false) %>
-            </span>
-          </div>
-
-          <%# Row 2: Description + Account %>
-          <div class="mt-2">
+        <div class="p-4 md:p-3 lg:p-2 flex flex-col gap-2 <%= txn.estimated? ? 'bg-warning-50/30' : '' %>">
+          <%# Row 1: Description + Account/Frequency info (responsive) %>
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+            <%# Left: Status + Description + Category + Account + Frequency (inline at md+) %>
             <div class="flex items-center gap-2 flex-wrap">
+              <%= status_label estimated: txn.estimated?, abbreviated: true %>
               <span class="font-semibold text-neutral-900"><%= txn.description %></span>
               <%= category_badge(txn.category) %>
               <%= transfer_badge(txn, show_account: true) %>
+
+              <%# Account + Frequency (visible on md+) %>
+              <span class="hidden md:inline-flex items-center gap-1 text-xs text-neutral-500">
+                <span class="text-neutral-600"><%= txn.account.name %></span>
+                • <%= txn.recurring_rule ? txn.recurring_rule.frequency.titleize : 'One-time' %>
+                <% if txn.user_modified %>
+                  <span class="inline-flex items-center cursor-help ml-0.5" title="Manually adjusted - protected from rule changes">
+                    <svg class="w-3 h-3 text-primary-500" fill="currentColor" viewBox="0 0 8 8">
+                      <circle cx="4" cy="4" r="3"/>
+                    </svg>
+                  </span>
+                <% end %>
+              </span>
             </div>
-            <div class="text-xs text-neutral-500 flex items-center gap-2 mt-0.5">
-              <span><%= txn.account.name %></span>
-              <span class="text-neutral-300">•</span>
-              <span><%= txn.recurring_rule ? txn.recurring_rule.frequency.titleize : 'One-time' %></span>
+
+            <%# Right: Date + Amount %>
+            <div class="flex items-center gap-3">
+              <span class="text-sm font-medium text-neutral-600"><%= txn.date.strftime("%b %d") %></span>
+              <span class="text-money font-semibold <%= txn.amount >= 0 ? 'text-success-600' : 'text-danger-600' %>">
+                <%= format_money(txn.amount, color: false) %>
+              </span>
             </div>
           </div>
 
-          <%# Row 3: Balance and Actions %>
-          <div class="mt-3 flex items-center justify-between">
+          <%# Account + Frequency (visible on mobile only) %>
+          <div class="md:hidden text-xs text-neutral-500 flex items-center gap-2">
+            <span><%= txn.account.name %></span>
+            <span class="text-neutral-300">•</span>
+            <span class="flex items-center gap-1">
+              <%= txn.recurring_rule ? txn.recurring_rule.frequency.titleize : 'One-time' %>
+              <% if txn.user_modified %>
+                <span class="inline-flex items-center cursor-help" title="Manually adjusted - protected from rule changes">
+                  <svg class="w-3 h-3 text-primary-500" fill="currentColor" viewBox="0 0 8 8">
+                    <circle cx="4" cy="4" r="3"/>
+                  </svg>
+                </span>
+              <% end %>
+            </span>
+          </div>
+
+          <%# Row 2: Balance and Actions %>
+          <div class="flex items-center justify-between">
             <div class="text-sm">
               <span class="text-neutral-500">Bal:</span>
               <span class="text-money font-medium <%= balance >= 0 ? 'text-neutral-900' : 'text-danger-600' %>">
@@ -92,7 +111,7 @@
     </div>
 
     <%# Desktop Table %>
-    <div class="hidden sm:block table-container border-0">
+    <div class="hidden xl:block table-container border-0">
       <table class="data-table">
         <thead>
           <tr>
@@ -113,11 +132,7 @@
             <tr class="<%= txn.estimated? ? 'bg-warning-50/30' : '' %>">
               <%# Status %>
               <td>
-                <% if txn.estimated? %>
-                  <%= badge "Estimated", variant: :warning %>
-                <% else %>
-                  <%= badge "Actual", variant: :success %>
-                <% end %>
+                <%= status_label estimated: txn.estimated? %>
               </td>
 
               <%# Date %>
@@ -138,9 +153,25 @@
                       <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                     </svg>
                     <%= txn.recurring_rule.frequency.titleize %>
+                    <% if txn.user_modified %>
+                      <span class="inline-flex items-center cursor-help" title="Manually adjusted - protected from rule changes">
+                        <svg class="w-3 h-3 text-primary-500" fill="currentColor" viewBox="0 0 8 8">
+                          <circle cx="4" cy="4" r="3"/>
+                        </svg>
+                      </span>
+                    <% end %>
                   </div>
                 <% else %>
-                  <div class="text-xs text-neutral-400">One-time</div>
+                  <div class="text-xs text-neutral-400 flex items-center gap-1">
+                    One-time
+                    <% if txn.user_modified %>
+                      <span class="inline-flex items-center cursor-help" title="Manually adjusted - protected from rule changes">
+                        <svg class="w-3 h-3 text-primary-500" fill="currentColor" viewBox="0 0 8 8">
+                          <circle cx="4" cy="4" r="3"/>
+                        </svg>
+                      </span>
+                    <% end %>
+                  </div>
                 <% end %>
               </td>
 

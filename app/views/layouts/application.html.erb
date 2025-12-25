@@ -47,7 +47,7 @@
                 <span class="text-xl font-display font-bold text-neutral-900">Foresight</span>
               <% end %>
             </div>
-            <div class="hidden sm:ml-8 sm:flex sm:space-x-8">
+            <div class="hidden xl:ml-8 xl:flex xl:space-x-8">
               <%= link_to "Dashboard", root_path, class: current_page?(root_path) ? 'nav-link-active' : 'nav-link-inactive' %>
               <%= link_to "Accounts", accounts_path, class: current_page?(accounts_path) ? 'nav-link-active' : 'nav-link-inactive' %>
               <%= link_to "Transactions", transactions_path, class: current_page?(transactions_path) ? 'nav-link-active' : 'nav-link-inactive' %>
@@ -60,7 +60,7 @@
             <!-- Mobile menu button -->
             <button
               type="button"
-              class="sm:hidden inline-flex items-center justify-center p-2 rounded-lg text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 transition-colors"
+              class="xl:hidden inline-flex items-center justify-center p-2 rounded-lg text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 transition-colors"
               data-mobile-menu-target="button"
               data-action="click->mobile-menu#toggle"
               aria-controls="mobile-menu"
@@ -85,7 +85,7 @@
       <!-- Mobile menu panel -->
       <div
         id="mobile-menu"
-        class="sm:hidden hidden"
+        class="xl:hidden hidden"
         data-mobile-menu-target="menu"
       >
         <div class="px-4 pt-2 pb-3 space-y-1 border-t border-neutral-200 bg-white">

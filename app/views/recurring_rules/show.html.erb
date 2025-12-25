@@ -43,13 +43,8 @@
       <div>
         <dt class="text-sm font-medium text-neutral-500">Transaction Type</dt>
         <dd class="mt-1">
-          <% if @recurring_rule.is_estimated? %>
-            <%= badge "Estimated", variant: :warning %>
-            <span class="text-sm text-neutral-500 ml-1">transactions</span>
-          <% else %>
-            <%= badge "Actual", variant: :success %>
-            <span class="text-sm text-neutral-500 ml-1">transactions</span>
-          <% end %>
+          <%= status_label estimated: @recurring_rule.is_estimated? %>
+          <span class="text-sm text-neutral-500 ml-1">transactions</span>
         </dd>
       </div>
       <div>
