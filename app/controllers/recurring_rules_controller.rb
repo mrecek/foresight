@@ -1,8 +1,10 @@
 class RecurringRulesController < ApplicationController
   before_action :set_recurring_rule, only: [ :show, :edit, :update, :destroy ]
+  before_action :load_accounts, only: [ :new, :create, :edit, :update ]
+  before_action :load_categories, only: [ :new, :create, :edit, :update ]
 
   def index
-    @recurring_rules = RecurringRule.includes(:account, :destination_account).order(:description)
+    @recurring_rules = RecurringRule.includes(:account, :destination_account, category: :category_group).order(:description)
   end
 
   def show
@@ -13,9 +15,9 @@ class RecurringRulesController < ApplicationController
     @recurring_rule = RecurringRule.new(
       anchor_date: Date.current,
       is_estimated: true,
-      active: true
+      active: true,
+      rule_type: :expense
     )
-    @accounts = Account.all
   end
 
   def create
@@ -24,13 +26,11 @@ class RecurringRulesController < ApplicationController
       AuditLog.log_create(@recurring_rule, request)
       redirect_to recurring_rules_path, notice: "Recurring rule created with #{@recurring_rule.transactions.count} transactions generated."
     else
-      @accounts = Account.all
       render :new, status: :unprocessable_entity
     end
   end
 
   def edit
-    @accounts = Account.all
   end
 
   def update
@@ -38,7 +38,6 @@ class RecurringRulesController < ApplicationController
       AuditLog.log_update(@recurring_rule, request)
       redirect_to recurring_rules_path, notice: "Recurring rule updated."
     else
-      @accounts = Account.all
       render :edit, status: :unprocessable_entity
     end
   end
@@ -59,7 +58,15 @@ class RecurringRulesController < ApplicationController
     params.require(:recurring_rule).permit(
       :account_id, :destination_account_id, :rule_type, :description,
       :amount, :frequency, :anchor_date, :day_of_month, :day_of_week,
-      :is_estimated, :active
+      :is_estimated, :active, :category_id
     )
+  end
+
+  def load_accounts
+    @accounts = Account.all
+  end
+
+  def load_categories
+    @categories = Category.includes(:category_group).ordered
   end
 end

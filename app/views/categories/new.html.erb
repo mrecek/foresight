@@ -1,0 +1,8 @@
+<div class="max-w-xl mx-auto">
+  <div class="mb-6">
+    <h1 class="text-2xl font-display font-bold text-neutral-900">New Category</h1>
+    <p class="text-sm text-neutral-500 mt-1">Add a category to <%= @category_group.name %></p>
+  </div>
+
+  <%= render "form", category: @category, category_group: @category_group %>
+</div>
