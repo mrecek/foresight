@@ -32,13 +32,70 @@ This guide is for developers who want to build Foresight from source or contribu
    ```
    Visit `http://localhost:3000`.
 
-## Test Data
+## Testing
 
-To seed the database with sample accounts and transactions for testing:
+### Test Mode (For Development & AI Agents)
+
+Test mode allows running the application **without authentication**, making it easy for developers and AI agents to access the app for testing.
+
+**Enable test mode:**
+```bash
+TEST_MODE=true bin/dev
+```
+
+When test mode is active:
+- All authentication is bypassed (no login required)
+- Session timeout is disabled
+- A visible banner appears at the top of the page confirming test mode is active
+- **Security**: Test mode is automatically disabled in production environments
+
+### Demo Data & Credentials
+
+Seed the database with sample accounts, recurring rules, and transactions:
 
 ```bash
 SEED_DEMO_DATA=true bin/rails db:seed
 ```
+
+This also creates demo login credentials:
+- **Username:** `demo`
+- **Password:** `demo1234`
+
+### Recommended Workflows
+
+**For AI agents and automated testing:**
+```bash
+# One-time setup
+SEED_DEMO_DATA=true bin/rails db:seed
+
+# Run with auth bypassed
+TEST_MODE=true bin/dev
+```
+
+**For manual testing with real authentication:**
+```bash
+SEED_DEMO_DATA=true bin/rails db:seed
+bin/dev
+# Log in with: demo / demo1234
+```
+
+### Stopping the Development Server
+
+The development server runs via `foreman` and occupies port 3000. To stop it:
+
+**From the terminal where it's running:**
+Press `Ctrl+C`
+
+**If you don't have access to that terminal:**
+```bash
+# Kill the dev server process
+pkill -f "bin/dev"
+
+# If port 3000 is still occupied
+lsof -ti:3000 | xargs kill -9
+```
+
+**For AI agents:** Always stop the development server after completing your tests to free up port 3000. Use `pkill -f "bin/dev"` before finishing your session.
 
 ## Code Quality
 
@@ -146,20 +203,72 @@ bundle exec brakeman
 
 If checks fail, fix issues before proceeding.
 
-#### 5. Write Commit Message
+#### 5. Determine Commit Strategy
 
-Generate a commit message following the convention above. Analyze the diff to create a meaningful title and body that captures intent.
+Analyze the changes and determine if multiple commits are warranted.
 
-#### 6. Stage and Commit
+**Split into multiple commits when:**
+- Database migrations are present (always separate from application code)
+- Work has distinct phases (refactor → feature, infrastructure → integration)
+- Changes span multiple application layers with natural boundaries
 
-**Human interaction point:** Confirm branch name and commit message with the user before committing.
+**Use a single commit when:**
+- Changes are tightly coupled with no natural breakpoints
+- Bug fix or small enhancement
+- Documentation or configuration only
 
+**Human interaction point:** Present the proposed commit strategy to the user:
+
+```
+## Proposed Commits
+
+Based on the changes, I recommend **N commits**:
+
+### Commit 1: `type: description`
+Files:
+- path/to/file1
+- path/to/file2
+
+### Commit 2: `type: description`
+Files:
+- path/to/file3
+
+Does this grouping look right?
+```
+
+Guidelines:
+- 2-4 commits is typical for a feature; more suggests the PR may be too large
+- Each commit should represent a logical unit of work
+- Commits don't need to pass linting individually; only the final state must pass
+
+#### 6. Write Commit Message(s)
+
+Generate commit message(s) following the convention above. Analyze the diff to create meaningful titles and bodies that capture intent. For multiple commits, write a message for each.
+
+#### 7. Stage and Commit
+
+**Human interaction point:** Confirm branch name and commit message(s) with the user before committing.
+
+**For a single commit:**
 ```bash
 git add .
 git commit -m "<your generated message>"
 ```
 
-#### 7. Push and Create PR
+**For multiple commits:**
+Stage and commit files in groups according to the approved strategy:
+```bash
+# Commit 1: migrations
+git add db/migrate/
+git commit -m "<message for commit 1>"
+
+# Commit 2: application code
+git add app/models/ app/controllers/ app/views/
+git commit -m "<message for commit 2>"
+```
+Repeat for each planned commit.
+
+#### 8. Push and Create PR
 
 ```bash
 git push -u origin HEAD
@@ -171,15 +280,19 @@ The PR body should include:
 - Key changes (can mirror commit body)
 - Any notable decisions or trade-offs
 
-#### 8. Merge
+#### 9. Merge
 
 **Human interaction point:** Confirm merge with the user before proceeding.
 
 After CI passes:
 
 ```bash
-gh pr merge --squash --delete-branch
+gh pr merge --rebase --delete-branch
 ```
+
+We use rebase-merge to:
+- Preserve individual commits on main (enables `git bisect`, targeted reverts)
+- Maintain linear history (easier to read than merge commits)
 
 ---
 
@@ -207,5 +320,5 @@ For manual, interactive PR creation:
 
 5.  **Merge** after CI passes:
     ```bash
-    gh pr merge --squash --delete-branch
+    gh pr merge --rebase --delete-branch
     ```

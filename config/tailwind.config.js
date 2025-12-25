@@ -75,6 +75,47 @@ export default {
           800: '#262626',
           900: '#171717',
           950: '#0a0a0a',
+        },
+        // Category colors - used exclusively for category badges (not semantic meaning)
+        'cat-teal': {
+          100: '#ccfbf1',
+          600: '#0d9488',
+          700: '#0f766e',
+        },
+        'cat-purple': {
+          100: '#f3e8ff',
+          600: '#9333ea',
+          700: '#7e22ce',
+        },
+        'cat-rose': {
+          100: '#ffe4e6',
+          600: '#e11d48',
+          700: '#be123c',
+        },
+        'cat-orange': {
+          100: '#ffedd5',
+          600: '#ea580c',
+          700: '#c2410c',
+        },
+        'cat-sky': {
+          100: '#e0f2fe',
+          600: '#0284c7',
+          700: '#0369a1',
+        },
+        'cat-lime': {
+          100: '#ecfccb',
+          600: '#65a30d',
+          700: '#4d7c0f',
+        },
+        'cat-fuchsia': {
+          100: '#fae8ff',
+          600: '#c026d3',
+          700: '#a21caf',
+        },
+        'cat-slate': {
+          100: '#f1f5f9',
+          600: '#475569',
+          700: '#334155',
         }
       },
       boxShadow: {

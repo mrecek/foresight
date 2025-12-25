@@ -264,7 +264,7 @@
               </div>
             <% end %>
 
-            <div class="p-4 <%= needs_attention ? 'border-l-4 border-l-warning-400' : '' %> <%= is_past ? 'opacity-60' : '' %>" data-transaction-date="<%= txn.date.to_s %>">
+            <div class="p-4 <%= txn.estimated? ? 'bg-warning-50/30' : '' %> <%= needs_attention ? 'border-l-4 border-l-warning-400' : '' %> <%= is_past ? 'opacity-60' : '' %>" data-transaction-date="<%= txn.date.to_s %>">
               <!-- Row 1: Status, Date, Amount -->
               <div class="flex items-center justify-between gap-2">
                 <div class="flex items-center gap-3">
@@ -282,7 +282,11 @@
 
               <!-- Row 2: Description -->
               <div class="mt-2">
-                <div class="font-semibold text-neutral-900"><%= txn.description %></div>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-semibold text-neutral-900"><%= txn.description %></span>
+                  <%= category_badge(txn.category) %>
+                  <%= transfer_badge(txn, show_account: true) %>
+                </div>
                 <% if txn.recurring_rule %>
                   <span class="text-xs text-neutral-500"><%= txn.recurring_rule.frequency.titleize %></span>
                 <% end %>
@@ -366,19 +370,23 @@
                 </tr>
               <% end %>
 
-              <tr class="<%= needs_attention ? 'border-l-4 border-l-warning-400' : '' %> <%= is_past ? 'opacity-60' : '' %>" data-transaction-date="<%= txn.date.to_s %>">
+              <tr class="<%= txn.estimated? ? 'bg-warning-50/30' : '' %> <%= needs_attention ? 'border-l-4 border-l-warning-400' : '' %> <%= is_past ? 'opacity-60' : '' %>" data-transaction-date="<%= txn.date.to_s %>">
                 <td>
                   <% if txn.estimated? %>
-                    <%= badge "EST", variant: :warning %>
+                    <%= badge "Estimated", variant: :warning %>
                   <% else %>
-                    <%= badge "ACT", variant: :success %>
+                    <%= badge "Actual", variant: :success %>
                   <% end %>
                 </td>
                 <td class="font-medium">
                   <%= txn.date.strftime("%b %d, %Y") %>
                 </td>
                 <td>
-                  <div class="font-semibold text-neutral-900"><%= txn.description %></div>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-semibold text-neutral-900"><%= txn.description %></span>
+                    <%= category_badge(txn.category) %>
+                    <%= transfer_badge(txn, show_account: true) %>
+                  </div>
                   <% if txn.recurring_rule %>
                     <div class="text-xs text-neutral-500 mt-0.5"><%= txn.recurring_rule.frequency.titleize %></div>
                   <% end %>

@@ -55,12 +55,16 @@ export default class extends Controller {
             // Store for later use
             this.todayTransactionCount = todayCount
 
-            // Update past transactions text
+            // Update past transactions text (use textContent for safety)
             if (pastCount > 0) {
                 const plural = pastCount === 1 ? '' : 's'
-                this.removeTextTarget.innerHTML = `<span class="text-warning-600">— removes <strong>${pastCount}</strong> old transaction${plural}</span>`
+                this.removeTextTarget.textContent = ''
+                const span = document.createElement('span')
+                span.className = 'text-warning-600'
+                span.textContent = `— removes ${pastCount} old transaction${plural}`
+                this.removeTextTarget.appendChild(span)
             } else {
-                this.removeTextTarget.innerHTML = ''
+                this.removeTextTarget.textContent = ''
             }
 
             // Show/hide today's transactions checkbox

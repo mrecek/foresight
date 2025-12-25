@@ -27,6 +27,11 @@ bin/rails tailwindcss:watch  # Tailwind CSS compilation
 bin/rails db:migrate      # Run pending migrations
 bin/rails db:seed         # Seed data (set SEED_DEMO_DATA=true for demo data)
 
+# Test Mode (bypasses authentication - development only)
+SEED_DEMO_DATA=true bin/rails db:seed  # Seeds demo data + creates demo/demo1234 credentials
+TEST_MODE=true bin/dev                  # Run with auth bypassed (see docs/DEVELOPMENT.md)
+pkill -f "bin/dev"                      # IMPORTANT: Stop server when done testing
+
 # Code quality
 bundle exec rubocop       # Linting (uses rubocop-rails-omakase)
 bundle exec brakeman      # Security scanning
