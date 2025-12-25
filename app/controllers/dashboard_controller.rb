@@ -1,11 +1,5 @@
 class DashboardController < ApplicationController
   def index
-    # Double-check authentication (debugging)
-    unless session[:authenticated] == true
-      redirect_to login_path, alert: "Please log in to continue"
-      return
-    end
-
     @settings = Setting.instance
     @end_date_for_accounts = @settings.default_view_months.months.from_now.to_date
 
@@ -32,7 +26,7 @@ class DashboardController < ApplicationController
     # Get transactions from balance_date (last reconciliation) through end_date
     @transactions = @selected_account.transactions
       .where(date: @selected_account.balance_date..@end_date)
-      .includes(:recurring_rule)
+      .includes(:recurring_rule, { category: :category_group }, { linked_transaction: :account })
       .order(:date)
 
     # Calculate running balances
