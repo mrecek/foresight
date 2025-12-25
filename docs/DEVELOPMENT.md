@@ -194,14 +194,18 @@ git checkout -b feature/my-feature-name
 
 #### 4. Run Quality Checks (Required)
 
-Before committing, run and ensure these pass:
+Before committing, run and ensure these pass with an exit code of 0:
 
 ```bash
 bundle exec rubocop
 bundle exec brakeman
 ```
 
-If checks fail, fix issues before proceeding.
+**Verification Criteria:**
+- **RuboCop**: Must report "no offenses detected".
+- **Brakeman**: Must report "0 warnings" and NO "obsolete" ignores in the summary. If you modify a file mentioned in `config/brakeman.ignore` (e.g., controllers with parameter permits), fingerprints may change, requiring an update to the ignore file.
+
+If checks fail or report obsolete ignores, fix them before proceeding.
 
 #### 5. Determine Commit Strategy
 
@@ -280,9 +284,14 @@ The PR body should include:
 - Key changes (can mirror commit body)
 - Any notable decisions or trade-offs
 
+**Wait for CI:** Before merging, you MUST verify that CI is green.
+- Check status: `gh pr checks`
+- Or wait for the GitHub Action to complete.
+- Do NOT merge a failing PR.
+
 #### 9. Merge
 
-**Human interaction point:** Confirm merge with the user before proceeding.
+**Human interaction point:** Confirm merge with the user before proceeding. **CI must be passing (green) before this step.**
 
 After CI passes:
 

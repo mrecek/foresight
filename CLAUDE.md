@@ -6,6 +6,7 @@ It applies to any AI agent (Claude, Copilot, Cursor, etc.).
 ## GitHub Workflow
 
 For commits and pull requests, follow the **AI Agent Workflow** in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ai-agent-workflow).
+**IMPORTANT:** Always wait for and verify green CI status before merging PRs.
 
 ## Build & Development Commands
 
