@@ -40,22 +40,25 @@ class AccountsController < ApplicationController
 
   def destroy
     AuditLog.log_delete(@account, request)
-    @account.destroy
-    redirect_to accounts_path, notice: "Account deleted."
+    if @account.destroy
+      redirect_to accounts_path, notice: "Account deleted."
+    else
+      redirect_to accounts_path, alert: @account.errors.full_messages.join(", ")
+    end
   end
 
   def reconcile
     if @account.update(reconcile_params)
       # Delete transactions before (or on, if include_today is set) the new balance date
-      if params[:include_today] == "1"
-        deleted_count = @account.transactions
-          .where("date <= ?", @account.balance_date)
-          .delete_all
+      # Use destroy_all instead of delete_all to trigger callbacks (unlink transfers)
+      transactions_to_delete = if params[:include_today] == "1"
+        @account.transactions.where("date <= ?", @account.balance_date)
       else
-        deleted_count = @account.transactions
-          .where("date < ?", @account.balance_date)
-          .delete_all
+        @account.transactions.where("date < ?", @account.balance_date)
       end
+
+      deleted_count = transactions_to_delete.count
+      transactions_to_delete.destroy_all
 
       AuditLog.log_update(@account, request)
 

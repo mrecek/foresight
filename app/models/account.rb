@@ -1,6 +1,8 @@
 class Account < ApplicationRecord
   enum :account_type, { checking: 0, savings: 1 }
 
+  before_destroy :prevent_deletion_if_used_in_transfers
+
   has_many :transactions, dependent: :destroy
   has_many :recurring_rules, dependent: :destroy
   has_many :incoming_transfers, class_name: "RecurringRule", foreign_key: :destination_account_id, dependent: :nullify
@@ -70,6 +72,21 @@ class Account < ApplicationRecord
   def balance_date_not_in_future
     if balance_date.present? && balance_date > Date.current
       errors.add(:balance_date, "cannot be in the future")
+    end
+  end
+
+  def prevent_deletion_if_used_in_transfers
+    # Check if this account is a source for any transfer rules
+    source_transfer_count = recurring_rules.where(rule_type: :transfer).count
+
+    # Check if this account is a destination for any transfer rules
+    destination_transfer_count = RecurringRule.where(destination_account_id: id, rule_type: :transfer).count
+
+    total_transfers = source_transfer_count + destination_transfer_count
+
+    if total_transfers > 0
+      errors.add(:base, "Cannot delete account because it is used in #{total_transfers} transfer rule#{'s' unless total_transfers == 1}. Delete or modify those rules first.")
+      throw :abort
     end
   end
 end

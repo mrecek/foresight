@@ -25,7 +25,13 @@ class RecurringRule < ApplicationRecord
 
   # Class method to extend projections for multiple rules
   def self.extend_all_projections_to(end_date, account: nil)
-    scope = account ? where(account: account) : all
+    scope = if account
+      # Include rules where account is the source OR the destination (for transfers)
+      where(account: account).or(where(destination_account: account))
+    else
+      all
+    end
+
     scope.find_each do |rule|
       rule.extend_projections_to(end_date)
     end
