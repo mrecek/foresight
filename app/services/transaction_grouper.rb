@@ -6,6 +6,7 @@
 #
 # Grouping criteria:
 # - Same recurring_rule_id (must have a rule)
+# - High-frequency rule (daily, weekly, biweekly, semimonthly)
 # - Same status (estimated/actual)
 # - Consecutive in the sorted list (no other transactions in between)
 # - 3 or more transactions
@@ -78,7 +79,17 @@ class TransactionGrouper
   private
 
   def can_group?(txn)
-    txn.recurring_rule_id.present?
+    return false unless txn.recurring_rule_id.present?
+    return false unless high_frequency_rule?(txn)
+    true
+  end
+
+  def high_frequency_rule?(txn)
+    return true unless txn.recurring_rule # Safe default if not loaded
+
+    # Only group high-frequency rules (more frequent than monthly)
+    # Exclude: monthly, monthly_last, quarterly, biyearly, yearly
+    %w[daily weekly biweekly semimonthly].include?(txn.recurring_rule.frequency)
   end
 
   def continues_group?(group, txn)
