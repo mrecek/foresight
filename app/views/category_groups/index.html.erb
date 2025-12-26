@@ -42,7 +42,22 @@
                   <span class="text-sm text-neutral-900"><%= category.name %></span>
                   <div class="flex items-center gap-1">
                     <%= icon_button icon: :edit, path: edit_category_group_category_path(group, category), title: "Edit category", variant: :primary %>
-                    <%= icon_button icon: :delete, path: category_group_category_path(group, category), title: "Delete category", variant: :danger, method: :delete, data: { turbo_confirm: "Delete this category?" } %>
+                    <%
+                      transaction_count = category.transactions.count
+                      rule_count = category.recurring_rules.count
+                      total_count = transaction_count + rule_count
+
+                      if total_count > 0
+                        confirm_msg = "Delete '#{category.name}'? This will affect #{total_count} record#{'s' unless total_count == 1} "
+                        confirm_msg += "(#{transaction_count} transaction#{'s' unless transaction_count == 1}" if transaction_count > 0
+                        confirm_msg += ", " if transaction_count > 0 && rule_count > 0
+                        confirm_msg += "#{rule_count} rule#{'s' unless rule_count == 1}" if rule_count > 0
+                        confirm_msg += ") which will become uncategorized."
+                      else
+                        confirm_msg = "Delete this category?"
+                      end
+                    %>
+                    <%= icon_button icon: :delete, path: category_group_category_path(group, category), title: "Delete category", variant: :danger, method: :delete, data: { turbo_confirm: confirm_msg } %>
                   </div>
                 </div>
               <% end %>
