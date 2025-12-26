@@ -67,3 +67,21 @@ jobs:
 
       - name: Lint code for consistent style
         run: bin/rubocop -f github
+
+  test:
+    name: CI/test (pull_request)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Set up database
+        run: bin/rails db:test:prepare
+
+      - name: Run tests
+        run: ruby -Itest -Ilib test/models/*_test.rb test/services/*_test.rb

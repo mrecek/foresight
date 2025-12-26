@@ -1,0 +1,44 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "fileutils"
+
+APP_ROOT = File.expand_path("..", __dir__)
+
+def system!(*args)
+  puts args.join(" ")
+  system(*args) || abort("\n== Command #{args} failed ==")
+end
+
+FileUtils.chdir APP_ROOT do
+  puts "\n== Preparing test database =="
+  system! "bin/rails db:test:prepare"
+
+  puts "\n== Running tests =="
+  # Run each test file separately to ensure all tests execute
+  test_files = Dir.glob("test/**/*_test.rb")
+
+  total_runs = 0
+  total_assertions = 0
+
+  test_files.each do |file|
+    output = `ruby -Itest -Ilib #{file} 2>&1`
+    puts output
+
+    # Extract test results
+    if output =~ /(\d+) runs?, (\d+) assertions?/
+      total_runs += $1.to_i
+      total_assertions += $2.to_i
+    end
+
+    # Check for failures
+    unless $?.success?
+      abort("\n== Tests failed in #{file} ==")
+    end
+  end
+
+  puts "\n" + "="*50
+  puts "Total: #{total_runs} runs, #{total_assertions} assertions"
+  puts "="*50
+  puts "\n✅ All tests passed!"
+end
