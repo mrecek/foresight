@@ -485,6 +485,25 @@
   .mobile-nav-link-inactive {
     @apply text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900;
   }
+
+  /* Transaction Group Header - Collapsed grouped transactions */
+  .transaction-group-header {
+    @apply bg-gradient-to-r from-primary-50/50 to-transparent border-l-3 border-l-primary-400;
+  }
+
+  .transaction-group-header:hover {
+    @apply from-primary-100/50;
+  }
+
+  /* Expanded state: minimal header - hide most content, show only chevron + description + count */
+  .transaction-group-header.expanded {
+    @apply bg-neutral-100;
+  }
+
+  .transaction-group-header.expanded [data-expanded-hide],
+  .transaction-group-header.expanded [data-aggregate] {
+    display: none !important;
+  }
 }
 
 /* Custom Utilities */
