@@ -15,7 +15,7 @@
 
 2.  **Run quality checks:**
     ```bash
-    bundle exec rubocop && bundle exec brakeman
+    bin/test && bundle exec rubocop && bundle exec brakeman
     ```
 
 3.  **Commit your changes** following the commit message convention below.
@@ -85,15 +85,17 @@ git checkout -b feature/my-feature-name
 Before committing, run and ensure these pass with an exit code of 0:
 
 ```bash
+bin/test
 bundle exec rubocop
 bundle exec brakeman
 ```
 
 **Verification Criteria:**
+- **Tests**: Must report "0 failures, 0 errors". All tests must pass (171 tests, 408 assertions).
 - **RuboCop**: Must report "no offenses detected".
 - **Brakeman**: Must report "0 warnings" and NO "obsolete" ignores in the summary. If you modify a file mentioned in `config/brakeman.ignore` (e.g., controllers with parameter permits), fingerprints may change, requiring an update to the ignore file.
 
-If checks fail or report obsolete ignores, fix them before proceeding.
+If any checks fail or report issues, fix them before proceeding.
 
 #### 5. Determine Commit Strategy
 
