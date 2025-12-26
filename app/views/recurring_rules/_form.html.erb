@@ -176,7 +176,7 @@
       </div>
 
       <%# Anchor Date with shortcuts %>
-      <div data-controller="date-helper">
+      <div data-controller="date-helper" data-frequency-fields-target="anchorDate">
         <label class="form-label">Start Date</label>
         <%= f.date_field :anchor_date,
             class: "form-input",
@@ -195,10 +195,17 @@
         <p class="form-hint mt-2">Reference date for calculating occurrences</p>
       </div>
 
-      <%# Day of Month (only for monthly, semimonthly) %>
-      <div data-frequency-fields-target="dayOfMonth" class="transition-opacity duration-200">
-        <label class="form-label">Day of Month</label>
-        <%= f.number_field :day_of_month, min: 1, max: 31, placeholder: "e.g., 15", class: "form-input" %>
+      <%# Day of Month (only for semimonthly) %>
+<div data-frequency-fields-target="dayOfMonth" class="transition-opacity duration-200">
+        <label class="form-label">First Day of Month</label>
+        <%= f.select :day_of_month, [
+          ["1st (most common)", 1],
+          ["5th", 5],
+          ["10th", 10],
+          ["───────", nil, { disabled: true }],
+          *((2..14).to_a + (16..31).to_a).reject { |d| [1, 5, 10].include?(d) }.map { |d| ["#{d}#{d.ordinalize[-2..-1]}", d] }
+        ], { include_blank: "Select day..." }, class: "form-select" %>
+        <p class="form-hint mt-2">Paired with the 15th (e.g., 1st and 15th, or 5th and 15th)</p>
       </div>
 
       <%# Day of Week (only for weekly) %>

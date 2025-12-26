@@ -14,6 +14,8 @@ export default class extends Controller {
 
   format(event) {
     const input = event.target
+    const cursorPosition = input.selectionStart
+    const originalValue = input.value
     let value = input.value.replace(/[^0-9.]/g, '')
 
     // Handle multiple decimals
@@ -27,7 +29,18 @@ export default class extends Controller {
       value = parts[0] + '.' + parts[1].slice(0, 2)
     }
 
-    input.value = value
+    // Only update if value actually changed
+    if (input.value !== value) {
+      // Calculate how many characters were removed before cursor position
+      const charactersRemoved = originalValue.length - value.length
+      const adjustedPosition = Math.max(0, Math.min(cursorPosition - charactersRemoved, value.length))
+
+      input.value = value
+
+      // Restore cursor position
+      input.setSelectionRange(adjustedPosition, adjustedPosition)
+    }
+
     this.formatDisplay()
   }
 

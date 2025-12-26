@@ -18,7 +18,9 @@ class RecurringRulesController < ApplicationController
       anchor_date: Date.current,
       is_estimated: true,
       active: true,
-      rule_type: :expense
+      rule_type: :expense,
+      frequency: :monthly,
+      day_of_month: 1
     )
   end
 
