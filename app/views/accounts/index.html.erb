@@ -82,32 +82,32 @@
             <% projected = account.projected_balance %>
             <tr>
               <%# Name %>
-              <td>
+              <td class="cell-nowrap">
                 <div class="font-medium text-neutral-900"><%= account.name %></div>
               </td>
 
               <%# Type %>
-              <td>
+              <td class="cell-nowrap">
                 <%= badge account.account_type.titleize, variant: :neutral %>
               </td>
 
               <%# Current Balance %>
-              <td class="text-right">
+              <td class="cell-nowrap text-right">
                 <%= format_money(account.current_balance, show_sign: false, color: false) %>
               </td>
 
               <%# Balance Date %>
-              <td class="text-neutral-600">
+              <td class="cell-nowrap text-neutral-600">
                 <%= account.balance_date.strftime("%b %d, %Y") %>
               </td>
 
               <%# Projected Balance %>
-              <td class="text-right">
+              <td class="cell-nowrap text-right">
                 <%= format_money(projected, show_sign: false) %>
               </td>
 
               <%# Actions %>
-              <td class="text-right">
+              <td class="cell-nowrap text-right">
                 <div class="flex items-center justify-end gap-1">
                   <%= icon_button icon: :view, path: account_path(account), title: "View account" %>
                   <%= icon_button icon: :edit, path: edit_account_path(account), title: "Edit account", variant: :primary %>

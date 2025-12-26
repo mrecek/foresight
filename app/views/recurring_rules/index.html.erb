@@ -119,20 +119,22 @@
           <% @recurring_rules.each do |rule| %>
             <tr class="<%= rule.active? ? '' : 'opacity-50' %>">
               <%# Status (Estimated/Actual for next transaction) %>
-              <td>
+              <td class="cell-nowrap">
                 <%= status_label estimated: rule.is_estimated? %>
               </td>
 
               <%# Description %>
-              <td>
-                <div class="flex items-center gap-2 flex-wrap">
-                  <span class="font-medium text-neutral-900"><%= rule.description %></span>
-                  <%= category_badge(rule.category) %>
-                </div>
+              <td class="cell-description" title="<%= rule.description %>">
+                <span class="font-medium text-neutral-900 line-clamp-2"><%= rule.description %></span>
+                <% if rule.category %>
+                  <div class="mt-1">
+                    <%= category_badge(rule.category) %>
+                  </div>
+                <% end %>
               </td>
 
               <%# Type Badge %>
-              <td>
+              <td class="cell-nowrap">
                 <% variant = case rule.rule_type
                    when 'income' then :success
                    when 'expense' then :danger
@@ -142,7 +144,7 @@
               </td>
 
               <%# Account %>
-              <td class="text-neutral-600">
+              <td class="cell-nowrap text-neutral-600">
                 <div><%= rule.account.name %></div>
                 <% if rule.transfer? && rule.destination_account %>
                   <div class="text-xs text-neutral-400 flex items-center gap-1 mt-0.5">
@@ -155,7 +157,7 @@
               </td>
 
               <%# Frequency %>
-              <td class="text-neutral-600">
+              <td class="cell-nowrap text-neutral-600">
                 <div><%= rule.frequency.titleize %></div>
                 <div class="text-xs text-neutral-400">
                   <% if rule.day_of_month %>
@@ -167,13 +169,13 @@
               </td>
 
               <%# Amount %>
-              <td class="text-right">
+              <td class="cell-nowrap text-right">
                 <% amount = rule.income? ? rule.amount : -rule.amount %>
                 <%= format_money(amount) %>
               </td>
 
               <%# Status %>
-              <td class="text-center">
+              <td class="cell-nowrap text-center">
                 <% if rule.active? %>
                   <%= badge "Active", variant: :success %>
                 <% else %>
@@ -182,7 +184,7 @@
               </td>
 
               <%# Actions %>
-              <td class="text-right">
+              <td class="cell-nowrap text-right">
                 <div class="flex items-center justify-end gap-1">
                   <%= icon_button icon: :view, path: recurring_rule_path(rule), title: "View details" %>
                   <%= icon_button icon: :edit, path: edit_recurring_rule_path(rule), title: "Edit rule", variant: :primary %>

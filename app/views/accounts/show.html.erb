@@ -90,19 +90,19 @@
           <% @transactions.each do |txn| %>
             <% running_balance += txn.amount %>
             <tr class="<%= txn.estimated? ? 'bg-warning-50/30' : '' %>">
-              <td>
+              <td class="cell-nowrap">
                 <%= status_label estimated: txn.estimated?, abbreviated: true %>
               </td>
-              <td class="text-neutral-900">
+              <td class="cell-nowrap text-neutral-900">
                 <%= txn.date.strftime("%b %d, %Y") %>
               </td>
-              <td class="text-neutral-900">
-                <%= txn.description %>
+              <td class="cell-description text-neutral-900" title="<%= txn.description %>">
+                <span class="line-clamp-2"><%= txn.description %></span>
               </td>
-              <td class="text-right">
+              <td class="cell-nowrap text-right">
                 <%= format_money(txn.amount) %>
               </td>
-              <td class="text-right text-money <%= running_balance >= 0 ? 'text-neutral-900' : 'text-danger-600 font-semibold' %>">
+              <td class="cell-nowrap text-right text-money <%= running_balance >= 0 ? 'text-neutral-900' : 'text-danger-600 font-semibold' %>">
                 $<%= money_amount(running_balance) %>
               </td>
             </tr>

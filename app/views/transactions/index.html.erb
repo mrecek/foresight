@@ -131,62 +131,60 @@
             <% running_balances[txn.account_id] += txn.amount %>
             <tr class="<%= txn.estimated? ? 'bg-warning-50/30' : '' %>">
               <%# Status %>
-              <td>
+              <td class="cell-nowrap">
                 <%= status_label estimated: txn.estimated? %>
               </td>
 
               <%# Date %>
-              <td class="text-neutral-900">
+              <td class="cell-nowrap text-neutral-900">
                 <%= txn.date.strftime("%b %d, %Y") %>
               </td>
 
               <%# Description %>
-              <td>
-                <div class="flex items-center gap-2 flex-wrap">
-                  <span class="font-medium text-neutral-900"><%= txn.description %></span>
+              <td class="cell-description" title="<%= txn.description %>">
+                <span class="font-medium text-neutral-900 line-clamp-2"><%= txn.description %></span>
+                <div class="flex items-center gap-2 mt-1 flex-wrap">
                   <%= category_badge(txn.category) %>
                   <%= transfer_badge(txn, show_account: true) %>
+                  <% if txn.recurring_rule %>
+                    <span class="text-xs text-neutral-400 flex items-center gap-1">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                      </svg>
+                      <%= txn.recurring_rule.frequency.titleize %>
+                      <% if txn.user_modified %>
+                        <span class="inline-flex items-center cursor-help" title="Manually adjusted - protected from rule changes">
+                          <svg class="w-3 h-3 text-primary-500" fill="currentColor" viewBox="0 0 8 8">
+                            <circle cx="4" cy="4" r="3"/>
+                          </svg>
+                        </span>
+                      <% end %>
+                    </span>
+                  <% elsif txn.user_modified %>
+                    <span class="text-xs text-neutral-400 flex items-center gap-1">
+                      One-time
+                      <span class="inline-flex items-center cursor-help" title="Manually adjusted - protected from rule changes">
+                        <svg class="w-3 h-3 text-primary-500" fill="currentColor" viewBox="0 0 8 8">
+                          <circle cx="4" cy="4" r="3"/>
+                        </svg>
+                      </span>
+                    </span>
+                  <% end %>
                 </div>
-                <% if txn.recurring_rule %>
-                  <div class="text-xs text-neutral-400 flex items-center gap-1">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                    </svg>
-                    <%= txn.recurring_rule.frequency.titleize %>
-                    <% if txn.user_modified %>
-                      <span class="inline-flex items-center cursor-help" title="Manually adjusted - protected from rule changes">
-                        <svg class="w-3 h-3 text-primary-500" fill="currentColor" viewBox="0 0 8 8">
-                          <circle cx="4" cy="4" r="3"/>
-                        </svg>
-                      </span>
-                    <% end %>
-                  </div>
-                <% else %>
-                  <div class="text-xs text-neutral-400 flex items-center gap-1">
-                    One-time
-                    <% if txn.user_modified %>
-                      <span class="inline-flex items-center cursor-help" title="Manually adjusted - protected from rule changes">
-                        <svg class="w-3 h-3 text-primary-500" fill="currentColor" viewBox="0 0 8 8">
-                          <circle cx="4" cy="4" r="3"/>
-                        </svg>
-                      </span>
-                    <% end %>
-                  </div>
-                <% end %>
               </td>
 
               <%# Account %>
-              <td class="text-neutral-600">
+              <td class="cell-nowrap text-neutral-600">
                 <%= txn.account.name %>
               </td>
 
               <%# Amount %>
-              <td class="text-right">
+              <td class="cell-nowrap text-right">
                 <%= format_money(txn.amount) %>
               </td>
 
               <%# Running Balance %>
-              <td class="text-right">
+              <td class="cell-nowrap text-right">
                 <% balance = running_balances[txn.account_id] %>
                 <span class="font-mono tabular-nums <%= balance >= 0 ? 'text-neutral-900' : 'text-danger-600 font-semibold' %>">
                   $<%= money_amount(balance) %>
@@ -194,7 +192,7 @@
               </td>
 
               <%# Actions %>
-              <td class="text-right">
+              <td class="cell-nowrap text-right">
                 <div class="flex items-center justify-end gap-1">
                   <% if txn.estimated? %>
                     <%= icon_button icon: :check, path: confirm_actual_transaction_path(txn), title: "Mark as actual", variant: :success, data: { turbo_frame: "_top" } %>
