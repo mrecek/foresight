@@ -428,7 +428,7 @@
   }
 
   .data-table td {
-    @apply px-6 py-4 whitespace-nowrap text-sm text-neutral-900;
+    @apply px-6 py-4 text-sm text-neutral-900;
   }
 
   .data-table tbody {
@@ -437,6 +437,25 @@
 
   .data-table tbody tr {
     @apply transition-colors duration-150 hover:bg-neutral-50;
+  }
+
+  /* Table cell utilities for controlling text wrapping */
+  .cell-nowrap {
+    @apply whitespace-nowrap;
+  }
+
+  .cell-description {
+    max-width: 20rem;
+    /* max-w-xs */
+    word-break: break-word;
+  }
+
+  .cell-description>div:first-child,
+  .cell-description>span:first-child {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
   /* Navigation Active State */
