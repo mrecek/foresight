@@ -6,7 +6,7 @@ class TransactionGrouperTest < ActiveSupport::TestCase
       name: "Test Account",
       account_type: :checking,
       current_balance: 1000.0,
-      balance_date: Date.today,
+      balance_date: Date.current,
       warning_threshold: 0.0
     )
   end
@@ -20,7 +20,7 @@ class TransactionGrouperTest < ActiveSupport::TestCase
       description: "#{frequency.titleize} Rule",
       amount: amount,
       frequency: frequency,
-      anchor_date: Date.today,
+      anchor_date: Date.current,
       rule_type: "expense"
     )
     RecurringRule.set_callback(:create, :after, :generate_initial_transactions)
@@ -50,7 +50,7 @@ class TransactionGrouperTest < ActiveSupport::TestCase
 
   test "groups daily transactions when 3 or more consecutive" do
     rule = create_rule("daily")
-    dates = [ Date.today, Date.today + 1.day, Date.today + 2.days ]
+    dates = [ Date.current, Date.current + 1.day, Date.current + 2.days ]
     items = create_transaction_items(rule, dates)
 
     result = TransactionGrouper.new(items).call
@@ -63,7 +63,7 @@ class TransactionGrouperTest < ActiveSupport::TestCase
 
   test "groups weekly transactions when 3 or more consecutive" do
     rule = create_rule("weekly")
-    dates = [ Date.today, Date.today + 1.week, Date.today + 2.weeks ]
+    dates = [ Date.current, Date.current + 1.week, Date.current + 2.weeks ]
     items = create_transaction_items(rule, dates)
 
     result = TransactionGrouper.new(items).call
@@ -75,7 +75,7 @@ class TransactionGrouperTest < ActiveSupport::TestCase
 
   test "groups biweekly transactions when 3 or more consecutive" do
     rule = create_rule("biweekly")
-    dates = [ Date.today, Date.today + 2.weeks, Date.today + 4.weeks ]
+    dates = [ Date.current, Date.current + 2.weeks, Date.current + 4.weeks ]
     items = create_transaction_items(rule, dates)
 
     result = TransactionGrouper.new(items).call
@@ -87,7 +87,7 @@ class TransactionGrouperTest < ActiveSupport::TestCase
 
   test "groups semimonthly transactions when 3 or more consecutive" do
     rule = create_rule("semimonthly")
-    dates = [ Date.today, Date.today + 15.days, Date.today + 30.days ]
+    dates = [ Date.current, Date.current + 15.days, Date.current + 30.days ]
     items = create_transaction_items(rule, dates)
 
     result = TransactionGrouper.new(items).call
@@ -103,7 +103,7 @@ class TransactionGrouperTest < ActiveSupport::TestCase
 
   test "does not group monthly transactions" do
     rule = create_rule("monthly")
-    dates = [ Date.today, Date.today + 1.month, Date.today + 2.months ]
+    dates = [ Date.current, Date.current + 1.month, Date.current + 2.months ]
     items = create_transaction_items(rule, dates)
 
     result = TransactionGrouper.new(items).call
@@ -116,7 +116,7 @@ class TransactionGrouperTest < ActiveSupport::TestCase
 
   test "does not group monthly_last transactions" do
     rule = create_rule("monthly_last")
-    dates = [ Date.today, Date.today + 1.month, Date.today + 2.months ]
+    dates = [ Date.current, Date.current + 1.month, Date.current + 2.months ]
     items = create_transaction_items(rule, dates)
 
     result = TransactionGrouper.new(items).call
@@ -127,7 +127,7 @@ class TransactionGrouperTest < ActiveSupport::TestCase
 
   test "does not group quarterly transactions" do
     rule = create_rule("quarterly")
-    dates = [ Date.today, Date.today + 3.months, Date.today + 6.months ]
+    dates = [ Date.current, Date.current + 3.months, Date.current + 6.months ]
     items = create_transaction_items(rule, dates)
 
     result = TransactionGrouper.new(items).call
@@ -138,7 +138,7 @@ class TransactionGrouperTest < ActiveSupport::TestCase
 
   test "does not group biyearly transactions" do
     rule = create_rule("biyearly")
-    dates = [ Date.today, Date.today + 2.years, Date.today + 4.years ]
+    dates = [ Date.current, Date.current + 2.years, Date.current + 4.years ]
     items = create_transaction_items(rule, dates)
 
     result = TransactionGrouper.new(items).call
@@ -149,7 +149,7 @@ class TransactionGrouperTest < ActiveSupport::TestCase
 
   test "does not group yearly transactions" do
     rule = create_rule("yearly")
-    dates = [ Date.today, Date.today + 1.year, Date.today + 2.years ]
+    dates = [ Date.current, Date.current + 1.year, Date.current + 2.years ]
     items = create_transaction_items(rule, dates)
 
     result = TransactionGrouper.new(items).call
@@ -164,7 +164,7 @@ class TransactionGrouperTest < ActiveSupport::TestCase
 
   test "does not group when only 2 daily transactions" do
     rule = create_rule("daily")
-    dates = [ Date.today, Date.today + 1.day ]
+    dates = [ Date.current, Date.current + 1.day ]
     items = create_transaction_items(rule, dates)
 
     result = TransactionGrouper.new(items).call
@@ -175,7 +175,7 @@ class TransactionGrouperTest < ActiveSupport::TestCase
 
   test "does not group single transaction" do
     rule = create_rule("daily")
-    dates = [ Date.today ]
+    dates = [ Date.current ]
     items = create_transaction_items(rule, dates)
 
     result = TransactionGrouper.new(items).call
@@ -193,11 +193,11 @@ class TransactionGrouperTest < ActiveSupport::TestCase
     monthly_rule = create_rule("monthly", 100.0)
 
     # Create 3 daily transactions
-    daily_dates = [ Date.today, Date.today + 1.day, Date.today + 2.days ]
+    daily_dates = [ Date.current, Date.current + 1.day, Date.current + 2.days ]
     daily_items = create_transaction_items(daily_rule, daily_dates, 1000.0)
 
     # Create 3 monthly transactions
-    monthly_dates = [ Date.today + 10.days, Date.today + 40.days, Date.today + 70.days ]
+    monthly_dates = [ Date.current + 10.days, Date.current + 40.days, Date.current + 70.days ]
     monthly_items = create_transaction_items(monthly_rule, monthly_dates, 985.0)
 
     # Combine and sort by date
@@ -222,10 +222,10 @@ class TransactionGrouperTest < ActiveSupport::TestCase
     daily_rule = create_rule("daily", 5.0)
     weekly_rule = create_rule("weekly", 20.0)
 
-    daily_dates = [ Date.today, Date.today + 1.day, Date.today + 2.days ]
+    daily_dates = [ Date.current, Date.current + 1.day, Date.current + 2.days ]
     daily_items = create_transaction_items(daily_rule, daily_dates, 1000.0)
 
-    weekly_dates = [ Date.today + 10.days, Date.today + 17.days, Date.today + 24.days ]
+    weekly_dates = [ Date.current + 10.days, Date.current + 17.days, Date.current + 24.days ]
     weekly_items = create_transaction_items(weekly_rule, weekly_dates, 985.0)
 
     all_items = (daily_items + weekly_items).sort_by { |i| i[:transaction].date }
@@ -246,7 +246,7 @@ class TransactionGrouperTest < ActiveSupport::TestCase
 
   test "does not group transactions without recurring_rule_id" do
     # Create one-time transactions (no recurring rule)
-    dates = [ Date.today, Date.today + 1.day, Date.today + 2.days ]
+    dates = [ Date.current, Date.current + 1.day, Date.current + 2.days ]
     items = dates.map.with_index do |date, i|
       txn = Transaction.create!(
         account: @account,
@@ -269,9 +269,9 @@ class TransactionGrouperTest < ActiveSupport::TestCase
 
     # Create 2 estimated and 1 actual transaction
     items = [
-      { transaction: Transaction.create!(account: @account, recurring_rule: rule, description: rule.description, amount: rule.amount, date: Date.today, status: :estimated), running_balance: 990.0 },
-      { transaction: Transaction.create!(account: @account, recurring_rule: rule, description: rule.description, amount: rule.amount, date: Date.today + 1.day, status: :estimated), running_balance: 980.0 },
-      { transaction: Transaction.create!(account: @account, recurring_rule: rule, description: rule.description, amount: rule.amount, date: Date.today + 2.days, status: :actual), running_balance: 970.0 }
+      { transaction: Transaction.create!(account: @account, recurring_rule: rule, description: rule.description, amount: rule.amount, date: Date.current, status: :estimated), running_balance: 990.0 },
+      { transaction: Transaction.create!(account: @account, recurring_rule: rule, description: rule.description, amount: rule.amount, date: Date.current + 1.day, status: :estimated), running_balance: 980.0 },
+      { transaction: Transaction.create!(account: @account, recurring_rule: rule, description: rule.description, amount: rule.amount, date: Date.current + 2.days, status: :actual), running_balance: 970.0 }
     ]
 
     result = TransactionGrouper.new(items).call
@@ -287,10 +287,10 @@ class TransactionGrouperTest < ActiveSupport::TestCase
 
     # Daily, Daily, Monthly (breaks consecutive), Daily
     items = [
-      { transaction: Transaction.create!(account: @account, recurring_rule: daily_rule, description: "Daily 1", amount: -5.0, date: Date.today, status: :estimated), running_balance: 995.0 },
-      { transaction: Transaction.create!(account: @account, recurring_rule: daily_rule, description: "Daily 2", amount: -5.0, date: Date.today + 1.day, status: :estimated), running_balance: 990.0 },
-      { transaction: Transaction.create!(account: @account, recurring_rule: monthly_rule, description: "Monthly", amount: -100.0, date: Date.today + 2.days, status: :estimated), running_balance: 890.0 },
-      { transaction: Transaction.create!(account: @account, recurring_rule: daily_rule, description: "Daily 3", amount: -5.0, date: Date.today + 3.days, status: :estimated), running_balance: 885.0 }
+      { transaction: Transaction.create!(account: @account, recurring_rule: daily_rule, description: "Daily 1", amount: -5.0, date: Date.current, status: :estimated), running_balance: 995.0 },
+      { transaction: Transaction.create!(account: @account, recurring_rule: daily_rule, description: "Daily 2", amount: -5.0, date: Date.current + 1.day, status: :estimated), running_balance: 990.0 },
+      { transaction: Transaction.create!(account: @account, recurring_rule: monthly_rule, description: "Monthly", amount: -100.0, date: Date.current + 2.days, status: :estimated), running_balance: 890.0 },
+      { transaction: Transaction.create!(account: @account, recurring_rule: daily_rule, description: "Daily 3", amount: -5.0, date: Date.current + 3.days, status: :estimated), running_balance: 885.0 }
     ]
 
     result = TransactionGrouper.new(items).call
@@ -312,7 +312,7 @@ class TransactionGrouperTest < ActiveSupport::TestCase
 
   test "TransactionGroup includes correct properties" do
     rule = create_rule("daily", 10.0)
-    dates = [ Date.today, Date.today + 1.day, Date.today + 2.days ]
+    dates = [ Date.current, Date.current + 1.day, Date.current + 2.days ]
     items = create_transaction_items(rule, dates, 1000.0)
 
     result = TransactionGrouper.new(items).call
@@ -321,8 +321,8 @@ class TransactionGrouperTest < ActiveSupport::TestCase
     assert group.group?
     assert_equal rule, group.recurring_rule
     assert_equal 3, group.count
-    assert_equal Date.today, group.first_date
-    assert_equal Date.today + 2.days, group.last_date
+    assert_equal Date.current, group.first_date
+    assert_equal Date.current + 2.days, group.last_date
     assert_equal 30.0, group.total_amount
     assert_equal 970.0, group.ending_balance
     assert_equal "estimated", group.status
