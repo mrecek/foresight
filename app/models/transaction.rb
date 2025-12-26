@@ -87,49 +87,53 @@ class Transaction < ApplicationRecord
   #
   # The callback synchronizes: description, date, status, amount (inverted), category
   def manage_transfer
-    # Case 1: Explicit removal request (e.g. switched to Expense)
-    # We use instance_variable_defined? to ensure we only act if the attribute was actually set on the object
-    if instance_variable_defined?(:@destination_account_id) && @destination_account_id.blank?
-      if linked_transaction
-        linked_transaction.destroy!
-        update_column(:linked_transaction_id, nil)
+    # Wrap entire callback in explicit transaction so ActiveRecord::Rollback works properly
+    # This prevents orphaned one-sided transfers when linked transaction save fails
+    ActiveRecord::Base.transaction do
+      # Case 1: Explicit removal request (e.g. switched to Expense)
+      # We use instance_variable_defined? to ensure we only act if the attribute was actually set on the object
+      if instance_variable_defined?(:@destination_account_id) && @destination_account_id.blank?
+        if linked_transaction
+          linked_transaction.destroy!
+          update_column(:linked_transaction_id, nil)
+        end
+        return
       end
-      return
-    end
 
-    # Case 2: Determine if we need to process a transfer
-    # We process if we have an explicit new destination OR an existing link to maintain
-    target_account_id = if instance_variable_defined?(:@destination_account_id) && @destination_account_id.present?
-                          @destination_account_id
-    elsif linked_transaction
-                          linked_transaction.account_id
-    else
-                          nil
-    end
+      # Case 2: Determine if we need to process a transfer
+      # We process if we have an explicit new destination OR an existing link to maintain
+      target_account_id = if instance_variable_defined?(:@destination_account_id) && @destination_account_id.present?
+                            @destination_account_id
+      elsif linked_transaction
+                            linked_transaction.account_id
+      else
+                            nil
+      end
 
-    return unless target_account_id
+      return unless target_account_id
 
-    # Case 3: Create or Update Linked Transaction
-    linked = linked_transaction || Transaction.new(linked_transaction_id: id)
+      # Case 3: Create or Update Linked Transaction
+      linked = linked_transaction || Transaction.new(linked_transaction_id: id)
 
-    linked.assign_attributes(
-      account_id: target_account_id,
-      amount: -amount,
-      description: description,
-      date: date,
-      status: status,
-      category_id: category_id
-    )
+      linked.assign_attributes(
+        account_id: target_account_id,
+        amount: -amount,
+        description: description,
+        date: date,
+        status: status,
+        category_id: category_id
+      )
 
-    # Prevent infinite recursion: the linked transaction's save won't trigger this callback
-    # This is safe because the linked transaction is the inverse mirror of this one
-    linked.skip_transfer_callback = true
+      # Prevent infinite recursion: the linked transaction's save won't trigger this callback
+      # This is safe because the linked transaction is the inverse mirror of this one
+      linked.skip_transfer_callback = true
 
-    if linked.save
-      update_column(:linked_transaction_id, linked.id) if linked_transaction_id.nil?
-    else
-      errors.add(:base, "Linked transaction error: #{linked.errors.full_messages.join(', ')}")
-      raise ActiveRecord::Rollback
+      if linked.save
+        update_column(:linked_transaction_id, linked.id) if linked_transaction_id.nil?
+      else
+        errors.add(:base, "Linked transaction error: #{linked.errors.full_messages.join(', ')}")
+        raise ActiveRecord::Rollback
+      end
     end
   end
 end
