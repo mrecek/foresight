@@ -6,7 +6,7 @@ class TransactionTest < ActiveSupport::TestCase
       name: "Checking",
       account_type: :checking,
       current_balance: 1000.0,
-      balance_date: Date.today,
+      balance_date: Date.current,
       warning_threshold: 0.0
     )
 
@@ -14,7 +14,7 @@ class TransactionTest < ActiveSupport::TestCase
       name: "Savings",
       account_type: :savings,
       current_balance: 5000.0,
-      balance_date: Date.today,
+      balance_date: Date.current,
       warning_threshold: 0.0
     )
 
@@ -31,7 +31,7 @@ class TransactionTest < ActiveSupport::TestCase
       account: @checking,
       description: "Test Transaction",
       amount: 100.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
     assert txn.valid?
@@ -41,7 +41,7 @@ class TransactionTest < ActiveSupport::TestCase
     txn = Transaction.new(
       account: @checking,
       amount: 100.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
     assert_not txn.valid?
@@ -52,7 +52,7 @@ class TransactionTest < ActiveSupport::TestCase
     txn = Transaction.new(
       account: @checking,
       description: "Test",
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
     assert_not txn.valid?
@@ -74,7 +74,7 @@ class TransactionTest < ActiveSupport::TestCase
     txn = Transaction.new(
       description: "Test",
       amount: 100.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
     assert_not txn.valid?
@@ -86,7 +86,7 @@ class TransactionTest < ActiveSupport::TestCase
       account: @checking,
       description: "Test",
       amount: "not a number",
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
     assert_not txn.valid?
@@ -99,7 +99,7 @@ class TransactionTest < ActiveSupport::TestCase
       destination_account_id: @checking.id,
       description: "Invalid Transfer",
       amount: 100.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
     assert_not txn.valid?
@@ -116,7 +116,7 @@ class TransactionTest < ActiveSupport::TestCase
       destination_account_id: @savings.id,
       description: "Transfer to Savings",
       amount: -500.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
 
@@ -137,7 +137,7 @@ class TransactionTest < ActiveSupport::TestCase
       destination_account_id: @savings.id,
       description: "Transfer",
       amount: -500.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
 
@@ -155,12 +155,12 @@ class TransactionTest < ActiveSupport::TestCase
       destination_account_id: @savings.id,
       description: "Transfer",
       amount: -500.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
 
     linked = txn.linked_transaction
-    new_date = Date.today + 7.days
+    new_date = Date.current + 7.days
 
     txn.update!(date: new_date)
     linked.reload
@@ -174,7 +174,7 @@ class TransactionTest < ActiveSupport::TestCase
       destination_account_id: @savings.id,
       description: "Transfer",
       amount: -500.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
 
@@ -192,7 +192,7 @@ class TransactionTest < ActiveSupport::TestCase
       destination_account_id: @savings.id,
       description: "Transfer",
       amount: -500.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated,
       category: @category
     )
@@ -213,7 +213,7 @@ class TransactionTest < ActiveSupport::TestCase
       destination_account_id: @savings.id,
       description: "Transfer",
       amount: -500.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
 
@@ -233,7 +233,7 @@ class TransactionTest < ActiveSupport::TestCase
       destination_account_id: @savings.id,
       description: "Transfer",
       amount: -500.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
 
@@ -246,7 +246,7 @@ class TransactionTest < ActiveSupport::TestCase
       destination_account_id: @savings.id,
       description: "Transfer",
       amount: -500.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
 
@@ -258,7 +258,7 @@ class TransactionTest < ActiveSupport::TestCase
       account: @checking,
       description: "Regular Expense",
       amount: -100.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
 
@@ -275,7 +275,7 @@ class TransactionTest < ActiveSupport::TestCase
       destination_account_id: @savings.id,
       description: "Transfer",
       amount: -500.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
 
@@ -298,7 +298,7 @@ class TransactionTest < ActiveSupport::TestCase
       destination_account_id: @savings.id,
       description: "Transfer",
       amount: -500.0,
-      date: Date.today - 10.days,
+      date: Date.current - 10.days,
       status: :actual
     )
 
@@ -307,7 +307,7 @@ class TransactionTest < ActiveSupport::TestCase
 
     # Simulate reconciliation by destroying transactions before a date
     # This mimics what the controller does in accounts_controller.rb
-    @checking.transactions.where("date < ?", Date.today).destroy_all
+    @checking.transactions.where("date < ?", Date.current).destroy_all
 
     # Main transaction should be deleted
     assert_not Transaction.exists?(txn.id), "Main transaction should be deleted"
@@ -327,7 +327,7 @@ class TransactionTest < ActiveSupport::TestCase
       account: @checking,
       description: "Test",
       amount: 100.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
 
@@ -421,7 +421,7 @@ class TransactionTest < ActiveSupport::TestCase
       account: @checking,
       description: "Checking",
       amount: -100.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
 
@@ -429,7 +429,7 @@ class TransactionTest < ActiveSupport::TestCase
       account: @savings,
       description: "Savings",
       amount: 100.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
 
@@ -444,7 +444,7 @@ class TransactionTest < ActiveSupport::TestCase
       account: @checking,
       description: "Auto",
       amount: -100.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated,
       user_modified: false
     )
@@ -453,7 +453,7 @@ class TransactionTest < ActiveSupport::TestCase
       account: @checking,
       description: "Modified",
       amount: -100.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated,
       user_modified: true
     )
@@ -473,7 +473,7 @@ class TransactionTest < ActiveSupport::TestCase
       account: @checking,
       description: "Income",
       amount: 1234.56,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
 
@@ -485,7 +485,7 @@ class TransactionTest < ActiveSupport::TestCase
       account: @checking,
       description: "Expense",
       amount: -1234.56,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
 
@@ -497,7 +497,7 @@ class TransactionTest < ActiveSupport::TestCase
       account: @checking,
       description: "Zero",
       amount: 0.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
 
@@ -505,13 +505,13 @@ class TransactionTest < ActiveSupport::TestCase
   end
 
   test "running_balance calculates correctly" do
-    @checking.update!(current_balance: 1000.0, balance_date: Date.today)
+    @checking.update!(current_balance: 1000.0, balance_date: Date.current)
 
     Transaction.create!(
       account: @checking,
       description: "T1",
       amount: -100.0,
-      date: Date.today + 1.day,
+      date: Date.current + 1.day,
       status: :estimated
     )
 
@@ -519,7 +519,7 @@ class TransactionTest < ActiveSupport::TestCase
       account: @checking,
       description: "T2",
       amount: -50.0,
-      date: Date.today + 2.days,
+      date: Date.current + 2.days,
       status: :estimated
     )
 
@@ -532,7 +532,7 @@ class TransactionTest < ActiveSupport::TestCase
       account: @checking,
       description: "Test",
       amount: -100.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
 
@@ -549,7 +549,7 @@ class TransactionTest < ActiveSupport::TestCase
       account: @checking,
       description: "Test",
       amount: -100.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
 
@@ -561,7 +561,7 @@ class TransactionTest < ActiveSupport::TestCase
       account: @checking,
       description: "Test",
       amount: -100.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated,
       category: @category
     )
@@ -579,7 +579,7 @@ class TransactionTest < ActiveSupport::TestCase
       amount: 100.0,
       rule_type: :expense,
       frequency: :weekly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     txn = rule.transactions.first

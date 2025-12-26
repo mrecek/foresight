@@ -6,7 +6,7 @@ class RecurrenceCalculatorTest < ActiveSupport::TestCase
       name: "Test Account",
       account_type: :checking,
       current_balance: 1000.0,
-      balance_date: Date.today,
+      balance_date: Date.current,
       warning_threshold: 0.0
     )
   end

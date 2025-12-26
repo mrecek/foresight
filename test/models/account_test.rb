@@ -6,7 +6,7 @@ class AccountTest < ActiveSupport::TestCase
       name: "Checking",
       account_type: :checking,
       current_balance: 1000.0,
-      balance_date: Date.today,
+      balance_date: Date.current,
       warning_threshold: 300.0
     )
 
@@ -14,7 +14,7 @@ class AccountTest < ActiveSupport::TestCase
       name: "Savings",
       account_type: :savings,
       current_balance: 5000.0,
-      balance_date: Date.today,
+      balance_date: Date.current,
       warning_threshold: 1000.0
     )
   end
@@ -121,7 +121,7 @@ class AccountTest < ActiveSupport::TestCase
       account: @checking,
       description: "T1",
       amount: -100.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
 
@@ -129,7 +129,7 @@ class AccountTest < ActiveSupport::TestCase
       account: @checking,
       description: "T2",
       amount: -50.0,
-      date: Date.today,
+      date: Date.current,
       status: :estimated
     )
 
@@ -150,7 +150,7 @@ class AccountTest < ActiveSupport::TestCase
       amount: 100.0,
       rule_type: :expense,
       frequency: :weekly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     rule2 = RecurringRule.create!(
@@ -159,7 +159,7 @@ class AccountTest < ActiveSupport::TestCase
       amount: 50.0,
       rule_type: :income,
       frequency: :monthly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     assert_equal 2, @checking.recurring_rules.count
@@ -182,7 +182,7 @@ class AccountTest < ActiveSupport::TestCase
       amount: 500.0,
       rule_type: :transfer,
       frequency: :monthly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     result = @checking.destroy
@@ -206,7 +206,7 @@ class AccountTest < ActiveSupport::TestCase
       amount: 500.0,
       rule_type: :transfer,
       frequency: :monthly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     result = @savings.destroy
@@ -229,7 +229,7 @@ class AccountTest < ActiveSupport::TestCase
       amount: 500.0,
       rule_type: :transfer,
       frequency: :monthly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     # Delete the transfer rule
@@ -250,7 +250,7 @@ class AccountTest < ActiveSupport::TestCase
       amount: 100.0,
       rule_type: :expense,
       frequency: :monthly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     income_rule = RecurringRule.create!(
@@ -259,7 +259,7 @@ class AccountTest < ActiveSupport::TestCase
       amount: 1000.0,
       rule_type: :income,
       frequency: :monthly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     # Should be able to delete account (dependent: :destroy handles non-transfer rules)
@@ -274,13 +274,13 @@ class AccountTest < ActiveSupport::TestCase
 
   test "projected_balance calculates correctly" do
     @checking.save!
-    @checking.update!(current_balance: 1000.0, balance_date: Date.today)
+    @checking.update!(current_balance: 1000.0, balance_date: Date.current)
 
     Transaction.create!(
       account: @checking,
       description: "T1",
       amount: -100.0,
-      date: Date.today + 1.day,
+      date: Date.current + 1.day,
       status: :estimated
     )
 
@@ -288,7 +288,7 @@ class AccountTest < ActiveSupport::TestCase
       account: @checking,
       description: "T2",
       amount: 200.0,
-      date: Date.today + 2.days,
+      date: Date.current + 2.days,
       status: :estimated
     )
 
@@ -296,24 +296,24 @@ class AccountTest < ActiveSupport::TestCase
       account: @checking,
       description: "T3",
       amount: -50.0,
-      date: Date.today + 3.days,
+      date: Date.current + 3.days,
       status: :estimated
     )
 
     # 1000 - 100 + 200 - 50 = 1050
-    end_date = Date.today + 3.days
+    end_date = Date.current + 3.days
     assert_equal 1050.0, @checking.projected_balance(end_date)
   end
 
   test "projected_balance ignores transactions before balance_date" do
     @checking.save!
-    @checking.update!(current_balance: 1000.0, balance_date: Date.today)
+    @checking.update!(current_balance: 1000.0, balance_date: Date.current)
 
     Transaction.create!(
       account: @checking,
       description: "Before",
       amount: -500.0,
-      date: Date.today - 1.day,
+      date: Date.current - 1.day,
       status: :actual
     )
 
@@ -321,25 +321,25 @@ class AccountTest < ActiveSupport::TestCase
       account: @checking,
       description: "After",
       amount: -100.0,
-      date: Date.today + 1.day,
+      date: Date.current + 1.day,
       status: :estimated
     )
 
     # Should only count transaction after balance_date
     # 1000 - 100 = 900
-    assert_equal 900.0, @checking.projected_balance(Date.today + 1.day)
+    assert_equal 900.0, @checking.projected_balance(Date.current + 1.day)
   end
 
   test "projected_balance uses default view months if no date provided" do
     @checking.save!
-    @checking.update!(current_balance: 1000.0, balance_date: Date.today)
+    @checking.update!(current_balance: 1000.0, balance_date: Date.current)
 
     # Create transaction within default period
     Transaction.create!(
       account: @checking,
       description: "T1",
       amount: -100.0,
-      date: Date.today + 1.month,
+      date: Date.current + 1.month,
       status: :estimated
     )
 
@@ -354,13 +354,13 @@ class AccountTest < ActiveSupport::TestCase
 
   test "lowest_projected_balance finds minimum balance" do
     @checking.save!
-    @checking.update!(current_balance: 1000.0, balance_date: Date.today)
+    @checking.update!(current_balance: 1000.0, balance_date: Date.current)
 
     Transaction.create!(
       account: @checking,
       description: "T1",
       amount: -800.0,  # Balance drops to 200
-      date: Date.today + 1.day,
+      date: Date.current + 1.day,
       status: :estimated
     )
 
@@ -368,7 +368,7 @@ class AccountTest < ActiveSupport::TestCase
       account: @checking,
       description: "T2",
       amount: 500.0,   # Balance rises to 700
-      date: Date.today + 2.days,
+      date: Date.current + 2.days,
       status: :estimated
     )
 
@@ -376,30 +376,30 @@ class AccountTest < ActiveSupport::TestCase
       account: @checking,
       description: "T3",
       amount: -100.0,  # Balance drops to 600
-      date: Date.today + 3.days,
+      date: Date.current + 3.days,
       status: :estimated
     )
 
     # Lowest point is 200
-    assert_equal 200.0, @checking.lowest_projected_balance(Date.today + 3.days)
+    assert_equal 200.0, @checking.lowest_projected_balance(Date.current + 3.days)
   end
 
   test "lowest_projected_balance returns current balance if no transactions" do
     @checking.save!
-    @checking.update!(current_balance: 1000.0, balance_date: Date.today)
+    @checking.update!(current_balance: 1000.0, balance_date: Date.current)
 
-    assert_equal 1000.0, @checking.lowest_projected_balance(Date.today + 30.days)
+    assert_equal 1000.0, @checking.lowest_projected_balance(Date.current + 30.days)
   end
 
   test "lowest_projected_balance handles negative balances" do
     @checking.save!
-    @checking.update!(current_balance: 100.0, balance_date: Date.today)
+    @checking.update!(current_balance: 100.0, balance_date: Date.current)
 
     Transaction.create!(
       account: @checking,
       description: "T1",
       amount: -200.0,  # Balance drops to -100
-      date: Date.today + 1.day,
+      date: Date.current + 1.day,
       status: :estimated
     )
 
@@ -407,11 +407,11 @@ class AccountTest < ActiveSupport::TestCase
       account: @checking,
       description: "T2",
       amount: 150.0,   # Balance rises to 50
-      date: Date.today + 2.days,
+      date: Date.current + 2.days,
       status: :estimated
     )
 
-    assert_equal(-100.0, @checking.lowest_projected_balance(Date.today + 2.days))
+    assert_equal(-100.0, @checking.lowest_projected_balance(Date.current + 2.days))
   end
 
   # ============================================================================
@@ -420,71 +420,71 @@ class AccountTest < ActiveSupport::TestCase
 
   test "projection_status returns danger when balance goes negative" do
     @checking.save!
-    @checking.update!(current_balance: 100.0, balance_date: Date.today, warning_threshold: 200.0)
+    @checking.update!(current_balance: 100.0, balance_date: Date.current, warning_threshold: 200.0)
 
     Transaction.create!(
       account: @checking,
       description: "T1",
       amount: -150.0,  # Balance drops to -50
-      date: Date.today + 1.day,
+      date: Date.current + 1.day,
       status: :estimated
     )
 
-    assert_equal :danger, @checking.projection_status(Date.today + 1.day)
+    assert_equal :danger, @checking.projection_status(Date.current + 1.day)
   end
 
   test "projection_status returns warning when below threshold but positive" do
     @checking.save!
-    @checking.update!(current_balance: 100.0, balance_date: Date.today, warning_threshold: 200.0)
+    @checking.update!(current_balance: 100.0, balance_date: Date.current, warning_threshold: 200.0)
 
     Transaction.create!(
       account: @checking,
       description: "T1",
       amount: -50.0,  # Balance drops to 50 (below 200 threshold)
-      date: Date.today + 1.day,
+      date: Date.current + 1.day,
       status: :estimated
     )
 
-    assert_equal :warning, @checking.projection_status(Date.today + 1.day)
+    assert_equal :warning, @checking.projection_status(Date.current + 1.day)
   end
 
   test "projection_status returns normal when above threshold" do
     @checking.save!
-    @checking.update!(current_balance: 1000.0, balance_date: Date.today, warning_threshold: 200.0)
+    @checking.update!(current_balance: 1000.0, balance_date: Date.current, warning_threshold: 200.0)
 
     Transaction.create!(
       account: @checking,
       description: "T1",
       amount: -500.0,  # Balance drops to 500 (still above 200)
-      date: Date.today + 1.day,
+      date: Date.current + 1.day,
       status: :estimated
     )
 
-    assert_equal :normal, @checking.projection_status(Date.today + 1.day)
+    assert_equal :normal, @checking.projection_status(Date.current + 1.day)
   end
 
   test "projection_status edge case: exactly at threshold is normal" do
     @checking.save!
-    @checking.update!(current_balance: 300.0, balance_date: Date.today, warning_threshold: 300.0)
+    @checking.update!(current_balance: 300.0, balance_date: Date.current, warning_threshold: 300.0)
 
     # No transactions, balance stays at exactly threshold
-    assert_equal :normal, @checking.projection_status(Date.today + 30.days)
+    assert_equal :normal, @checking.projection_status(Date.current + 30.days)
   end
 
   test "projection_status edge case: exactly at zero is warning" do
     @checking.save!
-    @checking.update!(current_balance: 100.0, balance_date: Date.today, warning_threshold: 200.0)
+    @checking.update!(current_balance: 100.0, balance_date: Date.current, warning_threshold: 200.0)
 
     Transaction.create!(
       account: @checking,
       description: "T1",
       amount: -100.0,  # Balance drops to exactly 0
-      date: Date.today + 1.day,
+      date: Date.current + 1.day,
       status: :estimated
     )
 
     # The code checks `lowest < 0`, so 0 should be warning, not danger
-    assert_equal :warning, @checking.projection_status(Date.today + 1.day)
+    assert_equal :warning, @checking.projection_status(Date.current + 1.day)
   end
 
   # ============================================================================
@@ -493,13 +493,13 @@ class AccountTest < ActiveSupport::TestCase
 
   test "running_balances_for calculates running balance for each transaction" do
     @checking.save!
-    @checking.update!(current_balance: 1000.0, balance_date: Date.today)
+    @checking.update!(current_balance: 1000.0, balance_date: Date.current)
 
     txn1 = Transaction.create!(
       account: @checking,
       description: "T1",
       amount: -100.0,
-      date: Date.today + 1.day,
+      date: Date.current + 1.day,
       status: :estimated
     )
 
@@ -507,7 +507,7 @@ class AccountTest < ActiveSupport::TestCase
       account: @checking,
       description: "T2",
       amount: -50.0,
-      date: Date.today + 2.days,
+      date: Date.current + 2.days,
       status: :estimated
     )
 
@@ -515,7 +515,7 @@ class AccountTest < ActiveSupport::TestCase
       account: @checking,
       description: "T3",
       amount: 200.0,
-      date: Date.today + 3.days,
+      date: Date.current + 3.days,
       status: :estimated
     )
 
@@ -536,7 +536,7 @@ class AccountTest < ActiveSupport::TestCase
 
   test "running_balances_for handles empty array" do
     @checking.save!
-    @checking.update!(current_balance: 1000.0, balance_date: Date.today)
+    @checking.update!(current_balance: 1000.0, balance_date: Date.current)
 
     results = @checking.running_balances_for([])
     assert_equal 0, results.length

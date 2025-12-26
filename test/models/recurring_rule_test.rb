@@ -6,7 +6,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       name: "Checking",
       account_type: :checking,
       current_balance: 1000.0,
-      balance_date: Date.today,
+      balance_date: Date.current,
       warning_threshold: 0.0
     )
 
@@ -14,7 +14,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       name: "Savings",
       account_type: :savings,
       current_balance: 5000.0,
-      balance_date: Date.today,
+      balance_date: Date.current,
       warning_threshold: 0.0
     )
   end
@@ -30,7 +30,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 100.0,
       rule_type: :expense,
       frequency: :weekly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     assert rule.valid?
@@ -42,7 +42,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 100.0,
       rule_type: :expense,
       frequency: :weekly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     assert_not rule.valid?
@@ -55,7 +55,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       description: "Test",
       rule_type: :expense,
       frequency: :weekly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     assert_not rule.valid?
@@ -69,7 +69,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: -50.0,
       rule_type: :expense,
       frequency: :weekly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     assert_not rule.valid?
@@ -99,7 +99,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 500.0,
       rule_type: :transfer,
       frequency: :monthly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     assert_not rule.valid?
@@ -114,7 +114,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 500.0,
       rule_type: :transfer,
       frequency: :monthly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     assert_not rule.valid?
@@ -128,7 +128,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 100.0,
       rule_type: :expense,
       frequency: :monthly,
-      anchor_date: Date.today,
+      anchor_date: Date.current,
       day_of_month: 32
     )
 
@@ -143,7 +143,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 100.0,
       rule_type: :expense,
       frequency: :weekly,
-      anchor_date: Date.today,
+      anchor_date: Date.current,
       day_of_week: 7
     )
 
@@ -162,7 +162,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 5.0,
       rule_type: :expense,
       frequency: :daily,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     assert rule.transactions.count > 0, "Should generate initial transactions on create"
@@ -176,7 +176,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 5000.0,
       rule_type: :income,
       frequency: :monthly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     transaction = rule.transactions.first
@@ -191,7 +191,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 1200.0,
       rule_type: :expense,
       frequency: :monthly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     transaction = rule.transactions.first
@@ -207,7 +207,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 500.0,
       rule_type: :transfer,
       frequency: :monthly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     # Should have at least one pair of transactions
@@ -239,7 +239,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 100.0,
       rule_type: :expense,
       frequency: :weekly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     initial_count = rule.transactions.count
@@ -263,7 +263,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 100.0,
       rule_type: :expense,
       frequency: :weekly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     # Mark first future transaction as user-modified
@@ -292,7 +292,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 100.0,
       rule_type: :expense,
       frequency: :weekly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     rule.frequency = :monthly
@@ -308,10 +308,10 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 100.0,
       rule_type: :expense,
       frequency: :weekly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
-    rule.anchor_date = Date.today + 7.days
+    rule.anchor_date = Date.current + 7.days
     rule.save!
 
     assert rule.previous_changes.key?("anchor_date"), "Should have changed anchor_date"
@@ -324,7 +324,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 100.0,
       rule_type: :expense,
       frequency: :weekly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     rule.amount = 150.0
@@ -349,7 +349,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 100.0,
       rule_type: :expense,
       frequency: :weekly,
-      anchor_date: Date.today,
+      anchor_date: Date.current,
       category: old_category
     )
 
@@ -382,10 +382,10 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 50.0,
       rule_type: :expense,
       frequency: :monthly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
-    end_date = Date.today + 3.months
+    end_date = Date.current + 3.months
     initial_count = rule.transactions.count
 
     # Extend projections
@@ -410,7 +410,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 25.0,
       rule_type: :expense,
       frequency: :weekly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     # Initial generation goes to default_view_months
@@ -418,7 +418,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
     initial_max_date = rule.transactions.maximum(:date)
 
     # Extend far into the future (well beyond initial range)
-    future_date = Date.today + 12.months
+    future_date = Date.current + 12.months
     rule.extend_projections_to(future_date)
 
     new_count = rule.transactions.count
@@ -437,11 +437,11 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 10.0,
       rule_type: :expense,
       frequency: :daily,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     # Find an existing auto-generated transaction and mark it as user-modified
-    future_date = Date.today + 30.days
+    future_date = Date.current + 30.days
     existing_txn = rule.transactions.where(date: future_date).first
 
     # If no transaction exists for that date, extend projections first
@@ -474,7 +474,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 100.0,
       rule_type: :expense,
       frequency: :monthly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     rule2 = RecurringRule.create!(
@@ -483,10 +483,10 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 50.0,
       rule_type: :expense,
       frequency: :monthly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
-    end_date = Date.today + 6.months
+    end_date = Date.current + 6.months
     RecurringRule.extend_all_projections_to(end_date)
 
     assert rule1.transactions.maximum(:date) >= end_date,
@@ -502,7 +502,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 100.0,
       rule_type: :expense,
       frequency: :monthly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     savings_rule = RecurringRule.create!(
@@ -511,10 +511,10 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 50.0,
       rule_type: :expense,
       frequency: :monthly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
-    end_date = Date.today + 6.months
+    end_date = Date.current + 6.months
     checking_initial_max = checking_rule.transactions.maximum(:date)
     savings_initial_max = savings_rule.transactions.maximum(:date)
 
@@ -538,10 +538,10 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 500.0,
       rule_type: :transfer,
       frequency: :monthly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
-    end_date = Date.today + 6.months
+    end_date = Date.current + 6.months
     initial_max_date = transfer_rule.transactions.maximum(:date)
 
     # When extending projections for SAVINGS account, it should include this transfer
@@ -569,10 +569,10 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 500.0,
       rule_type: :transfer,
       frequency: :monthly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
-    end_date = Date.today + 6.months
+    end_date = Date.current + 6.months
 
     # Extend for checking account (source)
     RecurringRule.extend_all_projections_to(end_date, account: @checking_account)
@@ -586,7 +586,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
 
     # Clear and test from savings perspective
     transfer_rule.transactions.destroy_all
-    transfer_rule.generate_transactions(Date.today + 1.month)
+    transfer_rule.generate_transactions(Date.current + 1.month)
 
     # Extend for savings account (destination)
     RecurringRule.extend_all_projections_to(end_date, account: @savings_account)
@@ -610,7 +610,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 50.0,
       rule_type: :expense,
       frequency: :weekly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
 
     default_end_date = Setting.instance.default_view_months.months.from_now.to_date
@@ -633,7 +633,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 100.0,
       rule_type: :expense,
       frequency: :monthly,
-      anchor_date: Date.today,
+      anchor_date: Date.current,
       active: true
     )
 
@@ -643,7 +643,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 50.0,
       rule_type: :expense,
       frequency: :monthly,
-      anchor_date: Date.today,
+      anchor_date: Date.current,
       active: false
     )
 
@@ -665,11 +665,11 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 100.0,
       rule_type: :expense,
       frequency: :daily,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
     RecurringRule.set_callback(:create, :after, :generate_initial_transactions)
 
-    date = Date.today
+    date = Date.current
 
     # Create first transaction
     rule.send(:create_transaction_for_date, date)
@@ -698,7 +698,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 500.0,
       rule_type: :transfer,
       frequency: :monthly,
-      anchor_date: Date.today
+      anchor_date: Date.current
     )
     RecurringRule.set_callback(:create, :after, :generate_initial_transactions)
 
@@ -706,7 +706,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
     rule.save(validate: false)
 
     # Attempt to create transaction
-    result = rule.send(:create_transaction_for_date, Date.today)
+    result = rule.send(:create_transaction_for_date, Date.current)
 
     assert_nil result, "Should not create transaction for invalid transfer"
     assert_equal 0, rule.transactions.count,
@@ -720,7 +720,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 100.0,
       rule_type: :expense,
       frequency: :monthly,
-      anchor_date: Date.today,
+      anchor_date: Date.current,
       is_estimated: true
     )
 
@@ -730,7 +730,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       amount: 100.0,
       rule_type: :expense,
       frequency: :monthly,
-      anchor_date: Date.today,
+      anchor_date: Date.current,
       is_estimated: false
     )
 
