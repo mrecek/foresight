@@ -32,6 +32,9 @@ class DashboardController < ApplicationController
     # Calculate running balances
     @transactions_with_balances = @selected_account.running_balances_for(@transactions)
 
+    # Group consecutive transactions from the same recurring rule (3+ items)
+    @grouped_transactions = TransactionGrouper.new(@transactions_with_balances).call
+
     @attention_threshold = Date.current + 30.days
   end
 end
