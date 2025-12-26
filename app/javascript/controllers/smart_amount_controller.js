@@ -50,7 +50,12 @@ export default class extends Controller {
   formatOnBlur() {
     const value = parseFloat(this.inputTarget.value)
     if (!isNaN(value)) {
-      this.inputTarget.value = Math.abs(value).toFixed(2)
+      const formattedValue = Math.abs(value).toFixed(2)
+
+      // Only update if value changed
+      if (this.inputTarget.value !== formattedValue) {
+        this.inputTarget.value = formattedValue
+      }
     }
     this.syncHiddenInput()
   }
