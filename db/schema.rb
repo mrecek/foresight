@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2025_12_25_180416) do
+ActiveRecord::Schema[8.1].define(version: 2025_12_26_073921) do
   create_table "accounts", force: :cascade do |t|
     t.integer "account_type", default: 0, null: false
     t.date "balance_date", null: false
