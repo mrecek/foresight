@@ -94,11 +94,17 @@ class TransactionGrouper
 
   def continues_group?(group, txn)
     return false if group.empty?
+    return false if crosses_today_boundary?(group, txn)
 
     first_txn = group.first[:transaction]
 
     first_txn.recurring_rule_id == txn.recurring_rule_id &&
       first_txn.status == txn.status
+  end
+
+  def crosses_today_boundary?(group, txn)
+    first_date = group.first[:transaction].date
+    first_date < Date.current && txn.date >= Date.current
   end
 
   def flush_group(group, result)
