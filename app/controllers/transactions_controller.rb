@@ -34,25 +34,24 @@ class TransactionsController < ApplicationController
   end
 
   def edit
+    @return_url = params[:return_url].presence || request.referer || transactions_path
   end
 
   def update
     ActiveRecord::Base.transaction do
       # Track user modifications for rule-linked transactions
-      if @transaction.recurring_rule.present? && transaction_params[:amount].present?
-        new_amount = BigDecimal(transaction_params[:amount].to_s)
-        @transaction.user_modified = true if @transaction.amount != new_amount
+      if @transaction.recurring_rule.present?
+        track_user_modifications
       end
 
       if @transaction.update(transaction_params)
-        # Also mark linked transaction as user_modified for transfer consistency
-        if @transaction.user_modified && @transaction.linked_transaction.present?
-          @transaction.linked_transaction.update!(user_modified: true)
-        end
+        # Sync user_modified and original_date to linked transaction for transfer consistency
+        sync_linked_transaction_modifications
 
         AuditLog.log_update(@transaction, request)
-        redirect_to transactions_path, notice: "Transaction updated."
+        redirect_to (params[:return_url].presence || transactions_path), notice: "Transaction updated."
       else
+        @return_url = params[:return_url]
         render :edit, status: :unprocessable_entity
       end
     end
@@ -124,5 +123,54 @@ class TransactionsController < ApplicationController
 
   def transaction_params
     params.require(:transaction).permit(:account_id, :description, :amount, :date, :status, :category_id, :destination_account_id)
+  end
+
+  def track_user_modifications
+    params_hash = transaction_params
+    changes_made = false
+
+    # Check for amount change
+    if params_hash[:amount].present?
+      new_amount = BigDecimal(params_hash[:amount].to_s)
+      changes_made = true if @transaction.amount != new_amount
+    end
+
+    # Check for description change
+    if params_hash[:description].present? && @transaction.description != params_hash[:description]
+      changes_made = true
+    end
+
+    # Check for date change (special handling for original_date)
+    if params_hash[:date].present?
+      new_date = Date.parse(params_hash[:date].to_s)
+      if @transaction.date != new_date
+        changes_made = true
+        handle_date_change(new_date)
+      end
+    end
+
+    @transaction.user_modified = true if changes_made
+  end
+
+  def handle_date_change(new_date)
+    # Determine the "true original" date (either stored original_date or current date)
+    true_original = @transaction.original_date || @transaction.date
+
+    if new_date == true_original
+      # User moved transaction back to original date - clear original_date
+      @transaction.original_date = nil
+    else
+      # User moved transaction away from original - track it
+      @transaction.original_date = true_original
+    end
+  end
+
+  def sync_linked_transaction_modifications
+    return unless @transaction.user_modified && @transaction.linked_transaction.present?
+
+    @transaction.linked_transaction.update!(
+      user_modified: true,
+      original_date: @transaction.original_date
+    )
   end
 end

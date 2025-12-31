@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2025_12_26_073921) do
+ActiveRecord::Schema[8.1].define(version: 2025_12_31_034405) do
   create_table "accounts", force: :cascade do |t|
     t.integer "account_type", default: 0, null: false
     t.date "balance_date", null: false
@@ -92,6 +92,7 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_26_073921) do
     t.date "date", null: false
     t.string "description", null: false
     t.integer "linked_transaction_id"
+    t.date "original_date"
     t.integer "recurring_rule_id"
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
@@ -102,6 +103,7 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_26_073921) do
     t.index ["date"], name: "index_transactions_on_date"
     t.index ["linked_transaction_id"], name: "index_transactions_on_linked_transaction_id"
     t.index ["recurring_rule_id", "account_id", "date"], name: "index_transactions_on_rule_account_date_unique", unique: true, where: "recurring_rule_id IS NOT NULL"
+    t.index ["recurring_rule_id", "original_date"], name: "index_transactions_on_rule_and_original_date", where: "original_date IS NOT NULL"
     t.index ["recurring_rule_id"], name: "index_transactions_on_recurring_rule_id"
   end
 
