@@ -34,7 +34,7 @@ class TransactionsController < ApplicationController
   end
 
   def edit
-    @return_url = params[:return_url].presence || request.referer || transactions_path
+    @return_url = safe_return_url
   end
 
   def update
@@ -49,9 +49,9 @@ class TransactionsController < ApplicationController
         sync_linked_transaction_modifications
 
         AuditLog.log_update(@transaction, request)
-        redirect_to (params[:return_url].presence || transactions_path), notice: "Transaction updated."
+        redirect_to safe_return_url, notice: "Transaction updated."
       else
-        @return_url = params[:return_url]
+        @return_url = safe_return_url
         render :edit, status: :unprocessable_entity
       end
     end
@@ -108,11 +108,9 @@ class TransactionsController < ApplicationController
     end
 
     # Redirect to where the user originally came from
-    return_url = params[:return_url].presence || transactions_path
-    redirect_to return_url, notice: "Marked as actual with amount #{helpers.number_to_currency(entered_amount)}."
+    redirect_to safe_return_url, notice: "Marked as actual with amount #{helpers.number_to_currency(entered_amount)}."
   rescue ActiveRecord::RecordInvalid => e
-    return_url = params[:return_url].presence || transactions_path
-    redirect_to return_url, alert: "Failed to update transaction: #{e.message}"
+    redirect_to safe_return_url, alert: "Failed to update transaction: #{e.message}"
   end
 
   private
@@ -172,5 +170,15 @@ class TransactionsController < ApplicationController
       user_modified: true,
       original_date: @transaction.original_date
     )
+  end
+
+  def safe_return_url
+    url = params[:return_url].presence || request.referer
+    # Only allow relative paths starting with / to prevent XSS via javascript: URLs
+    if url.present? && url.start_with?("/") && !url.start_with?("//")
+      url
+    else
+      transactions_path
+    end
   end
 end
