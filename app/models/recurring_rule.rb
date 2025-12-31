@@ -53,11 +53,11 @@ class RecurringRule < ApplicationRecord
 
     dates = RecurrenceCalculator.new(self).dates_between(start_from, end_date)
 
-    # Skip dates where user has modified transactions (they take precedence)
-    existing_modified_dates = transactions.where(user_modified: true).pluck(:date).to_set
+    # Skip dates where user has modified transactions AND original dates (where transactions were moved FROM)
+    skip_dates = dates_to_skip
 
     dates.each do |date|
-      next if existing_modified_dates.include?(date)
+      next if skip_dates.include?(date)
       create_transaction_for_date(date)
     end
   end
@@ -66,13 +66,19 @@ class RecurringRule < ApplicationRecord
     end_date ||= Setting.instance.default_view_months.months.from_now.to_date
     dates = RecurrenceCalculator.new(self).dates_until(end_date)
 
-    # Skip dates where user has modified transactions (they take precedence)
-    existing_modified_dates = transactions.where(user_modified: true).pluck(:date).to_set
+    # Skip dates where user has modified transactions AND original dates (where transactions were moved FROM)
+    skip_dates = dates_to_skip
 
     dates.each do |date|
-      next if existing_modified_dates.include?(date)
+      next if skip_dates.include?(date)
       create_transaction_for_date(date)
     end
+  end
+
+  def dates_to_skip
+    existing_modified_dates = transactions.where(user_modified: true).pluck(:date).to_set
+    original_dates = transactions.where.not(original_date: nil).pluck(:original_date).to_set
+    existing_modified_dates | original_dates
   end
 
   def regenerate_transactions
