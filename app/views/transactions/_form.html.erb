@@ -1,4 +1,5 @@
 <%= form_with model: transaction, class: "space-y-8" do |f| %>
+  <%= hidden_field_tag :return_url, @return_url if @return_url.present? %>
   <%# Error Alert %>
   <% if transaction.errors.any? %>
     <div class="alert-danger">
@@ -195,7 +196,7 @@
 
   <%# Form Actions %>
   <div class="flex items-center justify-end gap-3 pt-6 border-t border-neutral-200">
-    <%= link_to "Cancel", transactions_path, class: "btn-secondary" %>
+    <%= link_to "Cancel", (@return_url || transactions_path), class: "btn-secondary" %>
     <%= f.submit transaction.persisted? ? "Update Transaction" : "Create Transaction", class: "btn-primary cursor-pointer", data: { turbo_submits_with: "Saving..." } %>
   </div>
 <% end %>
