@@ -29,7 +29,7 @@ This document describes the automated CI/CD workflows for Foresight.
 
 ### CI (`ci.yml`)
 
-Runs on every pull request. Must pass before merging.
+Runs on pull requests only. Must pass before merging.
 
 | Job | Purpose |
 |-----|---------|
@@ -37,6 +37,8 @@ Runs on every pull request. Must pass before merging.
 | `scan_js` | JavaScript dependency audit |
 | `lint` | RuboCop style enforcement |
 | `test` | Full test suite (171 tests) |
+
+> **Optimization:** CI does not run on push to main—the PR check is sufficient. This halves CI runs per merge.
 
 ### Docker Build (`docker.yml`)
 
@@ -51,6 +53,8 @@ Builds multi-architecture images (amd64 + arm64), runs a smoke test, and pushes 
 ### Auto-Merge Dependabot (`auto-merge-dependabot.yml`)
 
 Automatically enables `--auto --squash` merge for Dependabot PRs. Once CI passes, the PR merges without manual intervention.
+
+Uses `pull_request_target` trigger so the workflow only appears in the Actions tab for Dependabot PRs—regular PRs won't see this workflow at all.
 
 ## Dependency Management
 

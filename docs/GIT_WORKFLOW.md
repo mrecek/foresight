@@ -190,8 +190,10 @@ gh pr merge --rebase --delete-branch
 ```
 
 We use rebase-merge to:
-- Preserve individual commits on main (enables `git bisect`, targeted reverts)  
+- Preserve individual commits on main (enables `git bisect`, targeted reverts)
 - Maintain linear history (easier to read than merge commits)
+
+> **Note:** Dependabot PRs use squash-merge (`--squash`) via auto-merge workflow. This is intentional—dependency bumps don't need granular commit history.
 
 ---
 
