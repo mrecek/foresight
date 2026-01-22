@@ -136,7 +136,7 @@ ruby -Itest -Ilib test/**/*_test.rb --verbose
 - Coverage includes: validations, callbacks, date calculations, transaction generation, transfer handling, frequency-based grouping, account deletion protection, session timeout security, balance projections
 
 **CI Integration:**
-Tests run automatically on every pull request via GitHub Actions. All tests must pass before merging.
+Tests run automatically on every pull request via GitHub Actions. All tests must pass before merging. See [`CI_CD.md`](CI_CD.md) for full pipeline documentation.
 
 ## Code Quality
 
