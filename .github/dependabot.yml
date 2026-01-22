@@ -1,12 +1,29 @@
 version: 2
 updates:
-- package-ecosystem: bundler
-  directory: "/"
-  schedule:
-    interval: weekly
-  open-pull-requests-limit: 10
-- package-ecosystem: github-actions
-  directory: "/"
-  schedule:
-    interval: weekly
-  open-pull-requests-limit: 10
+  - package-ecosystem: bundler
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Denver
+    open-pull-requests-limit: 5
+    groups:
+      all-gems:
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+      - "automerge"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    groups:
+      all-actions:
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+      - "automerge"
