@@ -18,6 +18,7 @@ class TransactionsController < ApplicationController
 
   def new
     @transaction = Transaction.new(date: Date.current, status: :actual, account_id: params[:account_id])
+    @return_url = safe_return_url
   end
 
   def create
@@ -26,7 +27,7 @@ class TransactionsController < ApplicationController
     ActiveRecord::Base.transaction do
       if @transaction.save
         AuditLog.log_create(@transaction, request)
-        redirect_to transactions_path, notice: "Transaction created."
+        redirect_to safe_return_url, notice: "Transaction created."
       else
         render :new, status: :unprocessable_entity
       end
