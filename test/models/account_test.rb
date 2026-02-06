@@ -414,6 +414,93 @@ class AccountTest < ActiveSupport::TestCase
     assert_equal(-100.0, @checking.lowest_projected_balance(Date.current + 2.days))
   end
 
+  test "lowest_projected_balance excludes past dips from forward-looking minimum" do
+    @checking.save!
+    @checking.update!(current_balance: 10000.0, balance_date: Date.current - 14.days)
+
+    # Large past expense creates a dip to 2000 (in the past)
+    Transaction.create!(
+      account: @checking,
+      description: "Past big expense",
+      amount: -8000.0,
+      date: Date.current - 7.days,
+      status: :actual
+    )
+
+    # Salary restores balance to 7000 (in the past)
+    Transaction.create!(
+      account: @checking,
+      description: "Past salary",
+      amount: 5000.0,
+      date: Date.current - 3.days,
+      status: :actual
+    )
+
+    # Smaller future expense drops to 6000
+    Transaction.create!(
+      account: @checking,
+      description: "Future expense",
+      amount: -1000.0,
+      date: Date.current + 5.days,
+      status: :estimated
+    )
+
+    # Forward-looking low should be 6000 (future dip), NOT 2000 (past dip)
+    assert_equal 6000.0, @checking.lowest_projected_balance(Date.current + 30.days)
+  end
+
+  test "lowest_projected_balance accumulates past transactions into running balance" do
+    @checking.save!
+    @checking.update!(current_balance: 5000.0, balance_date: Date.current - 10.days)
+
+    # Past expense reduces running balance
+    Transaction.create!(
+      account: @checking,
+      description: "Past expense",
+      amount: -3000.0,
+      date: Date.current - 5.days,
+      status: :actual
+    )
+
+    # Future expense from the reduced base
+    Transaction.create!(
+      account: @checking,
+      description: "Future expense",
+      amount: -500.0,
+      date: Date.current + 5.days,
+      status: :estimated
+    )
+
+    # Running balance after past: 5000 - 3000 = 2000
+    # After future expense: 2000 - 500 = 1500
+    assert_equal 1500.0, @checking.lowest_projected_balance(Date.current + 30.days)
+  end
+
+  test "lowest_projected_balance returns running balance when no future transactions" do
+    @checking.save!
+    @checking.update!(current_balance: 5000.0, balance_date: Date.current - 10.days)
+
+    # Only past transactions
+    Transaction.create!(
+      account: @checking,
+      description: "Past expense",
+      amount: -2000.0,
+      date: Date.current - 5.days,
+      status: :actual
+    )
+
+    Transaction.create!(
+      account: @checking,
+      description: "Past income",
+      amount: 1000.0,
+      date: Date.current - 2.days,
+      status: :actual
+    )
+
+    # No future transactions, should return balance after all past txns: 5000 - 2000 + 1000 = 4000
+    assert_equal 4000.0, @checking.lowest_projected_balance(Date.current + 30.days)
+  end
+
   # ============================================================================
   # Method Tests - projection_status
   # ============================================================================

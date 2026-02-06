@@ -5,25 +5,27 @@
       <% is_selected = @selected_account&.id == account.id %>
       <% status = account.projection_status %>
       <%
-        # Enhanced calculation for lowest balance tracking
+        # Enhanced calculation for lowest balance tracking (forward-looking only)
         lowest_balance = account.lowest_projected_balance
         lowest_date = nil           # When it FIRST crosses threshold
         most_negative_date = nil    # When it reaches the LOWEST point
-        
+
         if status != :normal
           running_balance = account.current_balance
-          most_negative_balance = running_balance
-          
+          most_negative_balance = nil
+
           account.transactions.where("date >= ?", account.balance_date).order(:date).each do |txn|
             running_balance += txn.amount
-            
+
+            next unless txn.date > Date.current
+
             # Track first time below threshold
             if lowest_date.nil? && ((status == :danger && running_balance < 0) || (status == :warning && running_balance < account.warning_threshold))
               lowest_date = txn.date
             end
-            
+
             # Track the most negative point
-            if status == :danger && running_balance <= most_negative_balance
+            if status == :danger && (most_negative_balance.nil? || running_balance <= most_negative_balance)
               most_negative_balance = running_balance
               most_negative_date = txn.date
             end

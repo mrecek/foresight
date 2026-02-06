@@ -25,11 +25,11 @@ class Account < ApplicationRecord
     end
   end
 
-  # Returns the lowest running balance in the projection period
+  # Returns the lowest running balance in the projection period (forward-looking only)
   def lowest_projected_balance(end_date = nil)
     end_date ||= Setting.instance.default_view_months.months.from_now.to_date
     running = current_balance
-    lowest = current_balance
+    lowest = nil
 
     # Use already loaded transactions if available to avoid N+1
     txns = if transactions.loaded?
@@ -40,10 +40,12 @@ class Account < ApplicationRecord
 
     txns.each do |txn|
       running += txn.amount
-      lowest = running if running < lowest
+      if txn.date > Date.current
+        lowest = running if lowest.nil? || running < lowest
+      end
     end
 
-    lowest
+    lowest || running
   end
 
   # Returns :normal, :warning, or :danger based on lowest projected balance
