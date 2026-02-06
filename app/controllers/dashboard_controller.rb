@@ -3,25 +3,30 @@ class DashboardController < ApplicationController
     @settings = Setting.instance
     @end_date_for_accounts = @settings.default_view_months.months.from_now.to_date
 
-    # Eager load transactions within the projection period for all accounts
-    # to avoid N+1 queries when displaying account status in the view
-    @accounts = Account.includes(:transactions).references(:transactions)
+    # Default to settings default, expandable via param
+    @months_ahead = (params[:months] || @settings.default_view_months).to_i
+    @end_date = @months_ahead.months.from_now.to_date
 
-    # Select account (default to first)
-    @selected_account = if params[:account_id].present?
-      Account.find_by(id: params[:account_id]) || @accounts.first
+    # Extend projections BEFORE eager loading accounts so the cached
+    # transactions include any newly generated records
+    target_account = if params[:account_id].present?
+      Account.find_by(id: params[:account_id])
+    else
+      Account.first
+    end
+    RecurringRule.extend_all_projections_to(@end_date, account: target_account) if target_account
+
+    # Eager load transactions for all accounts (now includes extended projections)
+    @accounts = Account.includes(:transactions)
+
+    # Select account from the eager-loaded collection
+    @selected_account = if target_account
+      @accounts.detect { |a| a.id == target_account.id } || @accounts.first
     else
       @accounts.first
     end
 
     return unless @selected_account
-
-    # Default to settings default, expandable via param
-    @months_ahead = (params[:months] || @settings.default_view_months).to_i
-    @end_date = @months_ahead.months.from_now.to_date
-
-    # Ensure projections exist up to the requested end_date (idempotent)
-    RecurringRule.extend_all_projections_to(@end_date, account: @selected_account)
 
     # Get transactions from balance_date (last reconciliation) through end_date
     @transactions = @selected_account.transactions
