@@ -795,6 +795,62 @@ class RecurringRuleTest < ActiveSupport::TestCase
       "Inactive rule should not affect projected balance"
   end
 
+  test "toggling active changes lowest_projected_balance" do
+    rule = RecurringRule.create!(
+      account: @checking_account,
+      description: "Weekly Expense",
+      amount: 500.0,
+      rule_type: :expense,
+      frequency: :weekly,
+      anchor_date: Date.current,
+      active: true
+    )
+
+    assert rule.transactions.where("date > ?", Date.current).count > 0,
+      "Should have future transactions when active"
+
+    lowest_when_active = @checking_account.reload.lowest_projected_balance
+
+    rule.update!(active: false)
+
+    assert_equal 0, rule.transactions.where("date >= ?", Date.current).not_user_modified.count,
+      "Future transactions should be destroyed after deactivation"
+
+    lowest_when_inactive = @checking_account.reload.lowest_projected_balance
+
+    assert_operator lowest_when_inactive, :>, lowest_when_active,
+      "Deactivating expense rule should increase lowest projected balance " \
+      "(active: #{lowest_when_active}, inactive: #{lowest_when_inactive})"
+  end
+
+  test "toggling active changes lowest_projected_balance with eager loading" do
+    rule = RecurringRule.create!(
+      account: @checking_account,
+      description: "Weekly Expense",
+      amount: 500.0,
+      rule_type: :expense,
+      frequency: :weekly,
+      anchor_date: Date.current,
+      active: true
+    )
+
+    # Simulate dashboard eager loading pattern
+    account = Account.includes(:transactions).references(:transactions)
+                     .find(@checking_account.id)
+    lowest_when_active = account.lowest_projected_balance
+
+    rule.update!(active: false)
+
+    # Simulate fresh dashboard page load (new request)
+    account = Account.includes(:transactions).references(:transactions)
+                     .find(@checking_account.id)
+    lowest_when_inactive = account.lowest_projected_balance
+
+    assert_operator lowest_when_inactive, :>, lowest_when_active,
+      "Dashboard low value should change after toggling active " \
+      "(active: #{lowest_when_active}, inactive: #{lowest_when_inactive})"
+  end
+
   # ============================================================================
   # RecordNotUnique Handling Tests
   # ============================================================================
