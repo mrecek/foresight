@@ -654,6 +654,148 @@ class RecurringRuleTest < ActiveSupport::TestCase
   end
 
   # ============================================================================
+  # Active Field Enforcement Tests
+  # ============================================================================
+
+  test "creating inactive rule generates no transactions" do
+    rule = RecurringRule.create!(
+      account: @checking_account,
+      description: "Inactive Expense",
+      amount: 100.0,
+      rule_type: :expense,
+      frequency: :weekly,
+      anchor_date: Date.current,
+      active: false
+    )
+
+    assert_equal 0, rule.transactions.count,
+      "Inactive rule should not generate any transactions on create"
+  end
+
+  test "deactivating rule removes future estimated transactions" do
+    rule = RecurringRule.create!(
+      account: @checking_account,
+      description: "Weekly Grocery",
+      amount: 100.0,
+      rule_type: :expense,
+      frequency: :weekly,
+      anchor_date: Date.current,
+      active: true
+    )
+
+    assert rule.transactions.count > 0, "Should have transactions when active"
+
+    rule.update!(active: false)
+
+    assert_equal 0, rule.transactions.where("date >= ?", Date.current).not_user_modified.count,
+      "Should remove future estimated transactions when deactivated"
+  end
+
+  test "deactivating rule preserves user-modified transactions" do
+    rule = RecurringRule.create!(
+      account: @checking_account,
+      description: "Weekly Grocery",
+      amount: 100.0,
+      rule_type: :expense,
+      frequency: :weekly,
+      anchor_date: Date.current,
+      active: true
+    )
+
+    # Mark a future transaction as user-modified
+    future_txn = rule.transactions.where("date >= ?", Date.current).first
+    future_txn.update!(user_modified: true, amount: -150.0)
+    modified_txn_id = future_txn.id
+
+    rule.update!(active: false)
+
+    assert Transaction.exists?(modified_txn_id),
+      "User-modified transaction should be preserved when deactivating"
+    assert_equal(-150.0, Transaction.find(modified_txn_id).amount,
+      "User-modified amount should be unchanged")
+  end
+
+  test "reactivating rule regenerates transactions" do
+    rule = RecurringRule.create!(
+      account: @checking_account,
+      description: "Weekly Grocery",
+      amount: 100.0,
+      rule_type: :expense,
+      frequency: :weekly,
+      anchor_date: Date.current,
+      active: false
+    )
+
+    assert_equal 0, rule.transactions.count, "Inactive rule starts with no transactions"
+
+    rule.update!(active: true)
+
+    assert rule.transactions.count > 0,
+      "Reactivating should regenerate transactions"
+  end
+
+  test "extend_all_projections_to skips inactive rules" do
+    active_rule = RecurringRule.create!(
+      account: @checking_account,
+      description: "Active Rule",
+      amount: 100.0,
+      rule_type: :expense,
+      frequency: :monthly,
+      anchor_date: Date.current,
+      active: true
+    )
+
+    inactive_rule = RecurringRule.create!(
+      account: @savings_account,
+      description: "Inactive Rule",
+      amount: 50.0,
+      rule_type: :expense,
+      frequency: :monthly,
+      anchor_date: Date.current,
+      active: false
+    )
+
+    end_date = Date.current + 6.months
+    RecurringRule.extend_all_projections_to(end_date)
+
+    assert active_rule.transactions.maximum(:date) >= end_date,
+      "Active rule should be extended"
+    assert_equal 0, inactive_rule.transactions.count,
+      "Inactive rule should have no transactions"
+  end
+
+  test "inactive rules do not affect projected balance" do
+    # Create an active income rule
+    RecurringRule.create!(
+      account: @checking_account,
+      description: "Salary",
+      amount: 5000.0,
+      rule_type: :income,
+      frequency: :monthly,
+      anchor_date: Date.current,
+      active: true
+    )
+
+    balance_with_active_only = @checking_account.projected_balance
+
+    # Create an inactive expense rule (should have zero effect)
+    RecurringRule.create!(
+      account: @checking_account,
+      description: "Inactive Expense",
+      amount: 2000.0,
+      rule_type: :expense,
+      frequency: :monthly,
+      anchor_date: Date.current,
+      active: false
+    )
+
+    balance_after_inactive = @checking_account.reload.projected_balance
+
+    assert_equal balance_with_active_only, balance_after_inactive,
+      "Inactive rule should not affect projected balance"
+  end
+
+  # ============================================================================
   # RecordNotUnique Handling Tests
   # ============================================================================
 

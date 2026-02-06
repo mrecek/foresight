@@ -19,6 +19,7 @@ class RecurringRule < ApplicationRecord
 
   after_create :generate_initial_transactions
   after_update :regenerate_transactions, if: :schedule_changed?
+  after_update :handle_active_change, if: :saved_change_to_active?
   after_update :update_future_transactions_category, if: :saved_change_to_category_id?
 
   scope :active, -> { where(active: true) }
@@ -32,13 +33,15 @@ class RecurringRule < ApplicationRecord
       all
     end
 
-    scope.find_each do |rule|
+    scope.active.find_each do |rule|
       rule.extend_projections_to(end_date)
     end
   end
 
   # Extend projections to a new end date (idempotent - only generates missing transactions)
   def extend_projections_to(end_date)
+    return unless active?
+
     latest_existing = transactions.maximum(:date)
 
     # Already have transactions up to or past this date
@@ -63,6 +66,8 @@ class RecurringRule < ApplicationRecord
   end
 
   def generate_transactions(end_date = nil)
+    return unless active?
+
     end_date ||= Setting.instance.default_view_months.months.from_now.to_date
     dates = RecurrenceCalculator.new(self).dates_until(end_date)
 
@@ -90,7 +95,17 @@ class RecurringRule < ApplicationRecord
   private
 
   def generate_initial_transactions
+    return unless active?
     generate_transactions
+  end
+
+  def handle_active_change
+    return if schedule_changed? # already handled by regenerate_transactions
+    if active?
+      generate_transactions
+    else
+      transactions.not_user_modified.where("date >= ?", Date.current).destroy_all
+    end
   end
 
   def schedule_changed?
