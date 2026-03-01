@@ -6,7 +6,11 @@ on:
     branches: [main]
     paths-ignore:
       - '*.md'
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
       - 'docs/**'
+      - '.agents/**'
+      - '.claude/**'
       - '.github/dependabot.yml'
 
 env:

@@ -16,4 +16,27 @@ Be kind and respectful. This is a free, open-source tool shared in good faith.
 
 ## Development
 
-If you want to build the project locally, please see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+To build the project locally:
+
+```bash
+bundle install
+bin/rails db:setup
+bin/dev
+```
+
+Visit `http://localhost:3000`.
+
+For demo data and authentication-free local testing:
+
+```bash
+SEED_DEMO_DATA=true bin/rails db:seed
+TEST_MODE=true bin/dev
+```
+
+To validate a change locally before opening a PR:
+
+```bash
+bin/test
+bundle exec rubocop
+bin/brakeman --no-pager
+```
