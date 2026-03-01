@@ -69,16 +69,43 @@ You can configure the application using environment variables:
 
 ## Deployment
 
-Foresight runs on HTTP by default. For production self-hosting, we recommend putting it behind a reverse proxy that handles HTTPS, such as:
+Foresight runs on HTTP by default. For production self-hosting, it's recommended to put the app behind a reverse proxy that handles HTTPS, such as:
 
 - **[Caddy](https://caddyserver.com/)**
 - **[Traefik](https://traefik.io/)**
 - **[Nginx Proxy Manager](https://nginxproxymanager.com/)**
 - **[Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)**
 
+## Built-in Agent Skills
+
+This repo includes two built-in cross-agent skills under `.agents/skills/`:
+
+- `foresight-dev` for local setup, runtime, demo/test mode, and validation workflows
+- `foresight-git-workflow` for explicit-request-only git operations and CI/CD workflow guidance
+
+The canonical skill definitions live at:
+
+- `.agents/skills/foresight-dev/SKILL.md`
+- `.agents/skills/foresight-git-workflow/SKILL.md`
+
 ## Development
 
-Want to build from source or contribute? Check out the [Development Guide](docs/DEVELOPMENT.md) and the [Contributing Guidelines](CONTRIBUTING.md).
+Want to build from source or contribute?
+
+```bash
+bundle install
+bin/rails db:setup
+bin/dev
+```
+
+For an easier local testing flow, seed demo data and run in test mode:
+
+```bash
+SEED_DEMO_DATA=true bin/rails db:seed
+TEST_MODE=true bin/dev
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution expectations and the local validation workflow.
 
 ## License
 
