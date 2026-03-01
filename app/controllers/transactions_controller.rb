@@ -64,9 +64,9 @@ class TransactionsController < ApplicationController
       @transaction.destroy!
       linked&.destroy!
     end
-    redirect_to transactions_path, notice: "Transaction deleted."
+    redirect_to safe_return_url, notice: "Transaction deleted."
   rescue ActiveRecord::RecordNotDestroyed => e
-    redirect_to transactions_path, alert: "Failed to delete transaction: #{e.message}"
+    redirect_to safe_return_url, alert: "Failed to delete transaction: #{e.message}"
   end
 
   def confirm_actual

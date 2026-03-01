@@ -88,7 +88,7 @@
             <%= icon_button icon: :check, path: confirm_actual_transaction_path(txn, return_url: request.fullpath), title: "Confirm", variant: :success, data: { turbo_frame: "_top" } %>
           <% end %>
           <%= icon_button icon: :edit, path: edit_transaction_path(txn, return_url: request.fullpath), title: "Edit", variant: :primary, data: { turbo_frame: "_top" } %>
-          <%= icon_button icon: :delete, path: transaction_path(txn), title: "Delete", variant: :danger, method: :delete, data: { turbo_confirm: "Delete?" } %>
+          <%= icon_button icon: :delete, path: transaction_path(txn, return_url: request.fullpath), title: "Delete", variant: :danger, method: :delete, data: { turbo_confirm: "Delete?", turbo_frame: "_top" } %>
         </div>
       </div>
     </div>
