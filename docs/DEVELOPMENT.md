@@ -144,7 +144,7 @@ We use standard Rails tooling for quality and security:
 
 ```bash
 bundle exec rubocop       # Linting
-bundle exec brakeman      # Security scanning
+bin/brakeman              # Security scanning
 ```
 
 ## Building Docker Image Locally
