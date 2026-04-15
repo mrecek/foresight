@@ -11,6 +11,8 @@
 ARG RUBY_VERSION=3.4.8
 FROM docker.io/library/ruby:$RUBY_VERSION-slim AS base
 
+ARG DEBIAN_FRONTEND=noninteractive
+
 # Rails app lives here
 WORKDIR /rails
 
