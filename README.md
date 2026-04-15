@@ -21,7 +21,7 @@ The easiest way to run Foresight is via Docker.
 ```bash
 docker run -d \
   --name foresight \
-  -p 3000:80 \
+  -p 3000:8080 \
   -v foresight_data:/rails/storage \
   ghcr.io/mrecek/foresight:latest
 ```
@@ -39,7 +39,7 @@ services:
     container_name: foresight
     restart: unless-stopped
     ports:
-      - "3000:80"
+      - "3000:8080"
     volumes:
       - foresight_data:/rails/storage
     environment:
@@ -66,6 +66,7 @@ You can configure the application using environment variables:
 | `SECRET_KEY_BASE` | Session encryption key | *(Baked in image)* |
 | `TZ` | Timezone (e.g., `America/New_York`) | `UTC` |
 | `RAILS_LOG_LEVEL` | Logging verbosity | `info` |
+| `THRUSTER_HTTP_PORT` | Container listener port for Thruster | `8080` |
 
 ## Deployment
 

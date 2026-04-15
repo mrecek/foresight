@@ -32,5 +32,5 @@ Use this only when you specifically need to validate the container image locally
 
 ```bash
 docker build -t foresight .
-docker run -d -p 3000:80 -v foresight_data:/rails/storage foresight
+docker run -d -p 3000:8080 -v foresight_data:/rails/storage foresight
 ```
