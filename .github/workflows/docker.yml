@@ -83,7 +83,7 @@ jobs:
       - name: Pull and test amd64 image
         run: |
           docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-amd64
-          docker run -d --name smoke-test -p 3000:80 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-amd64
+          docker run -d --name smoke-test -p 3000:8080 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-amd64
           echo "Waiting for container to start..."
           sleep 10
           echo "Checking health endpoint..."

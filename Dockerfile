@@ -3,7 +3,7 @@
 
 # This Dockerfile is designed for production, not development. Use with Kamal or build'n'run by hand:
 # docker build -t foresight .
-# docker run -d -p 80:80 -v foresight_data:/rails/storage --name foresight foresight
+# docker run -d -p 3000:8080 -v foresight_data:/rails/storage --name foresight foresight
 
 # For a containerized dev environment, see Dev Containers: https://guides.rubyonrails.org/getting_started_with_devcontainer.html
 
@@ -21,11 +21,14 @@ RUN apt-get update -qq && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
 # Set production environment variables and enable jemalloc for reduced memory usage and latency.
+# Thruster listens on an unprivileged port so the image runs cleanly as a non-root user
+# in Docker, Kubernetes, and other container runtimes.
 ENV RAILS_ENV="production" \
     BUNDLE_DEPLOYMENT="1" \
     BUNDLE_PATH="/usr/local/bundle" \
     BUNDLE_WITHOUT="development" \
-    LD_PRELOAD="/usr/local/lib/libjemalloc.so"
+    LD_PRELOAD="/usr/local/lib/libjemalloc.so" \
+    THRUSTER_HTTP_PORT="8080"
 
 # Throw-away build stage to reduce size of final image
 FROM base AS build
@@ -78,8 +81,8 @@ ENTRYPOINT ["/rails/bin/docker-entrypoint"]
 
 # Health check for container orchestration (Docker, Kubernetes, etc.)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:80/up || exit 1
+  CMD curl -f "http://localhost:${THRUSTER_HTTP_PORT}/up" || exit 1
 
 # Start server via Thruster by default, this can be overwritten at runtime
-EXPOSE 80
+EXPOSE 8080
 CMD ["./bin/thrust", "./bin/rails", "server"]
