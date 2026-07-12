@@ -47,6 +47,62 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_not Transaction.exists?(linked_id)
   end
 
+  test "create with a valid return_url redirects back to the originating page" do
+    return_url = "/?account_id=#{@checking.id}&months=6"
+
+    assert_difference("Transaction.count", 1) do
+      post transactions_path, params: {
+        transaction: {
+          account_id: @checking.id,
+          description: "Dashboard expense",
+          amount: -45.0,
+          date: Date.current,
+          status: "actual"
+        },
+        return_url: return_url
+      }
+    end
+
+    assert_redirected_to return_url
+  end
+
+  test "create validation failure retains the return_url" do
+    return_url = "/?account_id=#{@checking.id}&months=6"
+
+    assert_no_difference("Transaction.count") do
+      post transactions_path, params: {
+        transaction: {
+          account_id: @checking.id,
+          description: "",
+          amount: -45.0,
+          date: Date.current,
+          status: "actual"
+        },
+        return_url: return_url
+      }
+    end
+
+    assert_response :unprocessable_entity
+    assert_select "input[name='return_url'][value='#{return_url}']"
+  end
+
+  test "create with an unsafe return_url redirects to transactions index" do
+    assert_difference("Transaction.count", 1) do
+      post transactions_path, params: {
+        transaction: {
+          account_id: @checking.id,
+          description: "Unsafe return URL",
+          amount: -45.0,
+          date: Date.current,
+          status: "actual"
+        },
+        return_url: "//evil.com"
+      }
+    end
+
+    assert_redirected_to transactions_path
+  end
+
   test "destroy without return_url redirects to transactions index" do
     txn = Transaction.create!(
       account: @checking,
