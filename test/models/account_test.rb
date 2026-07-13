@@ -414,6 +414,34 @@ class AccountTest < ActiveSupport::TestCase
     assert_equal(-100.0, @checking.lowest_projected_balance(Date.current + 2.days))
   end
 
+  test "projection_summary keeps alert details within the requested horizon" do
+    @checking.save!
+    @checking.update!(current_balance: 100.0, balance_date: Date.current)
+
+    first_dip_date = Date.current + 2.months
+    Transaction.create!(
+      account: @checking,
+      description: "Near-term expense",
+      amount: -200.0,
+      date: first_dip_date,
+      status: :estimated
+    )
+    Transaction.create!(
+      account: @checking,
+      description: "Long-term expense",
+      amount: -1_000.0,
+      date: Date.current + 8.months,
+      status: :estimated
+    )
+
+    summary = @checking.projection_summary(Date.current + 3.months)
+
+    assert_equal(-100.0, summary[:lowest_balance])
+    assert_equal :danger, summary[:status]
+    assert_equal first_dip_date, summary[:first_negative_date]
+    assert_equal first_dip_date, summary[:lowest_date]
+  end
+
   test "lowest_projected_balance excludes past dips from forward-looking minimum" do
     @checking.save!
     @checking.update!(current_balance: 10000.0, balance_date: Date.current - 14.days)

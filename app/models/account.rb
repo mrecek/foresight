@@ -27,37 +27,59 @@ class Account < ApplicationRecord
 
   # Returns the lowest running balance in the projection period (forward-looking only)
   def lowest_projected_balance(end_date = nil)
+    projection_summary(end_date)[:lowest_balance]
+  end
+
+  # Returns the balance and alert details for a projection period.
+  #
+  # Past transactions are included when establishing the running balance, but only
+  # future transactions can create a projected low or alert date.
+  def projection_summary(end_date = nil)
     end_date ||= Setting.instance.default_view_months.months.from_now.to_date
     running = current_balance
     lowest = nil
+    first_warning_date = nil
+    first_negative_date = nil
+    lowest_date = nil
 
     # Use already loaded transactions if available to avoid N+1
     txns = if transactions.loaded?
-      transactions.select { |t| t.date >= balance_date && t.date <= end_date }.sort_by(&:date)
+      transactions.select { |t| t.date >= balance_date && t.date <= end_date }.sort_by { |t| [ t.date, t.id ] }
     else
-      transactions.where(date: balance_date..end_date).order(:date)
+      transactions.where(date: balance_date..end_date).order(:date, :id)
     end
 
     txns.each do |txn|
       running += txn.amount
-      if txn.date > Date.current
-        lowest = running if lowest.nil? || running < lowest
-      end
+      next unless txn.date > Date.current
+
+      lowest = running if lowest.nil? || running < lowest
+      lowest_date = txn.date if lowest == running
+      first_warning_date ||= txn.date if running < warning_threshold
+      first_negative_date ||= txn.date if running < 0
     end
 
-    lowest || running
-  end
-
-  # Returns :normal, :warning, or :danger based on lowest projected balance
-  def projection_status(end_date = nil)
-    lowest = lowest_projected_balance(end_date)
-    if lowest < 0
+    lowest_balance = lowest || running
+    status = if lowest_balance < 0
       :danger
-    elsif lowest < warning_threshold
+    elsif lowest_balance < warning_threshold
       :warning
     else
       :normal
     end
+
+    {
+      lowest_balance: lowest_balance,
+      status: status,
+      first_warning_date: first_warning_date,
+      first_negative_date: first_negative_date,
+      lowest_date: lowest_date
+    }
+  end
+
+  # Returns :normal, :warning, or :danger based on lowest projected balance
+  def projection_status(end_date = nil)
+    projection_summary(end_date)[:status]
   end
 
   # Calculate running balances for a set of transactions

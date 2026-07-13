@@ -1,23 +1,21 @@
 class DashboardController < ApplicationController
   def index
     @settings = Setting.instance
-    @end_date_for_accounts = @settings.default_view_months.months.from_now.to_date
-
-    # Default to settings default, expandable via param
-    @months_ahead = (params[:months] || @settings.default_view_months).to_i
+    @months_ahead = projection_months
     @end_date = @months_ahead.months.from_now.to_date
 
-    # Extend projections BEFORE eager loading accounts so the cached
-    # transactions include any newly generated records
+    # Every account card represents the selected dashboard range. Extend all
+    # active projections before eager loading so each card has complete data.
     target_account = if params[:account_id].present?
       Account.find_by(id: params[:account_id])
     else
       Account.first
     end
-    RecurringRule.extend_all_projections_to(@end_date, account: target_account) if target_account
+    RecurringRule.extend_all_projections_to(@end_date)
 
     # Eager load transactions for all accounts (now includes extended projections)
     @accounts = Account.includes(:transactions)
+    @account_projections = @accounts.index_with { |account| account.projection_summary(@end_date) }
 
     # Select account from the eager-loaded collection
     @selected_account = if target_account
@@ -41,5 +39,14 @@ class DashboardController < ApplicationController
     @grouped_transactions = TransactionGrouper.new(@transactions_with_balances).call
 
     @attention_threshold = Date.current + 30.days
+  end
+
+  private
+
+  def projection_months
+    requested_months = params[:months].to_i
+    return requested_months if [ 1, 3, 6, 9, 12, 24 ].include?(requested_months)
+
+    @settings.default_view_months
   end
 end

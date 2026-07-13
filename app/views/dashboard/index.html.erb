@@ -3,35 +3,12 @@
   <div class="flex flex-wrap gap-4">
     <% @accounts.each do |account| %>
       <% is_selected = @selected_account&.id == account.id %>
-      <% status = account.projection_status %>
-      <%
-        # Enhanced calculation for lowest balance tracking (forward-looking only)
-        lowest_balance = account.lowest_projected_balance
-        lowest_date = nil           # When it FIRST crosses threshold
-        most_negative_date = nil    # When it reaches the LOWEST point
-
-        if status != :normal
-          running_balance = account.current_balance
-          most_negative_balance = nil
-
-          account.transactions.where("date >= ?", account.balance_date).order(:date).each do |txn|
-            running_balance += txn.amount
-
-            next unless txn.date > Date.current
-
-            # Track first time below threshold
-            if lowest_date.nil? && ((status == :danger && running_balance < 0) || (status == :warning && running_balance < account.warning_threshold))
-              lowest_date = txn.date
-            end
-
-            # Track the most negative point
-            if status == :danger && (most_negative_balance.nil? || running_balance <= most_negative_balance)
-              most_negative_balance = running_balance
-              most_negative_date = txn.date
-            end
-          end
-        end
-      %>
+      <% projection = @account_projections.fetch(account) %>
+      <% status = projection[:status] %>
+      <% lowest_balance = projection[:lowest_balance] %>
+      <% lowest_date = projection[:lowest_date] %>
+      <% first_negative_date = projection[:first_negative_date] %>
+      <% first_warning_date = projection[:first_warning_date] %>
       <%= link_to root_path(account_id: account.id, months: @months_ahead),
           class: "relative block p-5 rounded-xl border-2 transition-all min-w-[180px] xl:min-w-[220px] group #{is_selected ? 'border-primary-500 bg-white shadow-soft-lg' : 'card-hover border-transparent'}" do %>
         <!-- Status indicator dot with tooltip -->
@@ -49,25 +26,28 @@
               
               <div class="text-neutral-200 leading-relaxed">
                 <% if status == :danger %>
-                  <% if most_negative_date && lowest_date != most_negative_date && (most_negative_date - lowest_date).to_i > 3 %>
+                  <% if first_negative_date && lowest_date && first_negative_date != lowest_date && (lowest_date - first_negative_date).to_i > 3 %>
                     <%# Case 1: Different dates, significant gap %>
-                    <div>Goes negative: <%= lowest_date.strftime('%b %d') %></div>
+                    <div>Goes negative: <%= first_negative_date.strftime('%b %d') %></div>
                     <div class="flex items-start gap-1 mt-1">
                       <span class="text-danger-400 text-base leading-none">↓</span>
-                      <span>Lowest point: $<%= money_amount(lowest_balance) %> (<%= most_negative_date.strftime('%b %d') %>)</span>
+                      <span>Lowest point: $<%= money_amount(lowest_balance) %> (<%= lowest_date.strftime('%b %d') %>)</span>
                     </div>
-                  <% elsif most_negative_date && lowest_date != most_negative_date %>
+                  <% elsif first_negative_date && lowest_date && first_negative_date != lowest_date %>
                     <%# Case 2: Different dates but close together (≤3 days) %>
-                    <div>Goes negative on <%= lowest_date.strftime('%b %d') %></div>
+                    <div>Goes negative on <%= first_negative_date.strftime('%b %d') %></div>
                     <div class="text-neutral-300 text-[11px] mt-1">Reaches $<%= money_amount(lowest_balance) %> shortly after</div>
-                  <% else %>
-                    <%# Case 3: Same date or most_negative_date not available %>
-                    <div>Goes negative: <%= lowest_date.strftime('%b %d') %></div>
+                  <% elsif first_negative_date %>
+                    <%# Case 3: The first negative date is also the lowest point %>
+                    <div>Goes negative: <%= first_negative_date.strftime('%b %d') %></div>
                     <div class="text-neutral-300 mt-1">Balance reaches: $<%= money_amount(lowest_balance) %></div>
+                  <% else %>
+                    <div>Balance is already negative.</div>
+                    <div class="text-neutral-300 mt-1">Current balance: $<%= money_amount(lowest_balance) %></div>
                   <% end %>
                 <% else %>
                   <%# Warning state (below threshold but not negative) %>
-                  This account will fall below your warning threshold ($<%= money_amount(account.warning_threshold) %>)<%= lowest_date ? " on #{lowest_date.strftime('%b %d')}" : '' %>.
+                  This account will fall below your warning threshold ($<%= money_amount(account.warning_threshold) %>)<%= first_warning_date ? " on #{first_warning_date.strftime('%b %d')}" : '' %>.
                 <% end %>
               </div>
               
