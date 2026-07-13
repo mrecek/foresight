@@ -9,9 +9,13 @@ updates:
       timezone: America/Denver
     open-pull-requests-limit: 5
     groups:
-      all-gems:
+      minor-and-patch-gems:
+        applies-to: version-updates
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch
     labels:
       - "dependencies"
       - "automerge"
@@ -20,10 +24,5 @@ updates:
     directory: "/"
     schedule:
       interval: monthly
-    groups:
-      all-actions:
-        patterns:
-          - "*"
     labels:
       - "dependencies"
-      - "automerge"
