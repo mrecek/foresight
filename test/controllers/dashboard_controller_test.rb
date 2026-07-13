@@ -45,6 +45,7 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     get root_path(account_id: @checking.id, months: 12)
 
     assert_response :success
+    assert_select "turbo-frame#transactions a.relative.block", count: 2
     assert_select ".status-dot-danger", count: 2
     assert_select "span", text: /-100\.00 low/, count: 2
   end
