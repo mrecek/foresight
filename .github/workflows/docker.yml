@@ -17,26 +17,22 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
+permissions:
+  contents: read
+  packages: write
+  attestations: write
+  id-token: write
+
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: linux/amd64
-            runner: ubuntu-latest
-            suffix: amd64
-          - platform: linux/arm64
-            runner: ubuntu-24.04-arm
-            suffix: arm64
-    runs-on: ${{ matrix.runner }}
-    permissions:
-      contents: read
-      packages: write
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -48,79 +44,87 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Compute release version
+        id: release
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          date="$(date -u +'%Y.%m.%d')"
+          short_sha="${COMMIT_SHA:0:7}"
+
+          echo "date=${date}" >> "$GITHUB_OUTPUT"
+          echo "immutable=${date}-${short_sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure immutable release tag is unused
+        env:
+          VERSION: ${{ steps.release.outputs.immutable }}
+        run: |
+          set -euo pipefail
+
+          image="${REGISTRY}/${IMAGE_NAME}:${VERSION}"
+          if docker buildx imagetools inspect "${image}" >/dev/null 2>&1; then
+            echo "::error::Immutable release tag already exists: ${image}"
+            exit 1
+          fi
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest-${{ matrix.suffix }}
-            type=raw,value=${{ github.run_number }}-${{ matrix.suffix }}
+            type=raw,value=${{ steps.release.outputs.immutable }},priority=900
+            type=raw,value=${{ steps.release.outputs.date }},priority=800
+            type=raw,value=latest,priority=700
+            type=sha,format=long,prefix=sha-,priority=600
 
-      - name: Build and push
+      - name: Build and push multi-architecture image
+        id: push
         uses: docker/build-push-action@v7
         with:
           context: .
-          platforms: ${{ matrix.platform }}
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.platform }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
+          cache-from: type=gha,scope=foresight
+          cache-to: type=gha,mode=max,scope=foresight
+          provenance: mode=max
+          sbom: true
 
-  # Smoke test runs only on amd64 build
-  smoke-test:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Log in to Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull and test amd64 image
+      - name: Smoke test immutable amd64 image
+        env:
+          VERSION: ${{ steps.release.outputs.immutable }}
         run: |
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-amd64
-          docker run -d --name smoke-test -p 3000:8080 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-amd64
+          set -euo pipefail
+
+          image="${REGISTRY}/${IMAGE_NAME}:${VERSION}"
+          docker pull --platform linux/amd64 "${image}"
+          docker run -d --name smoke-test -p 3000:8080 --platform linux/amd64 "${image}"
+          trap 'docker logs smoke-test; docker rm -f smoke-test' EXIT
+
           echo "Waiting for container to start..."
           sleep 10
-          echo "Checking health endpoint..."
-          curl --fail --retry 5 --retry-delay 2 http://localhost:3000/up || exit 1
-          docker logs smoke-test
-          docker stop smoke-test
-          docker rm smoke-test
-          echo "Smoke test passed!"
+          curl --fail --retry 5 --retry-delay 2 http://localhost:3000/up
 
-  # Create multi-arch manifest after all builds complete
-  manifest:
-    needs: [build, smoke-test]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Log in to Container Registry
-        uses: docker/login-action@v4
+      - name: Generate build provenance attestation
+        uses: actions/attest@v4
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
 
-      - name: Get current date
-        id: date
-        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
-
-      - name: Create and push multi-arch manifest (latest)
+      - name: Publish release summary
+        env:
+          VERSION: ${{ steps.release.outputs.immutable }}
+          DIGEST: ${{ steps.push.outputs.digest }}
         run: |
-          docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-amd64 \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-arm64
-
-      - name: Create and push multi-arch manifest (date)
-        run: |
-          docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.date.outputs.date }} \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-amd64 \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-arm64
+          {
+            echo "## Published container image"
+            echo
+            echo "- Immutable release: \`${REGISTRY}/${IMAGE_NAME}:${VERSION}@${DIGEST}\`"
+            echo "- Daily channel: \`${REGISTRY}/${IMAGE_NAME}:${{ steps.release.outputs.date }}\`"
+            echo "- Rolling channel: \`${REGISTRY}/${IMAGE_NAME}:latest\`"
+          } >> "$GITHUB_STEP_SUMMARY"
