@@ -1,3 +1,4 @@
+<%= turbo_frame_tag "transactions", data: { turbo_action: "advance" } do %>
 <div class="space-y-8">
   <!-- Account Tabs -->
   <div class="flex flex-wrap gap-4">
@@ -99,7 +100,6 @@
 
   <% if @selected_account %>
     <!-- Transactions List -->
-    <%= turbo_frame_tag "transactions", data: { turbo_action: "advance" } do %>
     <div class="card">
       <!-- Fixed Header with Reconcile Row -->
       <div class="border-b border-neutral-200 bg-white rounded-t-xl">
@@ -521,7 +521,6 @@
         </div>
       </div>
     </div>
-    <% end %>
   <% else %>
     <div class="card p-16 text-center">
       <svg class="mx-auto h-16 w-16 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -533,3 +532,4 @@
     </div>
   <% end %>
 </div>
+<% end %>
