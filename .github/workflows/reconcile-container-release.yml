@@ -1,0 +1,55 @@
+name: Reconcile Container Release
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run after Dependabot's Monday-morning update window and reconcile any other drift daily.
+    - cron: "30 14 * * *"
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+permissions:
+  actions: write
+  contents: read
+  packages: read
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Log in to Container Registry
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check whether this commit has a published image
+        id: release
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          image="${REGISTRY}/${IMAGE_NAME}:sha-${COMMIT_SHA}"
+          if docker manifest inspect "${image}" >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "Image already published: ${image}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            echo "Image is missing: ${image}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Dispatch the container release workflow
+        if: steps.release.outputs.published == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          gh workflow run docker.yml --ref "${REF}"
+          echo "Dispatched container release for ${REF}." >> "$GITHUB_STEP_SUMMARY"
