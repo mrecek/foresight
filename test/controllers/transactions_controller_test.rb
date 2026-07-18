@@ -185,4 +185,73 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to transactions_path
   end
+
+  test "confirm actual prefers explicit return_url over the referrer" do
+    txn = estimated_transaction
+    return_url = "/?account_id=#{@checking.id}&months=6"
+
+    get confirm_actual_transaction_path(txn, return_url: return_url),
+      headers: { "HTTP_REFERER" => transactions_url }
+
+    assert_response :success
+    assert_select "input[name='return_url'][value='#{return_url}']"
+    assert_select "a[href='#{return_url}']", text: "Cancel"
+  end
+
+  test "mark actual redirects to the originating dashboard state" do
+    txn = estimated_transaction(amount: -75.0)
+    return_url = "/?account_id=#{@checking.id}&months=6"
+
+    patch mark_actual_transaction_path(txn), params: {
+      amount: "82.45",
+      original_sign: "-1",
+      return_url: return_url
+    }
+
+    assert_redirected_to return_url
+    txn.reload
+    assert_predicate txn, :actual?
+    assert_equal BigDecimal("-82.45"), txn.amount
+    assert_predicate txn, :user_modified?
+  end
+
+  test "invalid actual amount re-renders the form with its return_url" do
+    txn = estimated_transaction
+    return_url = "/?account_id=#{@checking.id}&months=3"
+
+    patch mark_actual_transaction_path(txn), params: {
+      amount: "0",
+      original_sign: "-1",
+      return_url: return_url
+    }
+
+    assert_response :unprocessable_entity
+    assert_select ".alert-danger", text: /Amount must be greater than zero/
+    assert_select "input[name='return_url'][value='#{return_url}']"
+    assert_predicate txn.reload, :estimated?
+  end
+
+  test "mark actual rejects an external return_url" do
+    txn = estimated_transaction
+
+    patch mark_actual_transaction_path(txn), params: {
+      amount: "40.00",
+      original_sign: "-1",
+      return_url: "//evil.example/path"
+    }
+
+    assert_redirected_to transactions_path
+  end
+
+  private
+
+  def estimated_transaction(amount: -45.0)
+    Transaction.create!(
+      account: @checking,
+      description: "Upcoming expense",
+      amount: amount,
+      date: Date.current + 1.day,
+      status: :estimated
+    )
+  end
 end

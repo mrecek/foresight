@@ -442,6 +442,58 @@ class AccountTest < ActiveSupport::TestCase
     assert_equal first_dip_date, summary[:lowest_date]
   end
 
+  test "projection_summary does not assign a future negative date when already negative today" do
+    @checking.save!
+    @checking.update!(current_balance: -100.0, balance_date: Date.current, warning_threshold: 200.0)
+
+    Transaction.create!(
+      account: @checking,
+      description: "Future expense while negative",
+      amount: -50.0,
+      date: Date.current + 5.days,
+      status: :estimated
+    )
+
+    summary = @checking.projection_summary(Date.current + 30.days)
+
+    assert_equal(-100.0, summary[:balance_today])
+    assert_equal(-150.0, summary[:lowest_balance])
+    assert_nil summary[:first_negative_date]
+    assert_equal Date.current + 5.days, summary[:lowest_date]
+  end
+
+  test "projection_summary records only an actual future threshold crossing" do
+    @checking.save!
+    @checking.update!(current_balance: 150.0, balance_date: Date.current, warning_threshold: 200.0)
+
+    Transaction.create!(
+      account: @checking,
+      description: "Still below threshold",
+      amount: -25.0,
+      date: Date.current + 1.day,
+      status: :estimated
+    )
+    Transaction.create!(
+      account: @checking,
+      description: "Recover above threshold",
+      amount: 100.0,
+      date: Date.current + 2.days,
+      status: :estimated
+    )
+    crossing_date = Date.current + 3.days
+    Transaction.create!(
+      account: @checking,
+      description: "Cross threshold",
+      amount: -50.0,
+      date: crossing_date,
+      status: :estimated
+    )
+
+    summary = @checking.projection_summary(Date.current + 30.days)
+
+    assert_equal crossing_date, summary[:first_warning_date]
+  end
+
   test "lowest_projected_balance excludes past dips from forward-looking minimum" do
     @checking.save!
     @checking.update!(current_balance: 10000.0, balance_date: Date.current - 14.days)

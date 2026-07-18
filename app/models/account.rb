@@ -37,7 +37,6 @@ class Account < ApplicationRecord
   def projection_summary(end_date = nil)
     end_date ||= Setting.instance.default_view_months.months.from_now.to_date
     running = current_balance
-    lowest = nil
     first_warning_date = nil
     first_negative_date = nil
     lowest_date = nil
@@ -49,17 +48,28 @@ class Account < ApplicationRecord
       transactions.where(date: balance_date..end_date).order(:date, :id)
     end
 
-    txns.each do |txn|
-      running += txn.amount
-      next unless txn.date > Date.current
+    past_and_present, future = txns.partition { |txn| txn.date <= Date.current }
 
-      lowest = running if lowest.nil? || running < lowest
-      lowest_date = txn.date if lowest == running
-      first_warning_date ||= txn.date if running < warning_threshold
-      first_negative_date ||= txn.date if running < 0
+    past_and_present.each do |txn|
+      running += txn.amount
     end
 
-    lowest_balance = lowest || running
+    balance_today = running
+    lowest_balance = balance_today
+
+    future.each do |txn|
+      previous_balance = running
+      running += txn.amount
+
+      if running < lowest_balance
+        lowest_balance = running
+        lowest_date = txn.date
+      end
+
+      first_warning_date ||= txn.date if previous_balance >= warning_threshold && running < warning_threshold
+      first_negative_date ||= txn.date if previous_balance >= 0 && running < 0
+    end
+
     status = if lowest_balance < 0
       :danger
     elsif lowest_balance < warning_threshold
@@ -69,6 +79,7 @@ class Account < ApplicationRecord
     end
 
     {
+      balance_today: balance_today,
       lowest_balance: lowest_balance,
       status: status,
       first_warning_date: first_warning_date,

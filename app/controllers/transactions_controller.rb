@@ -18,7 +18,7 @@ class TransactionsController < ApplicationController
 
   def new
     @transaction = Transaction.new(date: Date.current, status: :actual, account_id: params[:account_id])
-    @return_url = safe_return_url
+    @return_url = transaction_return_url
   end
 
   def create
@@ -27,16 +27,16 @@ class TransactionsController < ApplicationController
     ActiveRecord::Base.transaction do
       if @transaction.save
         AuditLog.log_create(@transaction, request)
-        redirect_to safe_return_url, notice: "Transaction created."
+        redirect_to transaction_return_url, notice: "Transaction created."
       else
-        @return_url = safe_return_url
+        @return_url = transaction_return_url
         render :new, status: :unprocessable_entity
       end
     end
   end
 
   def edit
-    @return_url = safe_return_url
+    @return_url = transaction_return_url
   end
 
   def update
@@ -51,9 +51,9 @@ class TransactionsController < ApplicationController
         sync_linked_transaction_modifications
 
         AuditLog.log_update(@transaction, request)
-        redirect_to safe_return_url, notice: "Transaction updated."
+        redirect_to transaction_return_url, notice: "Transaction updated."
       else
-        @return_url = safe_return_url
+        @return_url = transaction_return_url
         render :edit, status: :unprocessable_entity
       end
     end
@@ -66,37 +66,36 @@ class TransactionsController < ApplicationController
       @transaction.destroy!
       linked&.destroy!
     end
-    redirect_to safe_return_url, notice: "Transaction deleted."
+    redirect_to transaction_return_url, notice: "Transaction deleted."
   rescue ActiveRecord::RecordNotDestroyed => e
-    redirect_to safe_return_url, alert: "Failed to delete transaction: #{e.message}"
+    redirect_to transaction_return_url, alert: "Failed to delete transaction: #{e.message}"
   end
 
   def confirm_actual
-    # Capture where the user came from so we can redirect back after marking as actual
-    @return_url = request.referer || transactions_path
+    @return_url = transaction_return_url
   end
 
   def mark_actual
     # Validate required parameters
     unless params[:amount].present? && params[:original_sign].present?
-      return redirect_back fallback_location: transactions_path, alert: "Missing required parameters."
+      return render_confirm_actual_error("Missing required parameters.")
     end
 
     # User enters positive amount, original_sign preserves the transaction type
     begin
       entered_amount = BigDecimal(params[:amount].to_s).abs
     rescue ArgumentError
-      return redirect_back fallback_location: transactions_path, alert: "Invalid amount format."
+      return render_confirm_actual_error("Invalid amount format.")
     end
 
     if entered_amount <= 0
-      return redirect_back fallback_location: transactions_path, alert: "Amount must be greater than zero."
+      return render_confirm_actual_error("Amount must be greater than zero.")
     end
 
     sign = params[:original_sign].to_i
 
     unless sign == 1 || sign == -1
-      return redirect_back fallback_location: transactions_path, alert: "Invalid sign parameter."
+      return render_confirm_actual_error("Invalid sign parameter.")
     end
 
     new_amount = entered_amount * sign
@@ -110,9 +109,9 @@ class TransactionsController < ApplicationController
     end
 
     # Redirect to where the user originally came from
-    redirect_to safe_return_url, notice: "Marked as actual with amount #{helpers.number_to_currency(entered_amount)}."
+    redirect_to transaction_return_url, notice: "Marked as actual with amount #{helpers.number_to_currency(entered_amount)}."
   rescue ActiveRecord::RecordInvalid => e
-    redirect_to safe_return_url, alert: "Failed to update transaction: #{e.message}"
+    render_confirm_actual_error("Failed to update transaction: #{e.message}")
   end
 
   private
@@ -174,13 +173,13 @@ class TransactionsController < ApplicationController
     )
   end
 
-  def safe_return_url
-    url = params[:return_url].presence || request.referer
-    # Only allow relative paths starting with / to prevent XSS via javascript: URLs
-    if url.present? && url.start_with?("/") && !url.start_with?("//")
-      url
-    else
-      transactions_path
-    end
+  def transaction_return_url
+    safe_return_url(fallback: transactions_path)
+  end
+
+  def render_confirm_actual_error(message)
+    @return_url = transaction_return_url
+    flash.now[:alert] = message
+    render :confirm_actual, status: :unprocessable_entity
   end
 end

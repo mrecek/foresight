@@ -6,6 +6,7 @@
       <% is_selected = @selected_account&.id == account.id %>
       <% projection = @account_projections.fetch(account) %>
       <% status = projection[:status] %>
+      <% balance_today = projection[:balance_today] %>
       <% lowest_balance = projection[:lowest_balance] %>
       <% lowest_date = projection[:lowest_date] %>
       <% first_negative_date = projection[:first_negative_date] %>
@@ -44,7 +45,7 @@
                     <div class="text-neutral-300 mt-1">Balance reaches: $<%= money_amount(lowest_balance) %></div>
                   <% else %>
                     <div>Balance is already negative.</div>
-                    <div class="text-neutral-300 mt-1">Current balance: $<%= money_amount(lowest_balance) %></div>
+                    <div class="text-neutral-300 mt-1">Current balance: $<%= money_amount(balance_today) %></div>
                   <% end %>
                 <% else %>
                   <%# Warning state (below threshold but not negative) %>
