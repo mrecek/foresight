@@ -69,11 +69,20 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
 
   test "already-negative accounts render a safe warning without a future alert date" do
     @checking.update!(current_balance: -100.0)
+    Transaction.create!(
+      account: @checking,
+      description: "Future expense while negative",
+      amount: -50.0,
+      date: Date.current + 1.day,
+      status: :estimated
+    )
 
     get root_path(account_id: @checking.id, months: 3)
 
     assert_response :success
     assert_select "div", text: "Balance is already negative."
+    assert_select "div", text: "Current balance: $-100.00"
+    assert_select "div", text: /Goes negative/, count: 0
   end
 
   test "invalid dashboard ranges fall back to the default view period" do
