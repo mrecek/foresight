@@ -4,48 +4,39 @@ Use this reference when you need to verify behavior locally during normal develo
 
 ## Primary Test Commands
 
-Run the full local suite with:
+Run the complete local contract, including the production container check, with:
 
 ```bash
-bin/test
+bin/validate
 ```
 
-Run the fast model and service subset directly with:
+Use `bin/validate --ci` for every non-container stage or `bin/validate test` for
+the full test suite alone. Each failure names its contract stage.
+
+Run a targeted test directly with:
 
 ```bash
-ruby -Itest -Ilib test/models/*_test.rb test/services/*_test.rb
+bin/rails test test/models/recurring_rule_test.rb
 ```
 
 ## Targeted Test Commands
 
-Run a specific file:
+Run a file group through Rails:
 
 ```bash
-ruby -Itest -Ilib test/models/recurring_rule_test.rb
-ruby -Itest -Ilib test/services/recurrence_calculator_test.rb
-ruby -Itest -Ilib test/services/transaction_grouper_test.rb
-```
-
-Run a file group:
-
-```bash
-ruby -Itest -Ilib test/services/*_test.rb
-ruby -Itest -Ilib test/models/*_test.rb
-```
-
-Run verbose output when you need more detail:
-
-```bash
-ruby -Itest -Ilib test/**/*_test.rb --verbose
+bin/rails test test/services
+bin/rails test test/models
 ```
 
 ## Code Quality
 
-Use the standard local quality tools:
+Run focused contract stages:
 
 ```bash
-bundle exec rubocop
-bin/brakeman --no-pager
+bin/validate lint
+bin/validate security-ruby security-js
+bin/validate runtime architecture
+bin/validate container
 ```
 
 Use this skill for local validation only. Commit, PR, merge, and CI policy belong to `foresight-git-workflow`.
