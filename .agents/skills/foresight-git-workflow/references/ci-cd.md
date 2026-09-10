@@ -1,81 +1,45 @@
 # CI/CD
 
-Use this reference when the task is about GitHub Actions, Docker publishing, Dependabot, or PR gates.
+Use this reference to inspect or change pull-request validation, dependency automation, or container publication.
 
-## Source Of Truth
+## Inspect Before Acting
 
-If this reference and the workflow YAML differ, trust:
+Read the live files for exact jobs, schedules, versions, and commands:
 
-- `.github/workflows/ci.yml`
-- `.github/workflows/docker.yml`
-- `.github/workflows/auto-merge-dependabot.yml`
+- `.github/workflows/`
 - `.github/dependabot.yml`
+- `.github/scripts/`
+- `config/validation.rb`
 
-## Pull Request CI
+For mergeability or repository policy, inspect the live GitHub ruleset and repository merge settings. A workflow job is advisory until the ruleset requires its check.
 
-`ci.yml` runs on pull requests only.
+## Pull-request Contract
 
-Current jobs:
+`ci.yml` delegates each job to a named `bin/validate` stage. Every job currently defined in that workflow must be a required main-branch check. When adding, removing, or renaming a job, update and read back the ruleset in the same change.
 
-- `scan_ruby`: `bin/brakeman --no-pager` and `bin/bundler-audit`
-- `scan_js`: `bin/importmap audit`
-- `lint`: `bin/rubocop -f github`
-- `test`: `ruby -Itest -Ilib test/models/*_test.rb test/services/*_test.rb`
+Completion means every required check is present on the pull request and successful at its current head revision.
 
-The repo’s broader local pre-PR gate remains:
+## Dependency Ownership
 
-```bash
-bin/test
-bundle exec rubocop
-bin/brakeman --no-pager
-```
+- Dependabot owns Bundler, GitHub Actions, and Docker base-digest proposals.
+- Only Bundler patch and minor changes are eligible for auto-merge.
+- The Ruby freshness workflow owns patch updates across `.ruby-version`, `.mise.toml`, `mise.lock`, and the digest-pinned Docker base.
+- Ruby minor and major upgrades, GitHub Actions, and Docker changes stay under human review.
+- The scheduled security workflow detects dependency, application, and image findings; remediation still travels through a pull request.
 
-## Docker Publish Workflow
+Inspect Dependabot metadata and the eligibility script before changing an auto-merge boundary. Complete a change only when an ineligible ecosystem and major Bundler update still fail closed.
 
-`docker.yml` runs on:
+## Container Publication
 
-- push to `main`
-- manual dispatch with `gh workflow run docker.yml`
+`docker.yml` builds an unpromoted candidate, smoke-tests every supported architecture, verifies provenance, then promotes release tags. The full commit-SHA tag is the completion marker. `reconcile-container-release.yml` repairs a partial promotion without rebuilding accepted artifacts.
 
-Current behavior:
+Publication is complete only when the manifest contains every supported architecture, smoke tests passed, provenance refers to the promoted digest, and the commit-SHA marker exists.
 
-- builds amd64 and arm64 images
-- publishes `latest-amd64` and `latest-arm64`
-- runs an amd64 smoke test against `http://localhost:3000/up`
-- publishes multi-arch manifests for `latest` and the current date (`YYYY-MM-DD`)
-
-## Dependabot And Auto-Merge
-
-`.github/dependabot.yml` currently configures:
-
-- Bundler updates weekly on Monday at 06:00 in `America/Denver`, grouped into one PR
-- GitHub Actions updates monthly, grouped into one PR
-
-`auto-merge-dependabot.yml` listens on `pull_request_target` and enables:
+## Inspection Commands
 
 ```bash
-gh pr merge --auto --squash "$PR_URL"
-```
-
-for Dependabot PRs only.
-
-## Useful GitHub CLI Commands
-
-Check recent runs:
-
-```bash
-gh run list --workflow=ci.yml
-gh run list --workflow=docker.yml
-```
-
-Trigger the Docker workflow manually:
-
-```bash
-gh workflow run docker.yml
-```
-
-List Dependabot PRs:
-
-```bash
-gh pr list --author="dependabot[bot]"
+gh workflow list --all
+gh run list --limit 20
+gh pr checks <number>
+gh api repos/{owner}/{repo}/rulesets
 ```

@@ -50,13 +50,8 @@ Then sign in with `demo` / `demo1234`.
 
 ## Stopping The Dev Server
 
-If you still control the terminal, stop `bin/dev` with `Ctrl+C`.
+Stop `bin/dev` with `Ctrl+C` when its terminal is attached. For a detached run, retain its process or session identifier, send that exact process `TERM`, and confirm it exited.
 
-Otherwise:
+When ownership is unknown, inspect the process and leave it running until its identity is established. Port ownership alone is not proof that a process belongs to this task.
 
-```bash
-pkill -f "bin/dev"
-lsof -ti:3000 | xargs kill -9
-```
-
-Always stop the dev server after automated testing so port 3000 is available for the next run.
+Completion means every process started by the current task has exited and its port is released.

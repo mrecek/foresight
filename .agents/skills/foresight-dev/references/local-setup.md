@@ -2,35 +2,37 @@
 
 Use this reference when you need to bootstrap or run Foresight locally.
 
-## Requirements
+## Platform
 
-- Ruby 3.4+
+- macOS, Linux, or WSL
+- the exact Ruby in `.ruby-version`
 - SQLite 3
-- Node.js for asset compilation, or an environment that supports `tailwindcss-ruby`
 
-## Standard Setup
+Rails owns the JavaScript and Tailwind toolchain; Node.js is not a project requirement.
+
+## Setup With mise
 
 ```bash
-git clone https://github.com/mrecek/foresight.git
-cd foresight
-bundle install
-bin/rails db:setup
+mise trust
+mise run setup
+mise run dev
+```
+
+mise is a convenience layer. Its tasks delegate to repository commands.
+
+## Setup Without mise
+
+Install the Ruby version named by `.ruby-version`, then run:
+
+```bash
+bin/setup --skip-server
 bin/dev
 ```
 
-Visit `http://localhost:3000`.
+Visit `http://localhost:3000`. `bin/setup` is idempotent and installs the tracked Git hooks in a Git checkout.
 
-## Useful Variants
+## Completion
 
-- Run the Rails server directly: `bin/rails server`
-- Run the Tailwind watcher directly: `bin/rails tailwindcss:watch`
-- Apply pending migrations: `bin/rails db:migrate`
+Setup is complete when `bin/check-runtime-parity` passes, dependencies are installed, the development database is prepared, and `bin/dev` reaches a healthy application at `http://localhost:3000/up`.
 
-## Local Docker Build
-
-Use this only when you specifically need to validate the container image locally.
-
-```bash
-docker build -t foresight .
-docker run -d -p 3000:8080 -v foresight_data:/rails/storage foresight
-```
+Use `bin/validate container` for the supported production-image build and smoke test.

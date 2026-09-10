@@ -33,15 +33,17 @@ class RubyFreshnessTest < ActiveSupport::TestCase
     end
   end
 
-  test "patch updater changes both sources atomically" do
+  test "patch updater changes every Ruby source atomically" do
     Dir.mktmpdir do |directory|
       File.write(File.join(directory, ".ruby-version"), "3.4.10\n")
+      File.write(File.join(directory, ".mise.toml"), "[tools]\nruby = \"3.4.10\"\n")
       File.write(File.join(directory, "Dockerfile"), "FROM docker.io/library/ruby:3.4.10-slim@sha256:#{'a' * 64} AS base\n")
       command = [ ROOT.join("bin/update-ruby-patch").to_s, "--version", "3.4.11", "--digest", "sha256:#{'b' * 64}" ]
       output, status = Open3.capture2e(*command, chdir: directory)
 
       assert status.success?, output
       assert_equal "3.4.11\n", File.read(File.join(directory, ".ruby-version"))
+      assert_includes File.read(File.join(directory, ".mise.toml")), 'ruby = "3.4.11"'
       assert_includes File.read(File.join(directory, "Dockerfile")), "ruby:3.4.11-slim@sha256:#{'b' * 64}"
     end
   end
@@ -49,6 +51,7 @@ class RubyFreshnessTest < ActiveSupport::TestCase
   test "patch updater refuses a minor upgrade" do
     Dir.mktmpdir do |directory|
       File.write(File.join(directory, ".ruby-version"), "3.4.10\n")
+      File.write(File.join(directory, ".mise.toml"), "[tools]\nruby = \"3.4.10\"\n")
       File.write(File.join(directory, "Dockerfile"), "FROM docker.io/library/ruby:3.4.10-slim@sha256:#{'a' * 64} AS base\n")
       command = [ ROOT.join("bin/update-ruby-patch").to_s, "--version", "3.5.0", "--digest", "sha256:#{'b' * 64}" ]
       output, status = Open3.capture2e(*command, chdir: directory)
@@ -56,6 +59,7 @@ class RubyFreshnessTest < ActiveSupport::TestCase
       assert_not status.success?
       assert_includes output, "Only Ruby patch updates are automated"
       assert_equal "3.4.10\n", File.read(File.join(directory, ".ruby-version"))
+      assert_includes File.read(File.join(directory, ".mise.toml")), 'ruby = "3.4.10"'
     end
   end
 
