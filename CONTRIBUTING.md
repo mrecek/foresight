@@ -36,7 +36,30 @@ TEST_MODE=true bin/dev
 To validate a change locally before opening a PR:
 
 ```bash
-bin/test
-bundle exec rubocop
-bin/brakeman --no-pager
+bin/validate
 ```
+
+This is the complete contract: runtime and workflow parity, style, refreshed
+Ruby and JavaScript security audits, autoloading, migration state, the full test
+suite, and a production-container build and smoke check. Run a named stage such
+as `bin/validate test` for a faster focused check, or `bin/validate --ci` for the
+non-container stages used by pull-request CI.
+
+Run `bin/rails test:system` to exercise only the deliberately small real-browser
+suite. It covers authentication, transfers, recurring transfers,
+reconciliation, Turbo navigation, and the principal Stimulus form interactions.
+Failures save screenshots under `tmp/system-test-artifacts`; CI uploads that
+directory when the test job fails.
+
+Ruby patch freshness is checked monthly against the official Ruby repository.
+Patch updates move `.ruby-version` and the digest-pinned Docker base together;
+Dependabot separately proposes digest-only base rebuilds so operating-system
+fixes are not tied to application changes. Ruby major and minor upgrades remain
+an explicit architecture decision.
+
+Container delivery treats each pushed image as an unpromoted, run-specific
+candidate. Both supported architectures are smoke-tested and provenance is
+verified before the immutable release, dated channel, and `latest` are promoted;
+the full commit-SHA tag is written last as the completion marker. Daily
+reconciliation verifies and repairs partial promotion. Candidate tags are kept
+as immutable audit references.
