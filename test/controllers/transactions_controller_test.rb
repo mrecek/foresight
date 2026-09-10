@@ -27,7 +27,7 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "destroy with valid return_url deletes linked transfer pair and redirects back" do
-    txn = Transaction.create!(
+    txn = TransferCommand.create(
       account: @checking,
       destination_account_id: @savings.id,
       description: "Transfer to savings",

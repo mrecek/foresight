@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2025_12_31_034405) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_10_020000) do
   create_table "accounts", force: :cascade do |t|
     t.integer "account_type", default: 0, null: false
     t.date "balance_date", null: false
@@ -81,7 +81,10 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_31_034405) do
     t.datetime "created_at", null: false
     t.integer "default_view_months", default: 6, null: false
     t.integer "session_timeout_minutes", default: 30, null: false
+    t.integer "singleton_guard", default: 1, null: false
     t.datetime "updated_at", null: false
+    t.index ["singleton_guard"], name: "index_settings_on_singleton_guard", unique: true
+    t.check_constraint "singleton_guard = 1", name: "settings_singleton_guard"
   end
 
   create_table "transactions", force: :cascade do |t|
@@ -102,9 +105,11 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_31_034405) do
     t.index ["category_id"], name: "index_transactions_on_category_id"
     t.index ["date"], name: "index_transactions_on_date"
     t.index ["linked_transaction_id"], name: "index_transactions_on_linked_transaction_id"
+    t.index ["linked_transaction_id"], name: "index_transactions_on_unique_linked_transaction", unique: true, where: "linked_transaction_id IS NOT NULL"
     t.index ["recurring_rule_id", "account_id", "date"], name: "index_transactions_on_rule_account_date_unique", unique: true, where: "recurring_rule_id IS NOT NULL"
     t.index ["recurring_rule_id", "original_date"], name: "index_transactions_on_rule_and_original_date", where: "original_date IS NOT NULL"
     t.index ["recurring_rule_id"], name: "index_transactions_on_recurring_rule_id"
+    t.check_constraint "linked_transaction_id IS NULL OR linked_transaction_id != id", name: "transactions_no_self_link"
   end
 
   add_foreign_key "categories", "category_groups"

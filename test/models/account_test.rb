@@ -144,7 +144,7 @@ class AccountTest < ActiveSupport::TestCase
   test "has many recurring_rules dependent destroy" do
     @checking.save!
 
-    rule1 = RecurringRule.create!(
+    rule1 = create_recurring_rule!(
       account: @checking,
       description: "Rule 1",
       amount: 100.0,
@@ -153,7 +153,7 @@ class AccountTest < ActiveSupport::TestCase
       anchor_date: Date.current
     )
 
-    rule2 = RecurringRule.create!(
+    rule2 = create_recurring_rule!(
       account: @checking,
       description: "Rule 2",
       amount: 50.0,
@@ -175,7 +175,7 @@ class AccountTest < ActiveSupport::TestCase
     @savings.save!
 
     # Create transfer rule FROM checking TO savings
-    transfer_rule = RecurringRule.create!(
+    transfer_rule = create_recurring_rule!(
       account: @checking,
       destination_account: @savings,
       description: "Transfer to Savings",
@@ -199,7 +199,7 @@ class AccountTest < ActiveSupport::TestCase
     @savings.save!
 
     # Create transfer rule FROM checking TO savings
-    transfer_rule = RecurringRule.create!(
+    transfer_rule = create_recurring_rule!(
       account: @checking,
       destination_account: @savings,
       description: "Transfer to Savings",
@@ -222,7 +222,7 @@ class AccountTest < ActiveSupport::TestCase
     @checking.save!
     @savings.save!
 
-    transfer_rule = RecurringRule.create!(
+    transfer_rule = create_recurring_rule!(
       account: @checking,
       destination_account: @savings,
       description: "Transfer",
@@ -233,7 +233,7 @@ class AccountTest < ActiveSupport::TestCase
     )
 
     # Delete the transfer rule
-    transfer_rule.destroy
+    RecurringRuleCommand.destroy(transfer_rule)
 
     # Now should be able to delete account
     result = @checking.destroy
@@ -244,7 +244,7 @@ class AccountTest < ActiveSupport::TestCase
   test "can delete account with non-transfer rules" do
     @checking.save!
 
-    expense_rule = RecurringRule.create!(
+    expense_rule = create_recurring_rule!(
       account: @checking,
       description: "Expense",
       amount: 100.0,
@@ -253,7 +253,7 @@ class AccountTest < ActiveSupport::TestCase
       anchor_date: Date.current
     )
 
-    income_rule = RecurringRule.create!(
+    income_rule = create_recurring_rule!(
       account: @checking,
       description: "Income",
       amount: 1000.0,

@@ -23,7 +23,7 @@ Rails.application.routes.draw do
   resource :settings, only: [ :edit, :update ]
 
   # Category management (Settings section)
-  resources :category_groups do
+  resources :category_groups, except: :show do
     resources :categories, except: [ :index, :show ]
   end
 

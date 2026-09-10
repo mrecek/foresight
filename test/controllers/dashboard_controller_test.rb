@@ -50,8 +50,8 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_select "span", text: /-100\.00 low/, count: 2
   end
 
-  test "extending the selected range generates projections for every card" do
-    rule = RecurringRule.create!(
+  test "selected range reads projections materialized by the rule command" do
+    rule = create_recurring_rule!(
       account: @savings,
       description: "Savings monthly expense",
       amount: 100.0,
@@ -90,5 +90,26 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "a.bg-primary-600", text: "3 mo"
+  end
+
+  test "dashboard and account GETs never write application data" do
+    application_writes = []
+    subscriber = lambda do |_name, _started, _finished, _unique_id, payload|
+      sql = payload[:sql]
+      next unless sql.match?(/\A(?:INSERT|UPDATE|DELETE)/i)
+      next unless sql.match?(/\b(accounts|transactions|recurring_rules|settings|categories|category_groups|audit_logs)\b/i)
+
+      application_writes << sql
+    end
+
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      get root_path(account_id: @checking.id)
+      assert_response :success
+
+      get account_path(@checking)
+      assert_response :success
+    end
+
+    assert_empty application_writes
   end
 end

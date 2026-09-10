@@ -1,9 +1,15 @@
 class AuditLog < ApplicationRecord
+  AUTHENTICATION_RETENTION = 90.days
+
   validates :action, presence: true
 
   scope :recent, -> { order(created_at: :desc).limit(100) }
   scope :logins, -> { where(action: %w[login_success login_failure]) }
   scope :for_resource, ->(type, id) { where(resource_type: type, resource_id: id) }
+
+  def self.prune_expired_authentication_events!(before: AUTHENTICATION_RETENTION.ago)
+    logins.where(created_at: ...before).delete_all
+  end
 
   # Class methods for logging different actions
   class << self
@@ -15,10 +21,10 @@ class AuditLog < ApplicationRecord
       )
     end
 
-    def log_login_failure(request, username: nil)
+    def log_login_failure(request)
       create!(
         action: "login_failure",
-        details: username.present? ? "Username: #{username}" : nil,
+        details: nil,
         ip_address: request.remote_ip,
         user_agent: request.user_agent&.truncate(500)
       )

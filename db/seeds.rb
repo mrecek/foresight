@@ -305,4 +305,6 @@ Transaction.create!(
   category: cat_dining
 )
 
+ProjectionMaterializer.materialize_all
+
 puts "Generated #{Transaction.count} transactions (including #{Transaction.where('date < ?', Date.current).count} past and #{Transaction.where(date: Date.current).count} today)"

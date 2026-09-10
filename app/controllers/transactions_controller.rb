@@ -22,17 +22,12 @@ class TransactionsController < ApplicationController
   end
 
   def create
-    @transaction = Transaction.new(transaction_params)
-
-    ActiveRecord::Base.transaction do
-      if @transaction.save
-        AuditLog.log_create(@transaction, request)
-        redirect_to transaction_return_url, notice: "Transaction created."
-      else
-        @return_url = transaction_return_url
-        render :new, status: :unprocessable_entity
-      end
-    end
+    @transaction = TransferCommand.create(transaction_params) { |transaction| AuditLog.log_create(transaction, request) }
+    redirect_to transaction_return_url, notice: "Transaction created."
+  rescue ActiveRecord::RecordInvalid => error
+    @transaction = error.record
+    @return_url = transaction_return_url
+    render :new, status: :unprocessable_entity
   end
 
   def edit
@@ -46,26 +41,21 @@ class TransactionsController < ApplicationController
         track_user_modifications
       end
 
-      if @transaction.update(transaction_params)
-        # Sync user_modified and original_date to linked transaction for transfer consistency
-        sync_linked_transaction_modifications
-
-        AuditLog.log_update(@transaction, request)
-        redirect_to transaction_return_url, notice: "Transaction updated."
-      else
-        @return_url = transaction_return_url
-        render :edit, status: :unprocessable_entity
-      end
+      attributes = transaction_params.to_h.merge(
+        user_modified: @transaction.user_modified,
+        original_date: @transaction.original_date
+      )
+      TransferCommand.update(@transaction, attributes) { |transaction| AuditLog.log_update(transaction, request) }
+      redirect_to transaction_return_url, notice: "Transaction updated."
     end
+  rescue ActiveRecord::RecordInvalid => error
+    @transaction = error.record
+    @return_url = transaction_return_url
+    render :edit, status: :unprocessable_entity
   end
 
   def destroy
-    linked = @transaction.linked_transaction
-    AuditLog.log_delete(@transaction, request)
-    ActiveRecord::Base.transaction do
-      @transaction.destroy!
-      linked&.destroy!
-    end
+    TransferCommand.destroy(@transaction) { |transaction| AuditLog.log_delete(transaction, request) }
     redirect_to transaction_return_url, notice: "Transaction deleted."
   rescue ActiveRecord::RecordNotDestroyed => e
     redirect_to transaction_return_url, alert: "Failed to delete transaction: #{e.message}"
@@ -101,11 +91,9 @@ class TransactionsController < ApplicationController
     new_amount = entered_amount * sign
 
     ActiveRecord::Base.transaction do
-      # The manage_transfer callback syncs status/amount to the linked transaction automatically
-      @transaction.update!(status: :actual, amount: new_amount, user_modified: true)
-      # Note: manage_transfer callback already syncs status/amount to linked_transaction,
-      # but we need to also sync user_modified
-      @transaction.linked_transaction&.update!(user_modified: true)
+      TransferCommand.update(@transaction, status: :actual, amount: new_amount, user_modified: true) do |transaction|
+        AuditLog.log_update(transaction, request)
+      end
     end
 
     # Redirect to where the user originally came from
@@ -162,15 +150,6 @@ class TransactionsController < ApplicationController
       # User moved transaction away from original - track it
       @transaction.original_date = true_original
     end
-  end
-
-  def sync_linked_transaction_modifications
-    return unless @transaction.user_modified && @transaction.linked_transaction.present?
-
-    @transaction.linked_transaction.update!(
-      user_modified: true,
-      original_date: @transaction.original_date
-    )
   end
 
   def transaction_return_url

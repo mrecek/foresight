@@ -8,29 +8,24 @@ class CategoriesController < ApplicationController
 
   def create
     @category = @category_group.categories.build(category_params)
-    if @category.save
-      AuditLog.log_create(@category, request)
-      redirect_to category_groups_path, notice: "Category created."
-    else
-      render :new, status: :unprocessable_entity
-    end
+    AuditedChange.create(@category, request)
+    redirect_to category_groups_path, notice: "Category created."
+  rescue ActiveRecord::RecordInvalid
+    render :new, status: :unprocessable_entity
   end
 
   def edit
   end
 
   def update
-    if @category.update(category_params)
-      AuditLog.log_update(@category, request)
-      redirect_to category_groups_path, notice: "Category updated."
-    else
-      render :edit, status: :unprocessable_entity
-    end
+    AuditedChange.update(@category, category_params, request)
+    redirect_to category_groups_path, notice: "Category updated."
+  rescue ActiveRecord::RecordInvalid
+    render :edit, status: :unprocessable_entity
   end
 
   def destroy
-    AuditLog.log_delete(@category, request)
-    @category.destroy
+    AuditedChange.destroy(@category, request)
     redirect_to category_groups_path, notice: "Category deleted."
   end
 

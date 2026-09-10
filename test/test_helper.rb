@@ -12,6 +12,8 @@ module ActiveSupport
     # Use transactional tests to rollback database changes after each test
     self.use_transactional_tests = true
 
-    # Add more helper methods to be used by all tests here...
+    def create_recurring_rule!(**attributes)
+      RecurringRuleCommand.create(RecurringRule.new(attributes))
+    end
   end
 end
