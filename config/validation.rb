@@ -9,6 +9,7 @@ module Foresight
       "security-js" => [ [ "bin/security-audit", "javascript" ] ],
       "architecture" => [
         [ "bin/rails", "zeitwerk:check" ],
+        [ "bin/rails", "db:prepare" ],
         [ "bin/rails", "db:migrate:status" ],
         [ "bin/transfers" ]
       ],
