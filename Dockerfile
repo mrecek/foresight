@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # check=error=true
 
-# This Dockerfile is designed for production, not development. Use with Kamal or build'n'run by hand:
+# This Dockerfile is designed for production, not development. Build and run it with any OCI-compatible platform:
 # docker build -t foresight .
 # docker run -d -p 3000:8080 -v foresight_data:/rails/storage --name foresight foresight
 
@@ -29,7 +29,7 @@ RUN apt-get update -qq && \
 ENV RAILS_ENV="production" \
     BUNDLE_DEPLOYMENT="1" \
     BUNDLE_PATH="/usr/local/bundle" \
-    BUNDLE_WITHOUT="development" \
+    BUNDLE_WITHOUT="development:test" \
     LD_PRELOAD="/usr/local/lib/libjemalloc.so" \
     SOLID_QUEUE_IN_PUMA="true" \
     THRUSTER_HTTP_PORT="8080"

@@ -21,8 +21,8 @@ test:
   database: storage/test.sqlite3
 
 
-# Store production database in the storage/ directory, which by default
-# is mounted as a persistent Docker volume in config/deploy.yml.
+# Store production databases in storage/. Container deployments must mount that
+# directory on persistent, single-writer storage.
 production:
   primary:
     <<: *default
