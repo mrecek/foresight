@@ -65,7 +65,9 @@
   <% end %>
 
   <%# Smart Amount Section %>
-  <% initial_type = if transaction.transfer?
+  <% initial_type = if transaction.new_record?
+       "expense"
+     elsif transaction.transfer?
        "transfer"
      elsif transaction.amount.to_f < 0
        "expense"
@@ -73,7 +75,7 @@
        "income"
      end %>
   <div data-controller="smart-amount conditional-fields transfer-validator" 
-       data-smart-amount-type-value="<%= transaction.persisted? ? initial_type : 'expense' %>"
+       data-smart-amount-type-value="<%= initial_type %>"
        data-conditional-fields-show-when-value='{"transfer": ["destination_account"]}'>
 
     <label class="form-label mb-3">Transaction Type & Amount</label>
@@ -181,12 +183,12 @@
       <%= f.hidden_field :destination_account_id, value: "", id: nil %>
       <div data-conditional-fields-target="conditional"
            data-field="destination_account"
-           class="transition-all duration-300 ease-out overflow-hidden lg:col-span-2">
+           class="transition-all duration-300 ease-out overflow-hidden lg:col-span-2 <%= 'hidden opacity-0 scale-95' unless initial_type == 'transfer' %>">
         <div class="bg-primary-50 rounded-xl p-4 border border-primary-100">
           <%= f.label :destination_account_id, "Destination Account", class: "form-label text-primary-700" %>
           <%= f.collection_select :destination_account_id, @accounts, :id, :name,
               { include_blank: "Select destination account...", selected: (transaction.linked_transaction&.account_id) },
-              class: "form-select bg-white",
+              class: "form-select bg-white", disabled: initial_type != "transfer",
               data: { transfer_validator_target: "destination", action: "change->transfer-validator#validate" } %>
           <p data-transfer-validator-target="error" class="text-sm text-danger-600 mt-1.5 hidden"></p>
           <p class="text-sm text-primary-600 mt-1.5">Where the money will be transferred to</p>

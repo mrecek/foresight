@@ -15,6 +15,7 @@ export default class extends Controller {
     }
     this.updateButtons()
     this.updateAmountStyle()
+    this.element.dataset.typeSelectorReady = "true"
   }
 
   select(event) {

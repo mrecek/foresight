@@ -12,6 +12,7 @@ export default class extends Controller {
   connect() {
     this.updateUI()
     this.syncHiddenInput()
+    this.element.dataset.smartAmountReady = "true"
   }
 
   selectType(event) {

@@ -33,6 +33,7 @@ class CriticalJourneysTest < ApplicationSystemTestCase
     checking, savings = create_accounts
 
     visit new_transaction_path(account_id: checking.id)
+    assert_selector "[data-smart-amount-ready='true']"
     click_button "Transfer"
     assert_selector "[data-field='destination_account']", visible: true
 
@@ -58,6 +59,7 @@ class CriticalJourneysTest < ApplicationSystemTestCase
     checking, savings = create_accounts
 
     visit new_recurring_rule_path
+    assert_selector "[data-type-selector-ready='true']"
     click_button "Transfer"
     assert_selector "[data-field='destination_account']", visible: true
     fill_in "recurring_rule_description", with: "Weekly savings"
