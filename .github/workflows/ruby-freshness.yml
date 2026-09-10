@@ -1,0 +1,100 @@
+name: Ruby Patch Freshness
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 15 1 * *"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ruby-patch-freshness
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Check the official Ruby release tags
+        id: ruby
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bin/check-ruby-freshness --github-output "$GITHUB_OUTPUT"
+
+      - name: Check for an existing update
+        if: steps.ruby.outputs.status == 'stale'
+        id: existing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: automation/ruby-patch-${{ steps.ruby.outputs.latest }}
+        run: |
+          count="$(gh pr list --state all --head "$BRANCH" --json number --jq length)"
+          echo "found=$([[ "$count" -gt 0 ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve and apply the updated image identity
+        if: steps.ruby.outputs.status == 'stale' && steps.existing.outputs.found == 'false'
+        env:
+          VERSION: ${{ steps.ruby.outputs.latest }}
+        run: |
+          set -euo pipefail
+          image="docker.io/library/ruby:${VERSION}-slim"
+          digest="$(docker buildx imagetools inspect "$image" | awk '$1 == "Digest:" { print $2; exit }')"
+          bin/update-ruby-patch --version "$VERSION" --digest "$digest"
+
+      - name: Set up updated Ruby
+        if: steps.ruby.outputs.status == 'stale' && steps.existing.outputs.found == 'false'
+        uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9 # v1
+        with:
+          bundler-cache: true
+
+      - name: Validate the update candidate
+        if: steps.ruby.outputs.status == 'stale' && steps.existing.outputs.found == 'false'
+        run: bin/validate --ci
+
+      - name: Open the patch update pull request
+        if: steps.ruby.outputs.status == 'stale' && steps.existing.outputs.found == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.ruby.outputs.latest }}
+          BRANCH: automation/ruby-patch-${{ steps.ruby.outputs.latest }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch --create "$BRANCH"
+          git add .ruby-version Dockerfile
+          git commit -m "Update Ruby to ${VERSION}"
+          git push origin "$BRANCH"
+          gh pr create \
+            --base "${{ github.event.repository.default_branch }}" \
+            --head "$BRANCH" \
+            --label dependencies \
+            --title "Update Ruby to ${VERSION}" \
+            --body "Updates the supported Ruby patch and pins the matching multi-architecture base-image digest. The full non-container validation contract passed in [the freshness run](${RUN_URL}). Major and minor Ruby upgrades remain manual."
+
+      - name: Publish freshness summary
+        if: always()
+        env:
+          STATUS: ${{ steps.ruby.outputs.status }}
+          CURRENT: ${{ steps.ruby.outputs.current }}
+          LATEST: ${{ steps.ruby.outputs.latest }}
+          EXISTING: ${{ steps.existing.outputs.found }}
+        run: |
+          {
+            echo "## Ruby patch freshness"
+            echo
+            echo "- Configured: \`${CURRENT:-unknown}\`"
+            echo "- Latest patch in the configured series: \`${LATEST:-unknown}\`"
+            echo "- Status: \`${STATUS:-upstream-check-failed}\`"
+            if [[ "${EXISTING}" == "true" ]]; then
+              echo "- An update pull request for this patch already exists or was previously considered."
+            fi
+            echo
+            echo "Patch releases are automated. Ruby major and minor upgrades require an explicit architecture review."
+          } >> "$GITHUB_STEP_SUMMARY"

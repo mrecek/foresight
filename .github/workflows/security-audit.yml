@@ -1,0 +1,81 @@
+name: Scheduled Security Audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 13 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  dependencies:
+    name: Security/dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9 # v1
+        with:
+          bundler-cache: true
+
+      - name: Audit Ruby, JavaScript, and application security
+        run: bin/security-audit
+
+      - name: Report dependency audit scope
+        if: always()
+        run: |
+          {
+            echo "## Dependency security audit"
+            echo
+            echo "- Ruby lockfile: refreshed ruby-advisory-db via Bundler Audit"
+            echo "- Pinned default gems: resolved versions in Gemfile.lock, including JSON and resolv"
+            echo "- Browser imports: Importmap audit"
+            echo "- Rails application: Brakeman static analysis"
+            echo
+            echo "Remediation: update the affected lockfile dependency or pinned Ruby default gem, then rerun this workflow."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  image:
+    name: Security/image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Build production image
+        run: docker build --tag foresight-security-audit:${{ github.sha }} .
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: foresight-security-audit:${{ github.sha }}
+          version: v0.74.0
+          format: json
+          output: trivy-report.json
+          exit-code: "0"
+          ignore-unfixed: false
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          scanners: vuln
+
+      - name: Report scanner and database versions
+        run: trivy --version | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce actionable image vulnerability policy
+        run: bin/check-trivy-report trivy-report.json
+
+      - name: Upload complete Trivy report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: trivy-image-report-${{ github.run_id }}
+          path: trivy-report.json
+          if-no-files-found: error
+          retention-days: 30

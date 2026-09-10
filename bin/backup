@@ -1,0 +1,17 @@
+#!/usr/bin/env ruby
+
+require_relative "../config/boot"
+require "optparse"
+require_relative "../lib/foresight/database_archive"
+
+options = { database: ENV.fetch("FORESIGHT_DATABASE_PATH", "storage/production.sqlite3") }
+OptionParser.new do |parser|
+  parser.banner = "Usage: bin/backup --output FILE [--database FILE]"
+  parser.on("--database FILE") { |value| options[:database] = value }
+  parser.on("--output FILE") { |value| options[:output] = value }
+end.parse!
+abort "--output is required" unless options[:output]
+
+metadata = Foresight::DatabaseArchive.backup(database: options[:database], output: options[:output])
+puts "Backup published: #{File.expand_path(options[:output])}"
+puts "Schema #{metadata.fetch('schema_version')}; #{metadata.fetch('record_counts').values.sum} material records; integrity ok."

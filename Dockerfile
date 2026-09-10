@@ -7,9 +7,10 @@
 
 # For a containerized dev environment, see Dev Containers: https://guides.rubyonrails.org/getting_started_with_devcontainer.html
 
-# Make sure RUBY_VERSION matches the Ruby version in .ruby-version
-ARG RUBY_VERSION=3.4.8
-FROM docker.io/library/ruby:$RUBY_VERSION-slim AS base
+# Keep this version in sync with .ruby-version. The digest pins the complete
+# multi-architecture base identity while Dependabot watches for rebuilt images
+# containing Debian and operating-system security fixes.
+FROM docker.io/library/ruby:3.4.10-slim@sha256:9d50d98e61ccbe4f1ef436349911e09b53c42a00364bcd3bda6ac107abc29528 AS base
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -18,7 +19,7 @@ WORKDIR /rails
 
 # Install base packages
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y curl libjemalloc2 sqlite3 && \
+    apt-get install --no-install-recommends -y curl libjemalloc2 openssl sqlite3 && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
@@ -30,6 +31,7 @@ ENV RAILS_ENV="production" \
     BUNDLE_PATH="/usr/local/bundle" \
     BUNDLE_WITHOUT="development" \
     LD_PRELOAD="/usr/local/lib/libjemalloc.so" \
+    SOLID_QUEUE_IN_PUMA="true" \
     THRUSTER_HTTP_PORT="8080"
 
 # Throw-away build stage to reduce size of final image
@@ -57,14 +59,6 @@ RUN bundle exec bootsnap precompile -j 1 app/ lib/
 
 # Precompiling assets for production without requiring secret RAILS_MASTER_KEY
 RUN SECRET_KEY_BASE_DUMMY=1 ./bin/rails tailwindcss:build assets:precompile
-
-# Generate a default SECRET_KEY_BASE that will be baked into the image.
-# This ensures sessions survive container restarts without requiring users to set it.
-# Users can still override via environment variable if they want their own key.
-RUN bundle exec rails secret > /rails/.secret_key_base
-
-
-
 
 # Final stage for app image
 FROM base

@@ -1,10 +1,97 @@
-#!/bin/bash -e
+#!/bin/bash
+set -euo pipefail
 
-# Use baked SECRET_KEY_BASE if not provided via environment variable.
-# This ensures sessions survive container restarts without user configuration.
-if [ -z "$SECRET_KEY_BASE" ] && [ -f /rails/.secret_key_base ]; then
-  export SECRET_KEY_BASE=$(cat /rails/.secret_key_base)
+readonly SECRET_KEY_BASE_MIN_BYTES=30
+readonly SECRET_KEY_BASE_FILE="${SECRET_KEY_BASE_FILE:-/rails/storage/.secret_key_base}"
+
+fail_secret() {
+  printf 'Foresight startup error: %s\n' "$1" >&2
+  exit 1
+}
+
+secret_byte_length() {
+  LC_ALL=C printf '%s' "$1" | wc -c | tr -d ' '
+}
+
+validate_secret_value() {
+  local value="$1"
+  local source="$2"
+  local byte_length
+
+  byte_length="$(secret_byte_length "$value")"
+  if [ "$byte_length" -lt "$SECRET_KEY_BASE_MIN_BYTES" ]; then
+    fail_secret "$source must contain at least $SECRET_KEY_BASE_MIN_BYTES bytes"
+  fi
+}
+
+file_owner_id() {
+  stat -c '%u' "$1" 2>/dev/null || stat -f '%u' "$1"
+}
+
+file_mode() {
+  stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"
+}
+
+load_persisted_secret() {
+  local path="$1"
+  local owner mode value
+
+  [ ! -L "$path" ] || fail_secret "$path must not be a symbolic link"
+  [ -f "$path" ] || fail_secret "$path must be a regular file"
+
+  owner="$(file_owner_id "$path")"
+  [ "$owner" = "$(id -u)" ] || fail_secret "$path must be owned by the container user"
+
+  mode="$(file_mode "$path")"
+  (( (8#$mode & 077) == 0 )) || fail_secret "$path must not grant group or other permissions"
+  [ -r "$path" ] || fail_secret "$path is not readable by the container user"
+
+  value="$(<"$path")"
+  validate_secret_value "$value" "$path"
+  SECRET_KEY_BASE="$value"
+}
+
+persist_generated_secret() {
+  local path="$1"
+  local directory temporary generated
+
+  directory="$(dirname "$path")"
+  [ -d "$directory" ] || fail_secret "$directory does not exist"
+  [ ! -L "$directory" ] || fail_secret "$directory must not be a symbolic link"
+
+  umask 077
+  temporary="$(mktemp "${path}.tmp.XXXXXX")" || fail_secret "cannot create a private secret in $directory"
+  trap 'rm -f -- "$temporary"' RETURN EXIT
+
+  generated="$(ruby -rsecurerandom -e 'print SecureRandom.hex(64)')" || fail_secret "cannot generate a random session secret"
+  validate_secret_value "$generated" "generated session secret"
+  printf '%s\n' "$generated" > "$temporary" || fail_secret "cannot write a private secret in $directory"
+  chmod 0600 "$temporary" || fail_secret "cannot secure generated session secret permissions"
+  ruby -e 'File.open(ARGV.fetch(0), "r") { |file| file.fsync }' "$temporary" || fail_secret "cannot sync generated session secret"
+
+  # A hard link publishes the already-complete file only if the destination does
+  # not exist. Concurrent containers then read back the single winning value.
+  if ln "$temporary" "$path" 2>/dev/null; then
+    rm -f -- "$temporary"
+    ruby -e 'File.open(File.dirname(ARGV.fetch(0)), "r") { |directory| directory.fsync }' "$path" || fail_secret "cannot sync session secret directory"
+  elif [ ! -e "$path" ] && [ ! -L "$path" ]; then
+    fail_secret "cannot persist session secret at $path"
+  fi
+
+  trap - RETURN EXIT
+  rm -f -- "$temporary"
+  load_persisted_secret "$path"
+}
+
+if [ "${SECRET_KEY_BASE+x}" = "x" ]; then
+  validate_secret_value "$SECRET_KEY_BASE" "SECRET_KEY_BASE"
+elif [ -e "$SECRET_KEY_BASE_FILE" ] || [ -L "$SECRET_KEY_BASE_FILE" ]; then
+  load_persisted_secret "$SECRET_KEY_BASE_FILE"
+else
+  persist_generated_secret "$SECRET_KEY_BASE_FILE"
 fi
+
+export SECRET_KEY_BASE
 
 # If running the rails server then create or migrate existing database
 if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then

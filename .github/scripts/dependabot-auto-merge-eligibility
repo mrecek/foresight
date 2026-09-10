@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ecosystem="${1:-}"
+update_type="${2:-}"
+output_file="${GITHUB_OUTPUT:?GITHUB_OUTPUT must name the workflow output file}"
+
+if [[ "$ecosystem" != "bundler" ]]; then
+  eligible="false"
+  reason="Only Bundler updates are eligible; ${ecosystem:-unknown} updates require manual review."
+elif [[ "$update_type" == "version-update:semver-patch" || "$update_type" == "version-update:semver-minor" ]]; then
+  eligible="true"
+  reason="Bundler patch and minor updates are eligible after required checks pass."
+else
+  eligible="false"
+  reason="Bundler ${update_type:-unknown} updates require manual review."
+fi
+
+{
+  printf 'eligible=%s\n' "$eligible"
+  printf 'reason=%s\n' "$reason"
+} >> "$output_file"

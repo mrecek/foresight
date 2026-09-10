@@ -1,0 +1,27 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "yaml"
+
+root = File.expand_path("..", __dir__)
+workflow_paths = Dir.glob(File.join(root, ".github/workflows/*.{yml,yaml}"))
+errors = []
+
+workflow_paths.each do |path|
+  YAML.safe_load_file(path, aliases: true)
+  File.foreach(path).with_index(1) do |line, line_number|
+    match = line.match(/^\s*uses:\s*([^\s#]+)/)
+    next unless match
+
+    reference = match[1]
+    next if reference.start_with?("./")
+    next if reference.match?(/\A[^@]+@[0-9a-f]{40}\z/)
+
+    errors << "#{path.delete_prefix("#{root}/")}:#{line_number}: unpinned action #{reference}"
+  end
+rescue Psych::SyntaxError => error
+  errors << "#{path.delete_prefix("#{root}/")}: invalid YAML: #{error.message.lines.first.strip}"
+end
+
+abort errors.join("\n") if errors.any?
+puts "Action references passed: #{workflow_paths.size} workflow files parsed; all remote actions use immutable SHAs."

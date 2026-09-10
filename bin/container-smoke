@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+image="${1:?Usage: bin/container-smoke IMAGE}"
+suffix="${GITHUB_RUN_ID:-local}-$$"
+container_name="foresight-validation-${suffix}"
+volume_name="foresight-validation-${suffix}"
+second_volume_name="foresight-validation-second-${suffix}"
+
+cleanup() {
+  if [ "${smoke_passed:-false}" != "true" ]; then
+    docker logs "$container_name" 2>/dev/null || true
+  fi
+  docker rm -f "$container_name" >/dev/null 2>&1 || true
+  docker volume rm "$volume_name" >/dev/null 2>&1 || true
+  docker volume rm "$second_volume_name" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+docker volume create "$volume_name" >/dev/null
+docker run --detach \
+  --name "$container_name" \
+  --publish 127.0.0.1::8080 \
+  --volume "$volume_name:/rails/storage" \
+  "$image" >/dev/null
+
+host_port="$(docker port "$container_name" 8080/tcp | awk -F: 'NR == 1 { print $NF }')"
+wait_for_health() {
+  for _attempt in $(seq 1 30); do
+    if curl --fail --silent "http://127.0.0.1:${host_port}/up" >/dev/null 2>&1; then
+      return
+    fi
+    sleep 1
+  done
+
+  echo "Container did not become healthy within 30 seconds." >&2
+  exit 1
+}
+
+wait_for_internal_health() {
+  for _attempt in $(seq 1 30); do
+    if docker exec "$container_name" curl --fail --silent "http://127.0.0.1:8080/up" >/dev/null 2>&1; then
+      return
+    fi
+    sleep 1
+  done
+
+  echo "Container did not become internally healthy within 30 seconds after restart." >&2
+  exit 1
+}
+
+wait_for_health
+first_fingerprint="$(docker exec "$container_name" ruby -rdigest -e 'print Digest::SHA256.file("/rails/storage/.secret_key_base").hexdigest')"
+docker restart "$container_name" >/dev/null
+wait_for_internal_health
+restart_fingerprint="$(docker exec "$container_name" ruby -rdigest -e 'print Digest::SHA256.file("/rails/storage/.secret_key_base").hexdigest')"
+[[ "$first_fingerprint" == "$restart_fingerprint" ]] || {
+  echo "Session key changed across a persistent-volume restart." >&2
+  exit 1
+}
+
+docker volume create "$second_volume_name" >/dev/null
+second_fingerprint="$(docker run --rm \
+  --volume "$second_volume_name:/rails/storage" \
+  "$image" ruby -rdigest -e 'print Digest::SHA256.hexdigest(ENV.fetch("SECRET_KEY_BASE"))')"
+[[ "$first_fingerprint" != "$second_fingerprint" ]] || {
+  echo "Fresh installations generated the same session key." >&2
+  exit 1
+}
+
+raw_secret="$(docker exec "$container_name" sh -c 'cat /rails/storage/.secret_key_base')"
+container_logs="$(docker logs "$container_name" 2>&1)"
+if [[ "$container_logs" == *"$raw_secret"* ]]; then
+  echo "Raw session key appeared in container logs." >&2
+  exit 1
+fi
+
+# `docker exec` does not inherit environment exported by PID 1. Run probes
+# through the entrypoint so they load the installation secret exactly like
+# every packaged process.
+docker exec "$container_name" bin/docker-entrypoint bin/jobs check
+docker exec "$container_name" bin/docker-entrypoint bin/rails runner script/maintenance_smoke.rb
+smoke_passed=true
+echo "Session-key fingerprints: install-a=${first_fingerprint} install-b=${second_fingerprint}"
+echo "Container smoke passed: /up healthy, secret persistence/uniqueness verified, Solid Queue configured, and maintenance jobs executed."
+exit 0

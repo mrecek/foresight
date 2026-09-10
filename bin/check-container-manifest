@@ -1,0 +1,19 @@
+#!/usr/bin/env ruby
+
+require "json"
+require "open3"
+
+reference = ARGV.fetch(0) { abort "Usage: bin/check-container-manifest IMAGE@DIGEST" }
+output, status = Open3.capture2e("docker", "buildx", "imagetools", "inspect", "--raw", reference)
+abort "Could not inspect #{reference}: #{output}" unless status.success?
+
+manifest = JSON.parse(output)
+platforms = manifest.fetch("manifests", []).filter_map do |entry|
+  platform = entry["platform"] || {}
+  "#{platform['os']}/#{platform['architecture']}" if platform["os"] && platform["architecture"]
+end
+required = %w[linux/amd64 linux/arm64]
+missing = required - platforms
+abort "#{reference} is missing platforms: #{missing.join(', ')}" unless missing.empty?
+
+puts "Container manifest passed: #{reference} includes #{required.join(' and ')}."

@@ -1,0 +1,20 @@
+#!/usr/bin/env ruby
+
+require_relative "../config/boot"
+require "optparse"
+require_relative "../lib/foresight/database_archive"
+
+options = { replace: false }
+OptionParser.new do |parser|
+  parser.banner = "Usage: bin/restore --archive FILE --target FILE [--replace]"
+  parser.on("--archive FILE") { |value| options[:archive] = value }
+  parser.on("--target FILE") { |value| options[:target] = value }
+  parser.on("--replace") { options[:replace] = true }
+end.parse!
+abort "--archive is required" unless options[:archive]
+abort "--target is required" unless options[:target]
+
+metadata = Foresight::DatabaseArchive.restore(**options)
+puts "Restore validated and published: #{File.expand_path(options[:target])}"
+puts "Schema #{metadata.fetch('schema_version')}; integrity ok."
+puts "Previous database preserved at #{metadata['replaced_database']}" if metadata["replaced_database"]
