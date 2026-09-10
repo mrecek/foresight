@@ -2,6 +2,11 @@
 set -euo pipefail
 
 image="${1:?Usage: bin/container-smoke IMAGE}"
+health_attempts="${CONTAINER_SMOKE_HEALTH_ATTEMPTS:-30}"
+[[ "$health_attempts" =~ ^[1-9][0-9]*$ ]] || {
+  echo "CONTAINER_SMOKE_HEALTH_ATTEMPTS must be a positive integer." >&2
+  exit 1
+}
 suffix="${GITHUB_RUN_ID:-local}-$$"
 container_name="foresight-validation-${suffix}"
 volume_name="foresight-validation-${suffix}"
@@ -26,26 +31,26 @@ docker run --detach \
 
 host_port="$(docker port "$container_name" 8080/tcp | awk -F: 'NR == 1 { print $NF }')"
 wait_for_health() {
-  for _attempt in $(seq 1 30); do
+  for _attempt in $(seq 1 "$health_attempts"); do
     if curl --fail --silent "http://127.0.0.1:${host_port}/up" >/dev/null 2>&1; then
       return
     fi
     sleep 1
   done
 
-  echo "Container did not become healthy within 30 seconds." >&2
+  echo "Container did not become healthy within ${health_attempts} seconds." >&2
   exit 1
 }
 
 wait_for_internal_health() {
-  for _attempt in $(seq 1 30); do
+  for _attempt in $(seq 1 "$health_attempts"); do
     if docker exec "$container_name" curl --fail --silent "http://127.0.0.1:8080/up" >/dev/null 2>&1; then
       return
     fi
     sleep 1
   done
 
-  echo "Container did not become internally healthy within 30 seconds after restart." >&2
+  echo "Container did not become internally healthy within ${health_attempts} seconds after restart." >&2
   exit 1
 }
 
