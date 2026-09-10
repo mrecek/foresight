@@ -14,13 +14,13 @@ jobs:
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     steps:
       - name: Checkout trusted workflow scripts
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.pull_request.base.sha }}
 
       - name: Read Dependabot update metadata
         id: metadata
-        uses: dependabot/fetch-metadata@d7267f607e9d3fb96fc2fbe83e0af444713e90b7
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
