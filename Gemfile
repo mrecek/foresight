@@ -7,7 +7,7 @@ gem "propshaft"
 # Use sqlite3 as the database for Active Record
 gem "sqlite3", "~> 2.9", ">= 2.9.6"
 # Security-fixed 2.x release; JSON 3 intentionally changes parsing behavior.
-gem "json", "~> 2.21", ">= 2.21.2"
+gem "json", "~> 3.0"
 # Ruby 3.4 bundles an affected resolv. Pin the upstream 0.7.2 tag commit while
 # Bundler's RubyGems resolver cannot see the published fixed release.
 gem "resolv", github: "ruby/resolv", ref: "5e7205c7a84f6fd000349ced8f97550511bf1b1d"
