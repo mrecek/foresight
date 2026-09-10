@@ -3,7 +3,7 @@ name: Ruby Patch Freshness
 on:
   workflow_dispatch:
   schedule:
-    - cron: "15 15 1 * *"
+    - cron: "15 15 * * 1"
 
 permissions:
   contents: write
@@ -19,6 +19,13 @@ jobs:
     steps:
       - name: Checkout default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up mise for lockfile maintenance
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+        with:
+          install: false
+          cache: false
+          minimum_release_age: 7d
 
       - name: Check the official Ruby release tags
         id: ruby
@@ -45,6 +52,7 @@ jobs:
           image="docker.io/library/ruby:${VERSION}-slim"
           digest="$(docker buildx imagetools inspect "$image" | awk '$1 == "Digest:" { print $2; exit }')"
           bin/update-ruby-patch --version "$VERSION" --digest "$digest"
+          mise lock ruby
 
       - name: Set up updated Ruby
         if: steps.ruby.outputs.status == 'stale' && steps.existing.outputs.found == 'false'
@@ -68,7 +76,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch --create "$BRANCH"
-          git add .ruby-version Dockerfile
+          git add .ruby-version .mise.toml mise.lock Dockerfile
           git commit -m "Update Ruby to ${VERSION}"
           git push origin "$BRANCH"
           gh pr create \

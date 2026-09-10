@@ -18,16 +18,13 @@ Own git, PR, merge, and CI/CD workflow tasks for this repository.
 
 ## Source of Truth
 
-Inspect repo configuration before acting:
-
-- `.github/workflows/ci.yml`
-- `.github/workflows/docker.yml`
-- `.github/workflows/auto-merge-dependabot.yml`
-- `.github/dependabot.yml`
-
-Trust those files over prose summaries when they disagree.
+Inspect repository configuration and live GitHub state before acting. Exact jobs, schedules, versions, and settings belong to those sources; this skill supplies routing and completion criteria.
 
 ## Read the Right Reference
 
 - For commit, push, PR, merge, branch strategy, and approval checkpoints, read [references/git-operations.md](references/git-operations.md).
 - For CI jobs, Docker publishing, Dependabot, and GitHub CLI inspection commands, read [references/ci-cd.md](references/ci-cd.md).
+
+## Completion
+
+Complete only the operations the user authorized. Delivered work requires a green required-check set at the reviewed head, a squash merge, branch cleanup, and durable evidence when a portfolio task exists.

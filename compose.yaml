@@ -1,0 +1,19 @@
+name: foresight
+
+services:
+  foresight:
+    image: ghcr.io/mrecek/foresight:latest
+    restart: unless-stopped
+    ports:
+      - "${FORESIGHT_PORT:-3000}:8080"
+    environment:
+      - "APP_TIME_ZONE=${APP_TIME_ZONE:-UTC}"
+      # When unset, Foresight generates an installation-specific key in the
+      # persistent storage volume. Set it through the host environment when an
+      # external secret manager owns session encryption.
+      - SECRET_KEY_BASE
+    volumes:
+      - foresight_data:/rails/storage
+
+volumes:
+  foresight_data:

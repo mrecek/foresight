@@ -9,6 +9,8 @@
 
 # Ignore all environment files.
 /.env*
+/mise.local.toml
+/.mise.local.toml
 
 # Ignore all logfiles and tempfiles.
 /log/*

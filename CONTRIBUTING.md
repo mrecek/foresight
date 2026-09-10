@@ -1,65 +1,71 @@
 # Contributing to Foresight
 
-👋 Thanks for checking out Foresight!
+Foresight is a personal project published for self-hosters. Bug reports, focused fixes, documentation improvements, and security hardening are welcome. Please open an issue before starting a substantial feature or architectural change so its maintenance cost and fit can be discussed first.
 
-**Please Note:** This is primarily a personal project that I maintain for my own use. While I've made the code public in hopes that it might be useful to others, I am not actively seeking major feature contributions at this time.
+Be kind and keep reports free of credentials or personal financial data.
 
-## Expectations
+## Development environment
 
-- **Bug Reports**: You are welcome to open issues for bugs you encounter. I appreciate the heads-up!
-- **Feature Requests**: You can suggest features, but please understand that I will likely only implement them if they align with my own roadmap and needs.
-- **Pull Requests**: Please **open an issue to discuss your changes first** before opening a PR. I may not merge PRs that add complexity or features I don't intend to maintain long-term.
+Supported development environments are macOS, Linux, and WSL. Docker is required for the complete production-image validation.
 
-## Code of Conduct
-
-Be kind and respectful. This is a free, open-source tool shared in good faith.
-
-## Development
-
-To build the project locally:
+The optional mise setup installs the supported Ruby and delegates to the repository's own commands:
 
 ```bash
-bundle install
-bin/rails db:setup
+mise trust
+mise run setup
+mise run dev
+```
+
+Without mise, install the exact Ruby version in `.ruby-version`, then run:
+
+```bash
+bin/setup --skip-server
 bin/dev
 ```
 
-Visit `http://localhost:3000`.
+Open `http://localhost:3000`. `bin/setup` installs dependencies, prepares the database, clears disposable local state, and configures the repository's Git hooks.
 
-For demo data and authentication-free local testing:
+Node.js is not required; Rails owns the Importmap and Tailwind toolchain.
+
+## Test data
+
+For disposable local data and authentication-free browser testing:
 
 ```bash
 SEED_DEMO_DATA=true bin/rails db:seed
 TEST_MODE=true bin/dev
 ```
 
-To validate a change locally before opening a PR:
+Test mode cannot activate in production.
+
+## Validation
+
+Use focused checks while working and run the complete contract before opening a pull request:
 
 ```bash
 bin/validate
 ```
 
-This is the complete contract: runtime and workflow parity, style, refreshed
-Ruby and JavaScript security audits, autoloading, migration state, the full test
-suite, and a production-container build and smoke check. Run a named stage such
-as `bin/validate test` for a faster focused check, or `bin/validate --ci` for the
-non-container stages used by pull-request CI.
+This checks runtime and workflow parity, style, dependency and application security, Rails autoloading, database migrations, financial transfer invariants, the complete automated test suite, and a production-container build and smoke test.
 
-Run `bin/rails test:system` to exercise only the deliberately small real-browser
-suite. It covers authentication, transfers, recurring transfers,
-reconciliation, Turbo navigation, and the principal Stimulus form interactions.
-Failures save screenshots under `tmp/system-test-artifacts`; CI uploads that
-directory when the test job fails.
+Useful focused commands include:
 
-Ruby patch freshness is checked monthly against the official Ruby repository.
-Patch updates move `.ruby-version` and the digest-pinned Docker base together;
-Dependabot separately proposes digest-only base rebuilds so operating-system
-fixes are not tied to application changes. Ruby major and minor upgrades remain
-an explicit architecture decision.
+```bash
+bin/validate test
+bin/validate lint
+bin/validate security-ruby security-js
+bin/validate runtime architecture
+bin/rails test test/path/to/example_test.rb
+```
 
-Container delivery treats each pushed image as an unpromoted, run-specific
-candidate. Both supported architectures are smoke-tested and provenance is
-verified before the immutable release, dated channel, and `latest` are promoted;
-the full commit-SHA tag is written last as the completion marker. Daily
-reconciliation verifies and repairs partial promotion. Candidate tags are kept
-as immutable audit references.
+The test stage includes a deliberately small real-browser suite for the critical authentication and financial workflows. Browser failures leave screenshots in `tmp/system-test-artifacts`.
+
+## Pull requests
+
+- Use a focused branch and Conventional Commit subjects.
+- Keep one pull request centered on one coherent outcome.
+- Include the reason for the change and the validation you ran.
+- Add regression coverage for changed behavior.
+- Keep deployment guidance portable and free of private infrastructure details.
+
+Pull requests merge by squash after all required checks pass. Dependency updates outside the low-risk Bundler patch/minor lane require human review.

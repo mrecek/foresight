@@ -25,5 +25,9 @@ Own local development and validation tasks for this repository.
 ## Working Rules
 
 - Prefer the lightest command that proves the requested change.
-- Stop background dev servers when you are finished with runtime testing.
+- Track every process started for runtime testing and stop that exact process when finished.
 - Keep commit and PR policy out of this skill; that belongs to `foresight-git-workflow`.
+
+## Completion
+
+The requested behavior is reproduced or exercised, every relevant focused check passes, and no agent-started process remains running. Run the complete `bin/validate` contract when the user requests release confidence or whole-repository validation.

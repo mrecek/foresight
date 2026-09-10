@@ -39,10 +39,6 @@ Yes# See https://docs.docker.com/engine/reference/builder/#dockerignore-file for
 # Ignore CI service files.
 /.github
 
-# Ignore Kamal files.
-/config/deploy*.yml
-/.kamal
-
 # Ignore development files
 /.devcontainer
 

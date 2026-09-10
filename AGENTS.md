@@ -7,14 +7,19 @@
 - Rails + Hotwire/Turbo + Stimulus
 - Tailwind via the Rails toolchain
 
-## Agent Workflow
+## Product Boundary
 
-- Use `.agents/skills/foresight-dev/` for local setup, running the app, test mode, demo data, local debugging, and validation.
-- Use `.agents/skills/foresight-git-workflow/` only when the user explicitly requests commit, push, PR, merge, rebase, or CI/CD workflow investigation.
+- Foresight is a public, self-hostable application distributed as an OCI container.
+- Keep deployment guidance portable. Describe the container contract and SQLite's single-writer storage requirement, not a maintainer's infrastructure.
+
+## Routes
+
+- For local setup, runtime, test mode, demo data, debugging, or validation, read `.agents/skills/foresight-dev/SKILL.md`.
+- For an explicit git operation or CI/CD investigation, read `.agents/skills/foresight-git-workflow/SKILL.md`.
 - Canonical portable skills live in `.agents/skills/`.
 
 ## Boundaries
 
 - Never perform git operations unless the user explicitly requests them.
-- Prefer repository source-of-truth files over prose summaries when they disagree.
-- Keep human-facing documentation in `README.md` and `CONTRIBUTING.md`; keep agent workflow detail in skills.
+- Treat repository commands and configuration as source of truth; agent prose supplies procedure and intent.
+- Keep the public product, architecture, and contributor entry points in `README.md` and `CONTRIBUTING.md`; keep agent procedures in skills.

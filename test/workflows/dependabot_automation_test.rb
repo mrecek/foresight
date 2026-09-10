@@ -48,9 +48,10 @@ class DependabotAutomationTest < ActiveSupport::TestCase
   test "Ruby patch automation validates candidates and avoids duplicate pull requests" do
     workflow = Rails.root.join(".github/workflows/ruby-freshness.yml").read
 
-    assert_includes workflow, "schedule:"
+    assert_includes workflow, 'cron: "15 15 * * 1"'
     assert_includes workflow, "bin/check-ruby-freshness"
     assert_includes workflow, "gh pr list --state all"
+    assert_includes workflow, "mise lock ruby"
     assert_includes workflow, "bin/validate --ci"
     assert_includes workflow, "gh pr create"
   end

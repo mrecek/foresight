@@ -24,6 +24,11 @@ replacement = "FROM docker.io/library/ruby:#{version}-slim@#{digest} AS base"
 updated = dockerfile.sub(%r{^FROM docker\.io/library/ruby:\d+\.\d+\.\d+-slim@sha256:[0-9a-f]{64} AS base$}, replacement)
 abort "Dockerfile Ruby base declaration was not found" if updated == dockerfile
 
+mise_config = File.read(".mise.toml")
+updated_mise = mise_config.sub(/^ruby\s*=\s*"#{Regexp.escape(current)}"\s*$/, %(ruby = "#{version}"))
+abort ".mise.toml Ruby declaration was not found" if updated_mise == mise_config
+
 File.write(".ruby-version", "#{version}\n")
 File.write("Dockerfile", updated)
+File.write(".mise.toml", updated_mise)
 puts "Updated Ruby #{current} to #{version} with base #{digest}."
