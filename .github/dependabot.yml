@@ -16,13 +16,39 @@ updates:
         update-types:
           - minor
           - patch
+      security-gems:
+        applies-to: security-updates
+        patterns:
+          - "*"
     labels:
       - "dependencies"
-      - "automerge"
 
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: monthly
+    groups:
+      actions:
+        patterns:
+          - "*"
     labels:
       - "dependencies"
+
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:15"
+      timezone: America/Denver
+    labels:
+      - "dependencies"
+    # Ruby patch releases are updated by ruby-freshness.yml so .ruby-version
+    # and the pinned Docker image move atomically. Dependabot owns digest-only
+    # rebuilds of the current tag, which surface base OS fixes.
+    ignore:
+      - dependency-name: "ruby"
+        update-types:
+          - "version-update:semver-patch"
+          - "version-update:semver-minor"
+          - "version-update:semver-major"

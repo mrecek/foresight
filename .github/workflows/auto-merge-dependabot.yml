@@ -2,7 +2,7 @@ name: Auto-merge Dependabot PRs
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: write
@@ -11,20 +11,49 @@ permissions:
 jobs:
   auto-merge:
     runs-on: ubuntu-latest
-    if: github.actor == 'dependabot[bot]'
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
     steps:
+      - name: Checkout trusted workflow scripts
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+
       - name: Read Dependabot update metadata
         id: metadata
         uses: dependabot/fetch-metadata@d7267f607e9d3fb96fc2fbe83e0af444713e90b7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Determine auto-merge eligibility
+        id: eligibility
+        env:
+          PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+        run: >-
+          bash .github/scripts/dependabot-auto-merge-eligibility
+          "$PACKAGE_ECOSYSTEM" "$UPDATE_TYPE"
+
       - name: Enable auto-merge for low-risk Bundler updates
-        if: >-
-          contains(github.event.pull_request.labels.*.name, 'automerge') &&
-          (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-minor')
+        id: enable
+        if: steps.eligibility.outputs.eligible == 'true'
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Report auto-merge decision
+        if: always()
+        env:
+          ELIGIBLE: ${{ steps.eligibility.outputs.eligible }}
+          REASON: ${{ steps.eligibility.outputs.reason }}
+          ENABLE_OUTCOME: ${{ steps.enable.outcome }}
+        run: |
+          if [[ "$ELIGIBLE" == "true" && "$ENABLE_OUTCOME" == "success" ]]; then
+            echo "Auto-merge enabled. $REASON" | tee -a "$GITHUB_STEP_SUMMARY"
+          elif [[ "$ELIGIBLE" == "true" ]]; then
+            echo "::error::Auto-merge was eligible but could not be enabled. $REASON"
+            echo "Auto-merge enablement failed. $REASON" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          else
+            echo "Auto-merge not enabled. $REASON" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi

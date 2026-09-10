@@ -1,0 +1,19 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require_relative "../config/validation"
+
+requested = ARGV.empty? ? Foresight::Validation::LOCAL_STAGES : ARGV
+requested = Foresight::Validation::CI_STAGES if requested == [ "--ci" ]
+unknown = requested - Foresight::Validation::STAGES.keys
+abort "Unknown validation stage(s): #{unknown.join(', ')}" if unknown.any?
+
+requested.each do |stage|
+  puts "\n== Validation: #{stage} =="
+  Foresight::Validation::STAGES.fetch(stage).each do |command|
+    puts command.join(" ")
+    abort "\n== Validation failed: #{stage} (#{command.join(' ')}) ==" unless system(*command)
+  end
+end
+
+puts "\nAll requested validation stages passed: #{requested.join(', ')}"

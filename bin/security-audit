@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+audit_ruby() {
+  echo "Ruby: $(ruby --version)"
+  echo "Bundler: $(bundle --version)"
+  echo "Bundler Audit: $(bin/bundler-audit version)"
+
+  bin/bundler-audit check --update
+  bin/brakeman --no-pager
+
+  bundle exec ruby -e '
+    require "yaml"
+    policy = YAML.safe_load_file("config/security.yml").fetch("pinned_default_gems")
+    versions = policy.map do |name, settings|
+      require name
+      loaded = Gem.loaded_specs.fetch(name).version
+      minimum = Gem::Version.new(settings.fetch("minimum_safe_version"))
+      abort "#{name} #{loaded} is below the security floor #{minimum}" if loaded < minimum
+      "#{name}=#{loaded}"
+    end
+    puts "Pinned default gems: #{versions.join(", ")}"
+  '
+}
+
+audit_javascript() {
+  bin/importmap audit
+}
+
+case "${1:-all}" in
+  all)
+    audit_ruby
+    audit_javascript
+    ;;
+  ruby)
+    audit_ruby
+    ;;
+  javascript)
+    audit_javascript
+    ;;
+  *)
+    echo "Usage: bin/security-audit [all|ruby|javascript]" >&2
+    exit 2
+    ;;
+esac

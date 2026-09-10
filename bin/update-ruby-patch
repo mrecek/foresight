@@ -1,0 +1,29 @@
+#!/usr/bin/env ruby
+
+require "optparse"
+
+options = {}
+OptionParser.new do |parser|
+  parser.on("--version VERSION") { |value| options[:version] = value }
+  parser.on("--digest DIGEST") { |value| options[:digest] = value }
+end.parse!
+
+current = File.read(".ruby-version").strip
+version = options.fetch(:version) { abort "--version is required" }
+digest = options.fetch(:digest) { abort "--digest is required" }
+
+current_parts = current.split(".").map(&:to_i)
+version_parts = version.match(/\A\d+\.\d+\.\d+\z/) && version.split(".").map(&:to_i)
+abort "Invalid Ruby version: #{version.inspect}" unless version_parts
+abort "Only Ruby patch updates are automated" unless current_parts.first(2) == version_parts.first(2)
+abort "Ruby update must move forward from #{current}" unless (version_parts <=> current_parts) == 1
+abort "Invalid image digest: #{digest.inspect}" unless digest.match?(/\Asha256:[0-9a-f]{64}\z/)
+
+dockerfile = File.read("Dockerfile")
+replacement = "FROM docker.io/library/ruby:#{version}-slim@#{digest} AS base"
+updated = dockerfile.sub(%r{^FROM docker\.io/library/ruby:\d+\.\d+\.\d+-slim@sha256:[0-9a-f]{64} AS base$}, replacement)
+abort "Dockerfile Ruby base declaration was not found" if updated == dockerfile
+
+File.write(".ruby-version", "#{version}\n")
+File.write("Dockerfile", updated)
+puts "Updated Ruby #{current} to #{version} with base #{digest}."

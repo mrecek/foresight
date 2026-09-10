@@ -1,11 +1,18 @@
 source "https://rubygems.org"
 
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
-gem "rails", "~> 8.1.3"
+gem "rails", "~> 8.1.3", ">= 8.1.3.1"
 # The modern asset pipeline for Rails [https://github.com/rails/propshaft]
 gem "propshaft"
 # Use sqlite3 as the database for Active Record
-gem "sqlite3", ">= 2.1"
+gem "sqlite3", "~> 2.9", ">= 2.9.6"
+# Security-fixed 2.x release; JSON 3 intentionally changes parsing behavior.
+gem "json", "~> 2.21", ">= 2.21.2"
+# Ruby 3.4 bundles an affected resolv. Pin the upstream 0.7.2 tag commit while
+# Bundler's RubyGems resolver cannot see the published fixed release.
+gem "resolv", github: "ruby/resolv", ref: "5e7205c7a84f6fd000349ced8f97550511bf1b1d"
+# Keep the security-fixed transitive mail dependency above its vulnerable floor.
+gem "mail", ">= 2.9.1"
 # Use the Puma web server [https://github.com/puma/puma]
 gem "puma", ">= 5.0"
 # Use JavaScript with ESM import maps [https://github.com/rails/importmap-rails]
@@ -51,6 +58,12 @@ group :development, :test do
 
   # Omakase Ruby styling [https://github.com/rails/rubocop-rails-omakase/]
   gem "rubocop-rails-omakase", require: false
+end
+
+group :test do
+  # A small real-browser regression suite for critical Hotwire/Stimulus journeys.
+  gem "capybara"
+  gem "selenium-webdriver"
 end
 
 group :development do

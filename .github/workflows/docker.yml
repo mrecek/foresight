@@ -1,35 +1,41 @@
-name: Build and Push Docker Image
+name: Build and Promote Docker Image
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths-ignore:
-      - '*.md'
-      - 'AGENTS.md'
-      - 'CLAUDE.md'
-      - 'docs/**'
-      - '.agents/**'
-      - '.claude/**'
-      - '.github/dependabot.yml'
+      - "*.md"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - "docs/**"
+      - ".agents/**"
+      - ".claude/**"
+
+concurrency:
+  group: container-release
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
 
 permissions:
   contents: read
   packages: write
   attestations: write
+  artifact-metadata: write
   id-token: write
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
+      - name: Checkout release commit
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
@@ -44,87 +50,73 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compute release version
+      - name: Compute candidate identity
         id: release
         env:
           COMMIT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
+          release_date="$(git show -s --format=%cs "$COMMIT_SHA" | tr - .)"
+          candidate="candidate-${COMMIT_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "date=$release_date" >> "$GITHUB_OUTPUT"
+          echo "candidate=$candidate" >> "$GITHUB_OUTPUT"
 
-          date="$(date -u +'%Y.%m.%d')"
-          short_sha="${COMMIT_SHA:0:7}"
-
-          echo "date=${date}" >> "$GITHUB_OUTPUT"
-          echo "immutable=${date}-${short_sha}" >> "$GITHUB_OUTPUT"
-
-      - name: Ensure immutable release tag is unused
+      - name: Ensure run-specific candidate tag is unused
         env:
-          VERSION: ${{ steps.release.outputs.immutable }}
+          CANDIDATE: ${{ steps.release.outputs.candidate }}
         run: |
-          set -euo pipefail
-
-          image="${REGISTRY}/${IMAGE_NAME}:${VERSION}"
-          if docker buildx imagetools inspect "${image}" >/dev/null 2>&1; then
-            echo "::error::Immutable release tag already exists: ${image}"
+          if docker buildx imagetools inspect "${REGISTRY}/${IMAGE_NAME}:${CANDIDATE}" >/dev/null 2>&1; then
+            echo "::error::Run-specific candidate tag already exists"
             exit 1
           fi
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=${{ steps.release.outputs.immutable }},priority=900
-            type=raw,value=${{ steps.release.outputs.date }},priority=800
-            type=raw,value=latest,priority=700
-            type=sha,format=long,prefix=sha-,priority=600
-
-      - name: Build and push multi-architecture image
+      - name: Build and push unpromoted candidate
         id: push
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.release.outputs.candidate }}
           cache-from: type=gha,scope=foresight
           cache-to: type=gha,mode=max,scope=foresight
           provenance: mode=max
           sbom: true
 
-      - name: Smoke test immutable amd64 image
+      - name: Verify candidate platforms
+        run: bin/check-container-manifest "${REGISTRY}/${IMAGE_NAME}@${{ steps.push.outputs.digest }}"
+
+      - name: Smoke test candidate on amd64 and arm64
         env:
-          VERSION: ${{ steps.release.outputs.immutable }}
+          DIGEST: ${{ steps.push.outputs.digest }}
         run: |
           set -euo pipefail
+          reference="${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+          for platform in linux/amd64 linux/arm64; do
+            docker pull --platform "$platform" "$reference"
+            DOCKER_DEFAULT_PLATFORM="$platform" bin/container-smoke "$reference"
+          done
 
-          image="${REGISTRY}/${IMAGE_NAME}:${VERSION}"
-          docker pull --platform linux/amd64 "${image}"
-          docker run -d --name smoke-test -p 3000:8080 --platform linux/amd64 "${image}"
-          trap 'docker logs smoke-test; docker rm -f smoke-test' EXIT
-
-          echo "Waiting for container to start..."
-          sleep 10
-          curl --fail --retry 5 --retry-delay 2 http://localhost:3000/up
-
-      - name: Generate build provenance attestation
-        uses: actions/attest@f6bf1532d7d6793fce74eac584813a8eee607999 # v4
+      - name: Generate provenance attestation
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
 
-      - name: Publish release summary
+      - name: Promote verified candidate
         env:
-          VERSION: ${{ steps.release.outputs.immutable }}
-          DIGEST: ${{ steps.push.outputs.digest }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bin/promote-container-release "${REGISTRY}/${IMAGE_NAME}" "${{ steps.push.outputs.digest }}" "${{ github.sha }}" "${{ steps.release.outputs.date }}"
+
+      - name: Publish release summary
+        if: always()
         run: |
           {
-            echo "## Published container image"
+            echo "## Container release"
             echo
-            echo "- Immutable release: \`${REGISTRY}/${IMAGE_NAME}:${VERSION}@${DIGEST}\`"
-            echo "- Daily channel: \`${REGISTRY}/${IMAGE_NAME}:${{ steps.release.outputs.date }}\`"
-            echo "- Rolling channel: \`${REGISTRY}/${IMAGE_NAME}:latest\`"
+            echo "- Candidate: \`${REGISTRY}/${IMAGE_NAME}:${{ steps.release.outputs.candidate }}@${{ steps.push.outputs.digest }}\`"
+            echo "- Completion marker: \`${REGISTRY}/${IMAGE_NAME}:sha-${{ github.sha }}\`"
+            echo "- Candidate tags are retained as immutable audit references."
+            echo "- Release tags change only after both architecture smoke tests and attestation verification pass."
           } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,56 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "json"
+require "bundler"
+require "yaml"
+
+report_path = ARGV.fetch(0) { abort "Usage: bin/check-trivy-report REPORT.json" }
+report = JSON.parse(File.read(report_path))
+vulnerabilities = report.fetch("Results", []).flat_map { |result| result.fetch("Vulnerabilities", []) }
+root = File.expand_path("..", __dir__)
+security_policy = YAML.safe_load_file(File.join(root, "config/security.yml")).fetch("pinned_default_gems")
+locked_versions = Bundler::LockfileParser.new(Bundler.read_file(File.join(root, "Gemfile.lock")))
+  .specs.to_h { |spec| [ spec.name, spec.version ] }
+
+covered_default_gems, blocking = vulnerabilities.select do |vulnerability|
+  %w[HIGH CRITICAL].include?(vulnerability["Severity"]) && vulnerability["FixedVersion"].to_s.strip != ""
+end.partition do |vulnerability|
+  gem_policy = security_policy[vulnerability["PkgName"]]
+  locked = locked_versions[vulnerability["PkgName"]]
+  next false unless gem_policy && locked
+
+  minimum = Gem::Version.new(gem_policy.fetch("minimum_safe_version"))
+  installed = Gem::Version.new(vulnerability.fetch("InstalledVersion"))
+  locked >= minimum && installed < locked
+end
+
+summary = if blocking.empty?
+  message = "Trivy policy passed: no active fixable HIGH or CRITICAL OS/library vulnerabilities."
+  if covered_default_gems.any?
+    names = covered_default_gems.map { |finding| finding.fetch("PkgName") }.uniq.sort.join(", ")
+    message += " Stale bundled default-gem copies covered by verified lockfile pins: #{names}."
+  end
+  message
+else
+  details = blocking.map do |vulnerability|
+    "- #{vulnerability['VulnerabilityID']}: #{vulnerability['PkgName']} " \
+      "#{vulnerability['InstalledVersion']} -> #{vulnerability['FixedVersion']} " \
+      "(#{vulnerability['Severity']})"
+  end
+  ([ "Trivy policy failed with #{blocking.size} fixable HIGH/CRITICAL finding(s):" ] + details).join("\n")
+end
+
+puts summary
+if (summary_path = ENV["GITHUB_STEP_SUMMARY"])
+  File.open(summary_path, "a") do |file|
+    file.puts "## Container vulnerability audit"
+    file.puts
+    file.puts summary
+    file.puts
+    file.puts "Scope: production image OS packages and bundled application libraries."
+    file.puts "Policy: fail on HIGH/CRITICAL findings with a published fixed version; report unfixed findings in Trivy output."
+  end
+end
+
+exit 1 if blocking.any?

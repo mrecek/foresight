@@ -18,10 +18,7 @@ jobs:
           bundler-cache: true
 
       - name: Scan for common Rails security vulnerabilities using static analysis
-        run: bin/brakeman --no-pager
-      
-      - name: Scan for known security vulnerabilities in gems used
-        run: bin/bundler-audit
+        run: bin/validate security-ruby
       
   scan_js:
     name: CI/scan_js (pull_request)
@@ -37,7 +34,7 @@ jobs:
           bundler-cache: true
 
       - name: Scan for security vulnerabilities in JavaScript dependencies
-        run: bin/importmap audit
+        run: bin/validate security-js
 
   lint:
     name: CI/lint (pull_request)
@@ -64,7 +61,7 @@ jobs:
             rubocop-${{ runner.os }}-${{ env.DEPENDENCIES_HASH }}-
 
       - name: Lint code for consistent style
-        run: bin/rubocop -f github
+        run: bin/validate lint
 
   test:
     name: CI/test (pull_request)
@@ -80,4 +77,38 @@ jobs:
           bundler-cache: true
 
       - name: Run full test suite
-        run: bin/test
+        run: bin/validate test
+
+      - name: Upload browser failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: browser-failure-artifacts
+          path: tmp/system-test-artifacts
+          if-no-files-found: ignore
+
+  architecture:
+    name: CI/architecture (pull_request)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9 # v1
+        with:
+          bundler-cache: true
+
+      - name: Validate runtime, workflows, autoloading, and migrations
+        run: bin/validate runtime architecture
+
+  container:
+    name: CI/container (pull_request)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Build and smoke-test without publishing
+        run: bin/validate container

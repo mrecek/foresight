@@ -1,0 +1,7 @@
+pinned_default_gems:
+  json:
+    minimum_safe_version: "2.21.2"
+    reason: "Overrides the Ruby-bundled copy for GHSA-9hj4-r449-hfvc coverage until the JSON 3 migration is completed."
+  resolv:
+    minimum_safe_version: "0.7.2"
+    reason: "Overrides Ruby 3.4.10's bundled resolv 0.7.1, which is affected by CVE-2026-80212."

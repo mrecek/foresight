@@ -3,13 +3,12 @@
 CI.run do
   step "Setup", "bin/setup --skip-server"
 
-  step "Style: Ruby", "bin/rubocop"
-
-  step "Security: Gem audit", "bin/bundler-audit"
-  step "Security: Importmap vulnerability audit", "bin/importmap audit"
-  step "Security: Brakeman code analysis", "bin/brakeman --quiet --no-pager --exit-on-warn --exit-on-error"
-
-  step "Test: Unit and integration tests", "ruby -Itest -Ilib test/models/*_test.rb test/services/*_test.rb"
+  step "Runtime and workflow contract", "bin/validate runtime"
+  step "Style: Ruby", "bin/validate lint"
+  step "Security: Ruby", "bin/validate security-ruby"
+  step "Security: JavaScript", "bin/validate security-js"
+  step "Architecture and migrations", "bin/validate architecture"
+  step "Test: Full suite", "bin/validate test"
 
   # Optional: set a green GitHub commit status to unblock PR merge.
   # Requires the `gh` CLI and `gh extension install basecamp/gh-signoff`.

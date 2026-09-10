@@ -1,0 +1,22 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "open3"
+
+root = File.expand_path("..", __dir__)
+expected_ruby = File.read(File.join(root, ".ruby-version")).strip
+dockerfile = File.read(File.join(root, "Dockerfile"))
+docker_ruby = dockerfile[%r{^FROM docker\.io/library/ruby:(\d+\.\d+\.\d+)-slim@sha256:[0-9a-f]{64} AS base$}, 1]
+abort "Dockerfile must pin the Ruby slim image by version and digest" unless docker_ruby
+abort "Ruby source/Docker mismatch: #{expected_ruby} != #{docker_ruby}" unless expected_ruby == docker_ruby
+abort "Running Ruby mismatch: expected #{expected_ruby}, got #{RUBY_VERSION}" unless expected_ruby == RUBY_VERSION
+
+lockfile = File.read(File.join(root, "Gemfile.lock"))
+locked_bundler = lockfile[/^BUNDLED WITH\s+([\d.]+)$/m, 1]
+abort "Gemfile.lock BUNDLED WITH version is missing" unless locked_bundler
+bundler_output, status = Open3.capture2e("bundle", "--version")
+abort "Could not determine the running Bundler version" unless status.success?
+running_bundler = bundler_output[/Bundler version ([\d.]+)/, 1]
+abort "Running Bundler mismatch: lockfile #{locked_bundler}, got #{running_bundler}" unless locked_bundler == running_bundler
+
+puts "Runtime parity passed: Ruby #{expected_ruby}, Bundler #{locked_bundler}, Docker image #{docker_ruby}."

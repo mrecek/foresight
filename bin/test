@@ -2,6 +2,8 @@
 # frozen_string_literal: true
 
 require "fileutils"
+require "open3"
+require "rbconfig"
 
 APP_ROOT = File.expand_path("..", __dir__)
 
@@ -20,9 +22,18 @@ FileUtils.chdir APP_ROOT do
 
   total_runs = 0
   total_assertions = 0
+  ruby_load_path = [
+    File.join(APP_ROOT, "test"),
+    File.join(APP_ROOT, "lib"),
+    ENV["RUBYLIB"]
+  ].compact.join(File::PATH_SEPARATOR)
 
   test_files.each do |file|
-    output = `ruby -Itest -Ilib #{file} 2>&1`
+    output, status = Open3.capture2e(
+      { "RUBYLIB" => ruby_load_path },
+      RbConfig.ruby,
+      File.expand_path(file)
+    )
     puts output
 
     # Extract test results
@@ -32,7 +43,7 @@ FileUtils.chdir APP_ROOT do
     end
 
     # Check for failures
-    unless $?.success?
+    unless status.success?
       abort("\n== Tests failed in #{file} ==")
     end
   end

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+image="foresight-validation:local"
+docker build --tag "$image" .
+bin/container-smoke "$image"
