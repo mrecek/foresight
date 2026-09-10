@@ -89,6 +89,7 @@ jobs:
       - name: Smoke test candidate on amd64 and arm64
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
+          CONTAINER_SMOKE_HEALTH_ATTEMPTS: 120
         run: |
           set -euo pipefail
           reference="${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
