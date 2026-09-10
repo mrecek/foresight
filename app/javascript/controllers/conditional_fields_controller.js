@@ -9,6 +9,10 @@ export default class extends Controller {
     showWhen: Object // { "triggerValue": ["fieldName1", "fieldName2"] }
   }
 
+  initialize() {
+    this.transitionTimers = new WeakMap()
+  }
+
   connect() {
     this.toggle()
   }
@@ -41,6 +45,7 @@ export default class extends Controller {
   }
 
   showField(el) {
+    this.clearTransitionTimer(el)
     el.classList.remove('hidden', 'opacity-0', 'scale-95')
     el.classList.add('opacity-100', 'scale-100')
     el.style.maxHeight = el.scrollHeight + 'px'
@@ -51,12 +56,14 @@ export default class extends Controller {
     })
 
     // Animate to full height
-    setTimeout(() => {
+    this.transitionTimers.set(el, setTimeout(() => {
       el.style.maxHeight = 'none'
-    }, 300)
+      this.transitionTimers.delete(el)
+    }, 300))
   }
 
   hideField(el) {
+    this.clearTransitionTimer(el)
     el.style.maxHeight = el.scrollHeight + 'px'
 
     // Force reflow
@@ -71,8 +78,15 @@ export default class extends Controller {
       // Don't clear the value - let Rails handle it
     })
 
-    setTimeout(() => {
+    this.transitionTimers.set(el, setTimeout(() => {
       el.classList.add('hidden')
-    }, 300)
+      this.transitionTimers.delete(el)
+    }, 300))
+  }
+
+  clearTransitionTimer(el) {
+    const timer = this.transitionTimers.get(el)
+    if (timer) clearTimeout(timer)
+    this.transitionTimers.delete(el)
   }
 }

@@ -62,6 +62,7 @@
   </div>
 
   <%# Type Selector - Segmented Buttons %>
+  <% initial_type = recurring_rule.rule_type.presence || "expense" %>
   <div data-controller="type-selector conditional-fields transfer-validator"
        data-conditional-fields-show-when-value='{"transfer": ["destination_account"]}'>
 
@@ -135,12 +136,12 @@
       <%# Destination Account (conditional for transfers) %>
       <div data-conditional-fields-target="conditional"
            data-field="destination_account"
-           class="transition-all duration-300 ease-out overflow-hidden lg:col-span-2">
+           class="transition-all duration-300 ease-out overflow-hidden lg:col-span-2 <%= 'hidden opacity-0 scale-95' unless initial_type == 'transfer' %>">
         <div class="bg-primary-50 rounded-xl p-4 border border-primary-100">
           <%= f.label :destination_account_id, "Destination Account", class: "form-label text-primary-700" %>
           <%= f.collection_select :destination_account_id, @accounts, :id, :name,
               { include_blank: "Select destination account..." },
-              class: "form-select bg-white",
+              class: "form-select bg-white", disabled: initial_type != "transfer",
               data: { transfer_validator_target: "destination", action: "change->transfer-validator#validate" } %>
           <p data-transfer-validator-target="error" class="text-sm text-danger-600 mt-1.5 hidden"></p>
           <p class="text-sm text-primary-600 mt-1.5">Where the money will be transferred to</p>
