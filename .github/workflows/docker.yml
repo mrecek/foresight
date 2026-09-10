@@ -95,6 +95,9 @@ jobs:
           for platform in linux/amd64 linux/arm64; do
             docker pull --platform "$platform" "$reference"
             DOCKER_DEFAULT_PLATFORM="$platform" bin/container-smoke "$reference"
+            # A digest reference can point at only one platform in the local
+            # image store. Remove it before resolving the next platform.
+            docker image rm "$reference"
           done
 
       - name: Generate provenance attestation

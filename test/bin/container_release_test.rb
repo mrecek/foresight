@@ -93,6 +93,7 @@ class ContainerReleaseTest < ActiveSupport::TestCase
     assert_operator release.index("Smoke test candidate"), :<, release.index("Generate provenance attestation")
     assert_operator release.index("Generate provenance attestation"), :<, release.index("Promote verified candidate")
     assert_includes release, "DOCKER_DEFAULT_PLATFORM=\"$platform\""
+    assert_operator release.index("bin/container-smoke \"$reference\""), :<, release.index("docker image rm \"$reference\"")
     assert_includes reconcile, "bin/promote-container-release"
     assert_includes reconcile, "Safely redispatch a missing release"
     assert_includes ci, "bin/validate container"
