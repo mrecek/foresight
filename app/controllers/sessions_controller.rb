@@ -15,7 +15,7 @@ class SessionsController < ApplicationController
       AuditLog.log_login_success(request)
       redirect_to root_path
     else
-      AuditLog.log_login_failure(request, username: params[:username])
+      AuditLog.log_login_failure(request)
       flash.now[:alert] = "Invalid username or password"
       render :new, status: :unprocessable_entity
     end
@@ -31,7 +31,11 @@ class SessionsController < ApplicationController
   def valid_credentials?(username, password)
     # Priority 1: Environment variables (for automated deployments)
     if ENV["AUTH_USERNAME"].present? && ENV["AUTH_PASSWORD"].present?
-      return username == ENV["AUTH_USERNAME"] && password == ENV["AUTH_PASSWORD"]
+      username_matches = secure_credential_match?(username, ENV["AUTH_USERNAME"])
+      password_matches = secure_credential_match?(password, ENV["AUTH_PASSWORD"])
+
+      # Evaluate both comparisons for every configured-credential attempt.
+      return username_matches & password_matches
     end
 
     # Priority 2: Database-stored credentials
@@ -39,5 +43,12 @@ class SessionsController < ApplicationController
     return false unless settings.setup_complete?
 
     username == settings.auth_username && settings.authenticate_auth_password(password)
+  end
+
+  def secure_credential_match?(candidate, configured_value)
+    candidate_digest = OpenSSL::Digest::SHA256.hexdigest(candidate.to_s)
+    configured_digest = OpenSSL::Digest::SHA256.hexdigest(configured_value.to_s)
+
+    ActiveSupport::SecurityUtils.secure_compare(candidate_digest, configured_digest)
   end
 end

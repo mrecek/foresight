@@ -1,23 +1,54 @@
 require "test_helper"
 
 class SettingTest < ActiveSupport::TestCase
+  self.use_transactional_tests = false
+
   def setup
-    # Clear any existing settings
-    Setting.destroy_all
+    Setting.ensure_instance!.update_columns(
+      default_view_months: 3,
+      session_timeout_minutes: 30,
+      auth_username: nil,
+      auth_password_digest: nil
+    )
   end
 
   # ============================================================================
   # Singleton Tests
   # ============================================================================
 
-  test "instance returns first setting or creates one" do
-    setting = Setting.instance
-    assert setting.persisted?
+  test "instance returns the bootstrapped setting without writing" do
+    writes = []
+    subscriber = lambda do |_name, _started, _finished, _unique_id, payload|
+      writes << payload[:sql] if payload[:sql].match?(/\A(?:INSERT|UPDATE|DELETE)/i)
+    end
+
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      setting = Setting.instance
+      assert setting.persisted?
+      assert_equal 3, setting.default_view_months
+    end
+
+    assert_empty writes
+  end
+
+  test "instance fails clearly when the boot invariant is missing" do
+    Setting.delete_all
+
+    assert_raises(ActiveRecord::RecordNotFound) { Setting.instance }
+  ensure
+    Setting.ensure_instance!
+  end
+
+  test "ensure_instance bootstraps an empty database" do
+    Setting.delete_all
+
+    setting = Setting.ensure_instance!
+    assert_predicate setting, :persisted?
     assert_equal 3, setting.default_view_months
   end
 
   test "instance returns existing setting if present" do
-    existing = Setting.create!(
+    existing = update_setting!(
       default_view_months: 6,
       session_timeout_minutes: 60,
       auth_username: "testuser",
@@ -214,7 +245,7 @@ class SettingTest < ActiveSupport::TestCase
   # ============================================================================
 
   test "has_secure_password stores hashed password" do
-    setting = Setting.create!(
+    setting = update_setting!(
       default_view_months: 3,
       session_timeout_minutes: 30,
       auth_username: "testuser",
@@ -227,7 +258,7 @@ class SettingTest < ActiveSupport::TestCase
   end
 
   test "has_secure_password rejects wrong password" do
-    setting = Setting.create!(
+    setting = update_setting!(
       default_view_months: 3,
       session_timeout_minutes: 30,
       auth_username: "testuser",
@@ -242,7 +273,7 @@ class SettingTest < ActiveSupport::TestCase
   # ============================================================================
 
   test "setup_complete returns true when auth configured" do
-    setting = Setting.create!(
+    setting = update_setting!(
       default_view_months: 3,
       session_timeout_minutes: 30,
       auth_username: "testuser",
@@ -253,7 +284,7 @@ class SettingTest < ActiveSupport::TestCase
   end
 
   test "setup_complete returns false when no auth_username" do
-    setting = Setting.create!(
+    setting = update_setting!(
       default_view_months: 3,
       session_timeout_minutes: 30
     )
@@ -262,7 +293,7 @@ class SettingTest < ActiveSupport::TestCase
   end
 
   test "setup_complete returns false when no auth_password_digest" do
-    setting = Setting.create!(
+    setting = update_setting!(
       default_view_months: 3,
       session_timeout_minutes: 30,
       auth_username: "testuser"
@@ -276,7 +307,7 @@ class SettingTest < ActiveSupport::TestCase
   # ============================================================================
 
   test "can update session_timeout_minutes on existing setting" do
-    setting = Setting.create!(
+    setting = update_setting!(
       default_view_months: 3,
       session_timeout_minutes: 30,
       auth_username: "testuser",
@@ -288,7 +319,7 @@ class SettingTest < ActiveSupport::TestCase
   end
 
   test "cannot update session_timeout_minutes to invalid value" do
-    setting = Setting.create!(
+    setting = update_setting!(
       default_view_months: 3,
       session_timeout_minutes: 30,
       auth_username: "testuser",
@@ -301,7 +332,7 @@ class SettingTest < ActiveSupport::TestCase
   end
 
   test "can change password on existing setting" do
-    setting = Setting.create!(
+    setting = update_setting!(
       default_view_months: 3,
       session_timeout_minutes: 30,
       auth_username: "testuser",
@@ -314,5 +345,69 @@ class SettingTest < ActiveSupport::TestCase
     assert_not_equal old_digest, setting.auth_password_digest
     assert setting.authenticate_auth_password("newpassword123")
     assert_not setting.authenticate_auth_password("password123")
+  end
+
+  test "database rejects a second settings row" do
+    error = assert_raises(ActiveRecord::RecordNotUnique) do
+      Setting.insert_all!([ {
+        singleton_guard: Setting::SINGLETON_GUARD,
+        default_view_months: 3,
+        session_timeout_minutes: 30,
+        created_at: Time.current,
+        updated_at: Time.current
+      } ])
+    end
+
+    assert_includes error.message, "settings.singleton_guard"
+    assert_equal 1, Setting.count
+  end
+
+  test "database rejects an alternate singleton guard" do
+    assert_raises(ActiveRecord::StatementInvalid) do
+      Setting.insert_all!([ {
+        singleton_guard: 2,
+        default_view_months: 3,
+        session_timeout_minutes: 30,
+        created_at: Time.current,
+        updated_at: Time.current
+      } ])
+    end
+  end
+
+  test "concurrent bootstrap converges on one settings row" do
+    Setting.delete_all
+    ready = Queue.new
+    start = Queue.new
+    results = Queue.new
+
+    threads = 2.times.map do
+      Thread.new do
+        ActiveRecord::Base.connection_pool.with_connection do
+          ready << true
+          start.pop
+          results << Setting.ensure_instance!.id
+        rescue StandardError => error
+          results << error
+        end
+      end
+    end
+
+    2.times { ready.pop }
+    2.times { start << true }
+    threads.each(&:join)
+    outcomes = 2.times.map { results.pop }
+
+    assert outcomes.none?(Exception), outcomes.grep(Exception).map(&:full_message).join("\n")
+    assert_equal 1, outcomes.uniq.size
+    assert_equal 1, Setting.count
+  ensure
+    threads&.each(&:join)
+    Setting.ensure_instance!
+  end
+
+  private
+
+  def update_setting!(attributes)
+    Setting.instance.tap { |setting| setting.update!(attributes) }
   end
 end

@@ -26,29 +26,24 @@ class RecurringRulesController < ApplicationController
 
   def create
     @recurring_rule = RecurringRule.new(recurring_rule_params)
-    if @recurring_rule.save
-      AuditLog.log_create(@recurring_rule, request)
-      redirect_to recurring_rules_path, notice: "Recurring rule created with #{@recurring_rule.transactions.count} transactions generated."
-    else
-      render :new, status: :unprocessable_entity
-    end
+    RecurringRuleCommand.create(@recurring_rule) { |rule| AuditLog.log_create(rule, request) }
+    redirect_to recurring_rules_path, notice: "Recurring rule created with #{@recurring_rule.transactions.count} transactions generated."
+  rescue ActiveRecord::RecordInvalid
+    render :new, status: :unprocessable_entity
   end
 
   def edit
   end
 
   def update
-    if @recurring_rule.update(recurring_rule_params)
-      AuditLog.log_update(@recurring_rule, request)
-      redirect_to recurring_rules_path, notice: "Recurring rule updated."
-    else
-      render :edit, status: :unprocessable_entity
-    end
+    RecurringRuleCommand.update(@recurring_rule, recurring_rule_params) { |rule| AuditLog.log_update(rule, request) }
+    redirect_to recurring_rules_path, notice: "Recurring rule updated."
+  rescue ActiveRecord::RecordInvalid
+    render :edit, status: :unprocessable_entity
   end
 
   def destroy
-    AuditLog.log_delete(@recurring_rule, request)
-    @recurring_rule.destroy
+    RecurringRuleCommand.destroy(@recurring_rule) { |rule| AuditLog.log_delete(rule, request) }
     redirect_to recurring_rules_path, notice: "Recurring rule and its transactions deleted."
   end
 

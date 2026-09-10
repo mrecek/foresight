@@ -4,16 +4,11 @@ class DashboardController < ApplicationController
     @months_ahead = projection_months
     @end_date = @months_ahead.months.from_now.to_date
 
-    # Every account card represents the selected dashboard range. Extend all
-    # active projections before eager loading so each card has complete data.
     target_account = if params[:account_id].present?
       Account.find_by(id: params[:account_id])
     else
       Account.first
     end
-    RecurringRule.extend_all_projections_to(@end_date)
-
-    # Eager load transactions for all accounts (now includes extended projections)
     @accounts = Account.includes(:transactions)
     @account_projections = @accounts.index_with { |account| account.projection_summary(@end_date) }
 

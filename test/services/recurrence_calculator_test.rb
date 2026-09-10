@@ -11,11 +11,7 @@ class RecurrenceCalculatorTest < ActiveSupport::TestCase
     )
   end
 
-  # Helper to create a recurring rule without triggering callbacks
   def create_rule(frequency:, anchor_date:, day_of_month: nil, day_of_week: nil)
-    # Temporarily disable the callback for this creation
-    RecurringRule.skip_callback(:create, :after, :generate_initial_transactions)
-
     rule = RecurringRule.create!(
       account: @account,
       description: "Test Rule",
@@ -27,14 +23,7 @@ class RecurrenceCalculatorTest < ActiveSupport::TestCase
       rule_type: "expense"
     )
 
-    # Re-enable the callback for future tests
-    RecurringRule.set_callback(:create, :after, :generate_initial_transactions)
-
     rule
-  rescue
-    # Ensure callback is restored even if creation fails
-    RecurringRule.set_callback(:create, :after, :generate_initial_transactions)
-    raise
   end
 
   # ============================================================================

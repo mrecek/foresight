@@ -1,0 +1,23 @@
+#!/usr/bin/env ruby
+
+require_relative "../config/environment"
+
+repair = ARGV.delete("--repair")
+abort "Usage: bin/transfers [--repair]" unless ARGV.empty?
+
+if repair
+  issues, changes = TransferPairIntegrity.repair
+  issues.each { |issue| puts "#{issue.type}: transactions #{issue.transaction_ids.join(', ')} (#{issue.details})" }
+  changes.each { |change| puts "changed transaction #{change[:transaction_id]}: #{change[:from].inspect} -> #{change[:to].inspect}" }
+  remaining = TransferPairIntegrity.check
+  abort "Transfer repair left #{remaining.size} unresolved issue(s)" if remaining.any?
+  puts "Transfer repair complete: #{changes.size} link change(s); all pairs valid."
+else
+  issues = TransferPairIntegrity.check
+  if issues.empty?
+    puts "Transfer integrity passed: all linked pairs are valid."
+  else
+    issues.each { |issue| puts "#{issue.type}: transactions #{issue.transaction_ids.join(', ')} (#{issue.details})" }
+    abort "Transfer integrity failed: #{issues.size} issue(s). Rerun with --repair to reconcile links without deleting financial rows."
+  end
+end

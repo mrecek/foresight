@@ -5,11 +5,10 @@ class SettingsController < ApplicationController
 
   def update
     @settings = Setting.instance
-    if @settings.update(settings_params)
-      redirect_to root_path, notice: "Settings updated."
-    else
-      render :edit, status: :unprocessable_entity
-    end
+    AuditedChange.update(@settings, settings_params, request)
+    redirect_to root_path, notice: "Settings updated."
+  rescue ActiveRecord::RecordInvalid
+    render :edit, status: :unprocessable_entity
   end
 
   private

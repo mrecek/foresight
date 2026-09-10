@@ -111,7 +111,7 @@ class TransactionTest < ActiveSupport::TestCase
   # ============================================================================
 
   test "creating transfer creates linked transaction pair" do
-    txn = Transaction.create!(
+    txn = create_transaction!(
       account: @checking,
       destination_account_id: @savings.id,
       description: "Transfer to Savings",
@@ -132,7 +132,7 @@ class TransactionTest < ActiveSupport::TestCase
   end
 
   test "updating transfer amount updates linked transaction" do
-    txn = Transaction.create!(
+    txn = create_transaction!(
       account: @checking,
       destination_account_id: @savings.id,
       description: "Transfer",
@@ -143,14 +143,14 @@ class TransactionTest < ActiveSupport::TestCase
 
     linked = txn.linked_transaction
 
-    txn.update!(amount: -750.0)
+    TransferCommand.update(txn, amount: -750.0)
     linked.reload
 
     assert_equal 750.0, linked.amount, "Linked transaction amount should update"
   end
 
   test "updating transfer date updates linked transaction" do
-    txn = Transaction.create!(
+    txn = create_transaction!(
       account: @checking,
       destination_account_id: @savings.id,
       description: "Transfer",
@@ -162,14 +162,14 @@ class TransactionTest < ActiveSupport::TestCase
     linked = txn.linked_transaction
     new_date = Date.current + 7.days
 
-    txn.update!(date: new_date)
+    TransferCommand.update(txn, date: new_date)
     linked.reload
 
     assert_equal new_date, linked.date, "Linked transaction date should update"
   end
 
   test "updating transfer description updates linked transaction" do
-    txn = Transaction.create!(
+    txn = create_transaction!(
       account: @checking,
       destination_account_id: @savings.id,
       description: "Transfer",
@@ -180,14 +180,14 @@ class TransactionTest < ActiveSupport::TestCase
 
     linked = txn.linked_transaction
 
-    txn.update!(description: "Updated Transfer")
+    TransferCommand.update(txn, description: "Updated Transfer")
     linked.reload
 
     assert_equal "Updated Transfer", linked.description
   end
 
   test "updating transfer category updates linked transaction" do
-    txn = Transaction.create!(
+    txn = create_transaction!(
       account: @checking,
       destination_account_id: @savings.id,
       description: "Transfer",
@@ -201,14 +201,14 @@ class TransactionTest < ActiveSupport::TestCase
     assert_equal @category.id, linked.category_id
 
     new_category = Category.create!(name: "Transport", category_group: @category_group, display_order: 2)
-    txn.update!(category: new_category)
+    TransferCommand.update(txn, category: new_category)
     linked.reload
 
     assert_equal new_category.id, linked.category_id
   end
 
   test "removing destination_account_id destroys linked transaction" do
-    txn = Transaction.create!(
+    txn = create_transaction!(
       account: @checking,
       destination_account_id: @savings.id,
       description: "Transfer",
@@ -220,15 +220,14 @@ class TransactionTest < ActiveSupport::TestCase
     linked_id = txn.linked_transaction_id
 
     # Simulate converting transfer to expense by clearing destination
-    txn.destination_account_id = nil
-    txn.save!
+    TransferCommand.update(txn, destination_account_id: nil)
 
     assert_nil txn.linked_transaction_id, "Linked transaction reference should be cleared"
     assert_not Transaction.exists?(linked_id), "Linked transaction should be destroyed"
   end
 
   test "transfer method returns true for transaction with linked_transaction" do
-    txn = Transaction.create!(
+    txn = create_transaction!(
       account: @checking,
       destination_account_id: @savings.id,
       description: "Transfer",
@@ -270,7 +269,7 @@ class TransactionTest < ActiveSupport::TestCase
   # ============================================================================
 
   test "destroying transaction unlinks its linked transaction" do
-    txn = Transaction.create!(
+    txn = create_transaction!(
       account: @checking,
       destination_account_id: @savings.id,
       description: "Transfer",
@@ -282,7 +281,7 @@ class TransactionTest < ActiveSupport::TestCase
     linked = txn.linked_transaction
     linked_id = linked.id
 
-    txn.destroy
+    TransferCommand.destroy(txn, pair: false)
 
     # Linked transaction should still exist but have nil linked_transaction_id
     assert Transaction.exists?(linked_id), "Linked transaction should still exist"
@@ -293,7 +292,7 @@ class TransactionTest < ActiveSupport::TestCase
   test "CRITICAL: reconciliation properly unlinks transfers (Issue 2)" do
     # This tests the fix for Issue 2: Reconciliation using destroy_all instead of delete_all
     # Create a transfer
-    txn = Transaction.create!(
+    txn = create_transaction!(
       account: @checking,
       destination_account_id: @savings.id,
       description: "Transfer",
@@ -307,7 +306,9 @@ class TransactionTest < ActiveSupport::TestCase
 
     # Simulate reconciliation by destroying transactions before a date
     # This mimics what the controller does in accounts_controller.rb
-    @checking.transactions.where("date < ?", Date.current).destroy_all
+    @checking.transactions.where("date < ?", Date.current).ids.each do |id|
+      TransferCommand.destroy(Transaction.find(id), pair: false)
+    end
 
     # Main transaction should be deleted
     assert_not Transaction.exists?(txn.id), "Main transaction should be deleted"
@@ -323,7 +324,7 @@ class TransactionTest < ActiveSupport::TestCase
   # ============================================================================
 
   test "status enum works correctly" do
-    txn = Transaction.create!(
+    txn = create_transaction!(
       account: @checking,
       description: "Test",
       amount: 100.0,
@@ -344,7 +345,7 @@ class TransactionTest < ActiveSupport::TestCase
   # ============================================================================
 
   test "upcoming scope returns future transactions" do
-    past = Transaction.create!(
+    past = create_transaction!(
       account: @checking,
       description: "Past",
       amount: -100.0,
@@ -352,7 +353,7 @@ class TransactionTest < ActiveSupport::TestCase
       status: :estimated
     )
 
-    future = Transaction.create!(
+    future = create_transaction!(
       account: @checking,
       description: "Future",
       amount: -100.0,
@@ -360,7 +361,7 @@ class TransactionTest < ActiveSupport::TestCase
       status: :estimated
     )
 
-    today = Transaction.create!(
+    today = create_transaction!(
       account: @checking,
       description: "Today",
       amount: -100.0,
@@ -376,7 +377,7 @@ class TransactionTest < ActiveSupport::TestCase
   end
 
   test "in_attention_window scope returns next 30 days estimated" do
-    old = Transaction.create!(
+    old = create_transaction!(
       account: @checking,
       description: "Old",
       amount: -100.0,
@@ -384,7 +385,7 @@ class TransactionTest < ActiveSupport::TestCase
       status: :estimated
     )
 
-    in_window = Transaction.create!(
+    in_window = create_transaction!(
       account: @checking,
       description: "In Window",
       amount: -100.0,
@@ -392,7 +393,7 @@ class TransactionTest < ActiveSupport::TestCase
       status: :estimated
     )
 
-    beyond_window = Transaction.create!(
+    beyond_window = create_transaction!(
       account: @checking,
       description: "Beyond",
       amount: -100.0,
@@ -400,7 +401,7 @@ class TransactionTest < ActiveSupport::TestCase
       status: :estimated
     )
 
-    actual_in_window = Transaction.create!(
+    actual_in_window = create_transaction!(
       account: @checking,
       description: "Actual",
       amount: -100.0,
@@ -417,7 +418,7 @@ class TransactionTest < ActiveSupport::TestCase
   end
 
   test "for_account scope filters by account" do
-    checking_txn = Transaction.create!(
+    checking_txn = create_transaction!(
       account: @checking,
       description: "Checking",
       amount: -100.0,
@@ -425,7 +426,7 @@ class TransactionTest < ActiveSupport::TestCase
       status: :estimated
     )
 
-    savings_txn = Transaction.create!(
+    savings_txn = create_transaction!(
       account: @savings,
       description: "Savings",
       amount: 100.0,
@@ -440,7 +441,7 @@ class TransactionTest < ActiveSupport::TestCase
   end
 
   test "not_user_modified scope excludes user modified transactions" do
-    auto = Transaction.create!(
+    auto = create_transaction!(
       account: @checking,
       description: "Auto",
       amount: -100.0,
@@ -449,7 +450,7 @@ class TransactionTest < ActiveSupport::TestCase
       user_modified: false
     )
 
-    modified = Transaction.create!(
+    modified = create_transaction!(
       account: @checking,
       description: "Modified",
       amount: -100.0,
@@ -469,7 +470,7 @@ class TransactionTest < ActiveSupport::TestCase
   # ============================================================================
 
   test "formatted_amount shows positive with + prefix" do
-    txn = Transaction.create!(
+    txn = create_transaction!(
       account: @checking,
       description: "Income",
       amount: 1234.56,
@@ -481,7 +482,7 @@ class TransactionTest < ActiveSupport::TestCase
   end
 
   test "formatted_amount shows negative with - prefix" do
-    txn = Transaction.create!(
+    txn = create_transaction!(
       account: @checking,
       description: "Expense",
       amount: -1234.56,
@@ -493,7 +494,7 @@ class TransactionTest < ActiveSupport::TestCase
   end
 
   test "formatted_amount handles zero" do
-    txn = Transaction.create!(
+    txn = create_transaction!(
       account: @checking,
       description: "Zero",
       amount: 0.0,
@@ -507,7 +508,7 @@ class TransactionTest < ActiveSupport::TestCase
   test "running_balance calculates correctly" do
     @checking.update!(current_balance: 1000.0, balance_date: Date.current)
 
-    Transaction.create!(
+    create_transaction!(
       account: @checking,
       description: "T1",
       amount: -100.0,
@@ -515,7 +516,7 @@ class TransactionTest < ActiveSupport::TestCase
       status: :estimated
     )
 
-    txn2 = Transaction.create!(
+    txn2 = create_transaction!(
       account: @checking,
       description: "T2",
       amount: -50.0,
@@ -528,7 +529,7 @@ class TransactionTest < ActiveSupport::TestCase
   end
 
   test "running_balance uses pre-computed value if set" do
-    txn = Transaction.create!(
+    txn = create_transaction!(
       account: @checking,
       description: "Test",
       amount: -100.0,
@@ -545,7 +546,7 @@ class TransactionTest < ActiveSupport::TestCase
   # ============================================================================
 
   test "belongs to account" do
-    txn = Transaction.create!(
+    txn = create_transaction!(
       account: @checking,
       description: "Test",
       amount: -100.0,
@@ -557,7 +558,7 @@ class TransactionTest < ActiveSupport::TestCase
   end
 
   test "belongs to category optionally" do
-    txn = Transaction.create!(
+    txn = create_transaction!(
       account: @checking,
       description: "Test",
       amount: -100.0,
@@ -573,7 +574,7 @@ class TransactionTest < ActiveSupport::TestCase
   end
 
   test "belongs to recurring_rule optionally" do
-    rule = RecurringRule.create!(
+    rule = create_recurring_rule!(
       account: @checking,
       description: "Weekly",
       amount: 100.0,
@@ -585,5 +586,11 @@ class TransactionTest < ActiveSupport::TestCase
     txn = rule.transactions.first
 
     assert_equal rule, txn.recurring_rule
+  end
+
+  private
+
+  def create_transaction!(**attributes)
+    attributes.key?(:destination_account_id) ? TransferCommand.create(attributes) : Transaction.create!(attributes)
   end
 end

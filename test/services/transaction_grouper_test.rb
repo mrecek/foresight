@@ -12,9 +12,7 @@ class TransactionGrouperTest < ActiveSupport::TestCase
   end
 
   # Test helper to create a recurring rule with specific frequency
-  # Skips callbacks to avoid auto-generation of transactions
   def create_rule(frequency, amount = 10.0)
-    RecurringRule.skip_callback(:create, :after, :generate_initial_transactions)
     rule = RecurringRule.create!(
       account: @account,
       description: "#{frequency.titleize} Rule",
@@ -23,7 +21,6 @@ class TransactionGrouperTest < ActiveSupport::TestCase
       anchor_date: Date.current,
       rule_type: "expense"
     )
-    RecurringRule.set_callback(:create, :after, :generate_initial_transactions)
     rule
   end
 

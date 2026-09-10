@@ -152,11 +152,11 @@ class RecurringRuleTest < ActiveSupport::TestCase
   end
 
   # ============================================================================
-  # Callback Tests - after_create :generate_initial_transactions
+  # Command materialization tests
   # ============================================================================
 
-  test "after_create generates initial transactions" do
-    rule = RecurringRule.create!(
+  test "rule command generates initial transactions" do
+    rule = create_recurring_rule!(
       account: @checking_account,
       description: "Daily Coffee",
       amount: 5.0,
@@ -170,7 +170,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
   end
 
   test "income rule creates positive amount transactions" do
-    rule = RecurringRule.create!(
+    rule = create_recurring_rule!(
       account: @checking_account,
       description: "Monthly Salary",
       amount: 5000.0,
@@ -185,7 +185,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
   end
 
   test "expense rule creates negative amount transactions" do
-    rule = RecurringRule.create!(
+    rule = create_recurring_rule!(
       account: @checking_account,
       description: "Monthly Rent",
       amount: 1200.0,
@@ -200,7 +200,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
   end
 
   test "transfer rule creates linked transaction pair" do
-    rule = RecurringRule.create!(
+    rule = create_recurring_rule!(
       account: @checking_account,
       destination_account: @savings_account,
       description: "Transfer to Savings",
@@ -229,11 +229,11 @@ class RecurringRuleTest < ActiveSupport::TestCase
   end
 
   # ============================================================================
-  # Callback Tests - after_update :regenerate_transactions
+  # Command update tests
   # ============================================================================
 
   test "schedule change triggers regenerate_transactions" do
-    rule = RecurringRule.create!(
+    rule = create_recurring_rule!(
       account: @checking_account,
       description: "Weekly Grocery",
       amount: 100.0,
@@ -246,7 +246,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
     initial_transaction_ids = rule.transactions.pluck(:id)
 
     # Change frequency (schedule change)
-    rule.update!(frequency: :biweekly)
+    RecurringRuleCommand.update(rule, { frequency: :biweekly })
 
     # Transactions should be regenerated
     rule.reload
@@ -257,7 +257,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
   end
 
   test "regenerate_transactions preserves user-modified transactions" do
-    rule = RecurringRule.create!(
+    rule = create_recurring_rule!(
       account: @checking_account,
       description: "Weekly Grocery",
       amount: 100.0,
@@ -272,7 +272,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
     modified_txn_id = future_txn.id
 
     # Change amount (schedule change)
-    rule.update!(amount: 120.0)
+    RecurringRuleCommand.update(rule, { amount: 120.0 })
 
     # User-modified transaction should still exist
     assert Transaction.exists?(modified_txn_id), "User-modified transaction should be preserved"
@@ -286,7 +286,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
   end
 
   test "schedule_changed? detects frequency change" do
-    rule = RecurringRule.create!(
+    rule = create_recurring_rule!(
       account: @checking_account,
       description: "Test",
       amount: 100.0,
@@ -302,7 +302,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
   end
 
   test "schedule_changed? detects anchor_date change" do
-    rule = RecurringRule.create!(
+    rule = create_recurring_rule!(
       account: @checking_account,
       description: "Test",
       amount: 100.0,
@@ -318,7 +318,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
   end
 
   test "schedule_changed? detects amount change" do
-    rule = RecurringRule.create!(
+    rule = create_recurring_rule!(
       account: @checking_account,
       description: "Test",
       amount: 100.0,
@@ -343,7 +343,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
     old_category = Category.create!(name: "Groceries", category_group: category_group)
     new_category = Category.create!(name: "Dining Out", category_group: category_group)
 
-    rule = RecurringRule.create!(
+    rule = create_recurring_rule!(
       account: @checking_account,
       description: "Weekly Food",
       amount: 100.0,
@@ -352,11 +352,22 @@ class RecurringRuleTest < ActiveSupport::TestCase
       anchor_date: Date.current,
       category: old_category
     )
+    actual = Transaction.create!(
+      account: @checking_account,
+      recurring_rule: rule,
+      description: "Already posted",
+      amount: -100,
+      date: Date.current + 3.years,
+      status: :actual,
+      category: old_category
+    )
+    modified = rule.transactions.where(status: :estimated).first
+    modified.update!(user_modified: true)
 
     initial_transaction_ids = rule.transactions.pluck(:id).sort
 
     # Change category only (not a schedule change)
-    rule.update!(category: new_category)
+    RecurringRuleCommand.update(rule, { category: new_category })
 
     rule.reload
     new_transaction_ids = rule.transactions.pluck(:id).sort
@@ -366,9 +377,11 @@ class RecurringRuleTest < ActiveSupport::TestCase
       "Transactions should NOT be regenerated for category-only change"
 
     # Future transactions should have new category
-    future_txns = rule.transactions.where("date >= ?", Date.current)
+    future_txns = rule.transactions.where("date >= ?", Date.current).where(status: :estimated, user_modified: false)
     assert future_txns.all? { |t| t.category_id == new_category.id },
       "Future transactions should have new category"
+    assert_equal old_category, actual.reload.category
+    assert_equal old_category, modified.reload.category
   end
 
   # ============================================================================
@@ -376,7 +389,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
   # ============================================================================
 
   test "extend_projections_to is idempotent" do
-    rule = RecurringRule.create!(
+    rule = create_recurring_rule!(
       account: @checking_account,
       description: "Monthly Bill",
       amount: 50.0,
@@ -389,14 +402,14 @@ class RecurringRuleTest < ActiveSupport::TestCase
     initial_count = rule.transactions.count
 
     # Extend projections
-    rule.extend_projections_to(end_date)
+    ProjectionMaterializer.materialize(rule, through: end_date)
     count_after_first_extend = rule.transactions.count
 
     assert count_after_first_extend >= initial_count,
       "Should have generated new transactions"
 
     # Extend again to same date (should be idempotent)
-    rule.extend_projections_to(end_date)
+    ProjectionMaterializer.materialize(rule, through: end_date)
     count_after_second_extend = rule.transactions.count
 
     assert_equal count_after_first_extend, count_after_second_extend,
@@ -404,7 +417,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
   end
 
   test "extend_projections_to generates transactions beyond existing range" do
-    rule = RecurringRule.create!(
+    rule = create_recurring_rule!(
       account: @checking_account,
       description: "Weekly Payment",
       amount: 25.0,
@@ -418,8 +431,8 @@ class RecurringRuleTest < ActiveSupport::TestCase
     initial_max_date = rule.transactions.maximum(:date)
 
     # Extend far into the future (well beyond initial range)
-    future_date = Date.current + 12.months
-    rule.extend_projections_to(future_date)
+    future_date = Date.current + 36.months
+    ProjectionMaterializer.materialize(rule, through: future_date)
 
     new_count = rule.transactions.count
     new_max_date = rule.transactions.maximum(:date)
@@ -431,7 +444,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
   end
 
   test "extend_projections_to respects user-modified transactions" do
-    rule = RecurringRule.create!(
+    rule = create_recurring_rule!(
       account: @checking_account,
       description: "Daily Expense",
       amount: 10.0,
@@ -446,7 +459,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
 
     # If no transaction exists for that date, extend projections first
     if existing_txn.nil?
-      rule.extend_projections_to(future_date + 10.days)
+      ProjectionMaterializer.materialize(rule, through: future_date + 10.days)
       existing_txn = rule.transactions.where(date: future_date).first
     end
 
@@ -455,7 +468,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
     user_txn_id = existing_txn.id
 
     # Extend projections again (should preserve user-modified transaction)
-    rule.extend_projections_to(future_date + 20.days)
+    ProjectionMaterializer.materialize(rule, through: future_date + 20.days)
 
     # User-modified transaction should still exist and be unchanged
     user_txn = Transaction.find(user_txn_id)
@@ -468,7 +481,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
   # ============================================================================
 
   test "extend_all_projections_to extends all rules when no account specified" do
-    rule1 = RecurringRule.create!(
+    rule1 = create_recurring_rule!(
       account: @checking_account,
       description: "Rule 1",
       amount: 100.0,
@@ -477,7 +490,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       anchor_date: Date.current
     )
 
-    rule2 = RecurringRule.create!(
+    rule2 = create_recurring_rule!(
       account: @savings_account,
       description: "Rule 2",
       amount: 50.0,
@@ -487,7 +500,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
     )
 
     end_date = Date.current + 6.months
-    RecurringRule.extend_all_projections_to(end_date)
+    ProjectionMaterializer.materialize_all(through: end_date)
 
     assert rule1.transactions.maximum(:date) >= end_date,
       "Rule 1 should be extended"
@@ -496,7 +509,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
   end
 
   test "extend_all_projections_to extends only rules for specified account (source)" do
-    checking_rule = RecurringRule.create!(
+    checking_rule = create_recurring_rule!(
       account: @checking_account,
       description: "Checking Rule",
       amount: 100.0,
@@ -505,7 +518,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       anchor_date: Date.current
     )
 
-    savings_rule = RecurringRule.create!(
+    savings_rule = create_recurring_rule!(
       account: @savings_account,
       description: "Savings Rule",
       amount: 50.0,
@@ -518,7 +531,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
     checking_initial_max = checking_rule.transactions.maximum(:date)
     savings_initial_max = savings_rule.transactions.maximum(:date)
 
-    RecurringRule.extend_all_projections_to(end_date, account: @checking_account)
+    ProjectionMaterializer.materialize_all(through: end_date, account: @checking_account)
 
     checking_rule.reload
     savings_rule.reload
@@ -531,7 +544,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
 
   test "extend_all_projections_to includes transfer destination rules for specified account" do
     # Create a transfer rule FROM checking TO savings
-    transfer_rule = RecurringRule.create!(
+    transfer_rule = create_recurring_rule!(
       account: @checking_account,
       destination_account: @savings_account,
       description: "Transfer to Savings",
@@ -546,7 +559,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
 
     # When extending projections for SAVINGS account, it should include this transfer
     # because savings is the DESTINATION account
-    RecurringRule.extend_all_projections_to(end_date, account: @savings_account)
+    ProjectionMaterializer.materialize_all(through: end_date, account: @savings_account)
 
     transfer_rule.reload
     new_max_date = transfer_rule.transactions.maximum(:date)
@@ -562,7 +575,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
 
   test "extend_all_projections_to includes both source and destination for transfers" do
     # Create a transfer rule FROM checking TO savings
-    transfer_rule = RecurringRule.create!(
+    transfer_rule = create_recurring_rule!(
       account: @checking_account,
       destination_account: @savings_account,
       description: "Transfer to Savings",
@@ -575,7 +588,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
     end_date = Date.current + 6.months
 
     # Extend for checking account (source)
-    RecurringRule.extend_all_projections_to(end_date, account: @checking_account)
+    ProjectionMaterializer.materialize_all(through: end_date, account: @checking_account)
 
     transfer_rule.reload
     checking_max = transfer_rule.transactions.where(account: @checking_account).maximum(:date)
@@ -585,11 +598,14 @@ class RecurringRuleTest < ActiveSupport::TestCase
     assert savings_max >= end_date, "Should extend savings (destination) transactions"
 
     # Clear and test from savings perspective
-    transfer_rule.transactions.destroy_all
-    transfer_rule.generate_transactions(Date.current + 1.month)
+    transfer_rule.transactions.ids.each do |id|
+      transaction = Transaction.find_by(id: id)
+      TransferCommand.destroy(transaction) if transaction
+    end
+    ProjectionMaterializer.materialize(transfer_rule, through: Date.current + 1.month)
 
     # Extend for savings account (destination)
-    RecurringRule.extend_all_projections_to(end_date, account: @savings_account)
+    ProjectionMaterializer.materialize_all(through: end_date, account: @savings_account)
 
     transfer_rule.reload
     checking_max = transfer_rule.transactions.where(account: @checking_account).maximum(:date)
@@ -603,8 +619,8 @@ class RecurringRuleTest < ActiveSupport::TestCase
   # generate_transactions Tests
   # ============================================================================
 
-  test "generate_transactions creates transactions up to default period" do
-    rule = RecurringRule.create!(
+  test "rule command creates transactions through the fixed operational horizon" do
+    rule = create_recurring_rule!(
       account: @checking_account,
       description: "Weekly Expense",
       amount: 50.0,
@@ -613,7 +629,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       anchor_date: Date.current
     )
 
-    default_end_date = Setting.instance.default_view_months.months.from_now.to_date
+    default_end_date = ProjectionMaterializer.horizon
     max_date = rule.transactions.maximum(:date)
 
     assert max_date <= default_end_date,
@@ -627,7 +643,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
   # ============================================================================
 
   test "active scope returns only active rules" do
-    active_rule = RecurringRule.create!(
+    active_rule = create_recurring_rule!(
       account: @checking_account,
       description: "Active Rule",
       amount: 100.0,
@@ -637,7 +653,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       active: true
     )
 
-    inactive_rule = RecurringRule.create!(
+    inactive_rule = create_recurring_rule!(
       account: @checking_account,
       description: "Inactive Rule",
       amount: 50.0,
@@ -658,7 +674,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
   # ============================================================================
 
   test "creating inactive rule generates no transactions" do
-    rule = RecurringRule.create!(
+    rule = create_recurring_rule!(
       account: @checking_account,
       description: "Inactive Expense",
       amount: 100.0,
@@ -673,7 +689,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
   end
 
   test "deactivating rule removes future estimated transactions" do
-    rule = RecurringRule.create!(
+    rule = create_recurring_rule!(
       account: @checking_account,
       description: "Weekly Grocery",
       amount: 100.0,
@@ -685,14 +701,14 @@ class RecurringRuleTest < ActiveSupport::TestCase
 
     assert rule.transactions.count > 0, "Should have transactions when active"
 
-    rule.update!(active: false)
+    RecurringRuleCommand.update(rule, { active: false })
 
     assert_equal 0, rule.transactions.where("date >= ?", Date.current).not_user_modified.count,
       "Should remove future estimated transactions when deactivated"
   end
 
   test "deactivating rule preserves user-modified transactions" do
-    rule = RecurringRule.create!(
+    rule = create_recurring_rule!(
       account: @checking_account,
       description: "Weekly Grocery",
       amount: 100.0,
@@ -707,7 +723,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
     future_txn.update!(user_modified: true, amount: -150.0)
     modified_txn_id = future_txn.id
 
-    rule.update!(active: false)
+    RecurringRuleCommand.update(rule, { active: false })
 
     assert Transaction.exists?(modified_txn_id),
       "User-modified transaction should be preserved when deactivating"
@@ -716,7 +732,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
   end
 
   test "reactivating rule regenerates transactions" do
-    rule = RecurringRule.create!(
+    rule = create_recurring_rule!(
       account: @checking_account,
       description: "Weekly Grocery",
       amount: 100.0,
@@ -728,14 +744,14 @@ class RecurringRuleTest < ActiveSupport::TestCase
 
     assert_equal 0, rule.transactions.count, "Inactive rule starts with no transactions"
 
-    rule.update!(active: true)
+    RecurringRuleCommand.update(rule, { active: true })
 
     assert rule.transactions.count > 0,
       "Reactivating should regenerate transactions"
   end
 
   test "extend_all_projections_to skips inactive rules" do
-    active_rule = RecurringRule.create!(
+    active_rule = create_recurring_rule!(
       account: @checking_account,
       description: "Active Rule",
       amount: 100.0,
@@ -745,7 +761,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       active: true
     )
 
-    inactive_rule = RecurringRule.create!(
+    inactive_rule = create_recurring_rule!(
       account: @savings_account,
       description: "Inactive Rule",
       amount: 50.0,
@@ -756,7 +772,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
     )
 
     end_date = Date.current + 6.months
-    RecurringRule.extend_all_projections_to(end_date)
+    ProjectionMaterializer.materialize_all(through: end_date)
 
     assert active_rule.transactions.maximum(:date) >= end_date,
       "Active rule should be extended"
@@ -766,7 +782,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
 
   test "inactive rules do not affect projected balance" do
     # Create an active income rule
-    RecurringRule.create!(
+    create_recurring_rule!(
       account: @checking_account,
       description: "Salary",
       amount: 5000.0,
@@ -779,7 +795,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
     balance_with_active_only = @checking_account.projected_balance
 
     # Create an inactive expense rule (should have zero effect)
-    RecurringRule.create!(
+    create_recurring_rule!(
       account: @checking_account,
       description: "Inactive Expense",
       amount: 2000.0,
@@ -796,7 +812,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
   end
 
   test "toggling active changes lowest_projected_balance" do
-    rule = RecurringRule.create!(
+    rule = create_recurring_rule!(
       account: @checking_account,
       description: "Weekly Expense",
       amount: 500.0,
@@ -811,7 +827,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
 
     lowest_when_active = @checking_account.reload.lowest_projected_balance
 
-    rule.update!(active: false)
+    RecurringRuleCommand.update(rule, { active: false })
 
     assert_equal 0, rule.transactions.where("date >= ?", Date.current).not_user_modified.count,
       "Future transactions should be destroyed after deactivation"
@@ -824,7 +840,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
   end
 
   test "toggling active changes lowest_projected_balance with eager loading" do
-    rule = RecurringRule.create!(
+    rule = create_recurring_rule!(
       account: @checking_account,
       description: "Weekly Expense",
       amount: 500.0,
@@ -839,7 +855,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
                      .find(@checking_account.id)
     lowest_when_active = account.lowest_projected_balance
 
-    rule.update!(active: false)
+    RecurringRuleCommand.update(rule, { active: false })
 
     # Simulate fresh dashboard page load (new request)
     account = Account.includes(:transactions).references(:transactions)
@@ -855,9 +871,8 @@ class RecurringRuleTest < ActiveSupport::TestCase
   # RecordNotUnique Handling Tests
   # ============================================================================
 
-  test "create_transaction_for_date handles duplicate gracefully" do
-    RecurringRule.skip_callback(:create, :after, :generate_initial_transactions)
-    rule = RecurringRule.create!(
+  test "materialization is idempotent through database uniqueness" do
+    rule = create_recurring_rule!(
       account: @checking_account,
       description: "Test Rule",
       amount: 100.0,
@@ -865,30 +880,20 @@ class RecurringRuleTest < ActiveSupport::TestCase
       frequency: :daily,
       anchor_date: Date.current
     )
-    RecurringRule.set_callback(:create, :after, :generate_initial_transactions)
-
     date = Date.current
+    count = rule.transactions.count
 
-    # Create first transaction
-    rule.send(:create_transaction_for_date, date)
-    assert_equal 1, rule.transactions.where(date: date).count,
-      "First creation should create transaction"
+    ProjectionMaterializer.materialize(rule)
 
-    # Attempt to create duplicate (should be handled gracefully by rescue)
-    rule.send(:create_transaction_for_date, date)
-
-    # Should still only have one transaction for this date
-    txns_on_date = rule.transactions.where(date: date)
-    assert_equal 1, txns_on_date.count,
-      "Should only have one transaction for the date despite duplicate attempt"
+    assert_equal count, rule.transactions.count
+    assert_equal 1, rule.transactions.where(account: @checking_account, date: date).count
   end
 
   # ============================================================================
   # Transfer Edge Cases
   # ============================================================================
 
-  test "transfer rule does not create transactions if source and destination are same" do
-    RecurringRule.skip_callback(:create, :after, :generate_initial_transactions)
+  test "transfer rule command rejects identical source and destination accounts" do
     rule = RecurringRule.new(
       account: @checking_account,
       destination_account: @checking_account,
@@ -898,21 +903,14 @@ class RecurringRuleTest < ActiveSupport::TestCase
       frequency: :monthly,
       anchor_date: Date.current
     )
-    RecurringRule.set_callback(:create, :after, :generate_initial_transactions)
-
-    # Bypass validation to test the guard in create_transaction_for_date
-    rule.save(validate: false)
-
-    # Attempt to create transaction
-    result = rule.send(:create_transaction_for_date, Date.current)
-
-    assert_nil result, "Should not create transaction for invalid transfer"
+    assert_raises(ActiveRecord::RecordInvalid) { RecurringRuleCommand.create(rule) }
+    refute rule.persisted?
     assert_equal 0, rule.transactions.count,
       "Should not have created any transactions"
   end
 
   test "is_estimated flag controls transaction status" do
-    estimated_rule = RecurringRule.create!(
+    estimated_rule = create_recurring_rule!(
       account: @checking_account,
       description: "Estimated Expense",
       amount: 100.0,
@@ -922,7 +920,7 @@ class RecurringRuleTest < ActiveSupport::TestCase
       is_estimated: true
     )
 
-    actual_rule = RecurringRule.create!(
+    actual_rule = create_recurring_rule!(
       account: @checking_account,
       description: "Actual Expense",
       amount: 100.0,

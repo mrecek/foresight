@@ -36,13 +36,15 @@ module Authentication
     return unless session[:last_seen_at].present?
 
     timeout_minutes = Setting.instance.session_timeout_minutes
-    last_seen = session[:last_seen_at].to_time
-
-    if last_seen < timeout_minutes.minutes.ago
+    if session_expired?(session[:last_seen_at], timeout_minutes)
       reset_session
       redirect_to login_path, flash: { info: "Your session has expired. Please log in again." }
       nil
     end
+  end
+
+  def session_expired?(last_seen_at, timeout_minutes)
+    last_seen_at.to_time < timeout_minutes.minutes.ago
   end
 
   def update_last_seen
