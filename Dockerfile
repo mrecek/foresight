@@ -10,7 +10,7 @@
 # Keep this version in sync with .ruby-version. The digest pins the complete
 # multi-architecture base identity while Dependabot watches for rebuilt images
 # containing Debian and operating-system security fixes.
-FROM docker.io/library/ruby:3.4.10-slim@sha256:9d50d98e61ccbe4f1ef436349911e09b53c42a00364bcd3bda6ac107abc29528 AS base
+FROM docker.io/library/ruby:4.0.6-slim@sha256:58479f164d5947f852da27a4436c89bb986a811f959c40552bc7f6ccaabcc9c9 AS base
 
 ARG DEBIAN_FRONTEND=noninteractive
 
