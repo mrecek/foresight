@@ -7,7 +7,9 @@
         </svg>
       </div>
       <h1 class="text-3xl font-display font-bold text-content">Sign in to Foresight</h1>
-      <p class="text-muted mt-2">Enter your credentials to continue</p>
+      <p class="text-muted mt-2">
+        <%= authentication_mode == "oidc" ? "Continue through your identity provider" : "Enter your credentials to continue" %>
+      </p>
     </div>
 
     <div class="card p-8">
@@ -38,22 +40,34 @@
         </div>
       <% end %>
 
-      <%= form_with url: login_path, method: :post, class: "space-y-6" do |f| %>
-        <div>
-          <label for="username" class="form-label">Username</label>
-          <input type="text" name="username" id="username" value="<%= params[:username] %>" class="form-input" required autofocus>
-        </div>
+      <% if authentication_mode == "oidc" %>
+        <%= button_to "/auth/openid_connect",
+          method: :post,
+          class: "btn-primary w-full justify-center",
+          form: { data: { turbo: false } } do %>
+          Continue with <%= oidc_provider_name %>
+        <% end %>
+        <p class="mt-4 text-center text-sm text-muted">
+          Access is limited to identities authorized by this Foresight installation.
+        </p>
+      <% else %>
+        <%= form_with url: login_path, method: :post, class: "space-y-6" do |f| %>
+          <div>
+            <label for="username" class="form-label">Username</label>
+            <input type="text" name="username" id="username" value="<%= params[:username] %>" class="form-input" required autofocus>
+          </div>
 
-        <div>
-          <label for="password" class="form-label">Password</label>
-          <input type="password" name="password" id="password" class="form-input" required>
-        </div>
+          <div>
+            <label for="password" class="form-label">Password</label>
+            <input type="password" name="password" id="password" class="form-input" required>
+          </div>
 
-        <div class="pt-4">
-          <button type="submit" class="btn-primary w-full justify-center">
-            Sign In
-          </button>
-        </div>
+          <div class="pt-4">
+            <button type="submit" class="btn-primary w-full justify-center">
+              Sign In
+            </button>
+          </div>
+        <% end %>
       <% end %>
     </div>
   </div>

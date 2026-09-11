@@ -64,8 +64,17 @@ Background maintenance runs inside the web process by default. Advanced deployme
 | Variable | Purpose | Default |
 |---|---|---|
 | `APP_TIME_ZONE` | Application dates, projections, and schedules; accepts IANA or Rails timezone names | `Pacific Time (US & Canada)` |
+| `AUTH_MODE` | Installation-wide sign-in method: `password` or `oidc` | `password` |
 | `AUTH_USERNAME` | Override the database-stored login username | Database value |
 | `AUTH_PASSWORD` | Override the database-stored login password | Database value |
+| `APP_URL` | Public origin used for the exact OIDC callback URL | Required for OIDC |
+| `OIDC_ISSUER` | Exact HTTPS issuer advertised by one OpenID Connect provider | Required for OIDC |
+| `OIDC_CLIENT_ID` | Provider-issued client identifier | Required for OIDC |
+| `OIDC_CLIENT_SECRET` | Provider-issued client secret | One OIDC secret source is required |
+| `OIDC_CLIENT_SECRET_FILE` | File containing the provider-issued client secret | Alternative to `OIDC_CLIENT_SECRET` |
+| `OIDC_ALLOWED_SUBJECTS` | Comma-separated allowlist of exact OIDC subject identifiers | Required for OIDC |
+| `OIDC_PROVIDER_NAME` | Provider label shown on the sign-in button | `OpenID Connect` |
+| `SESSION_ABSOLUTE_TIMEOUT_MINUTES` | Maximum session lifetime, from 1 minute through 24 hours | `720` |
 | `SECRET_KEY_BASE` | Externally managed session-encryption key of at least 30 bytes | Generated per installation |
 | `SECRET_KEY_BASE_FILE` | Path for the generated installation key | `/rails/storage/.secret_key_base` |
 | `RAILS_LOG_LEVEL` | Application logging verbosity | `info` |
@@ -75,6 +84,60 @@ Background maintenance runs inside the web process by default. Advanced deployme
 An unset `SECRET_KEY_BASE` is safe: first startup generates a cryptographically random key in persistent storage with private permissions. Supplying or changing an external key invalidates existing browser sessions. Startup fails when the configured key or generated-key file is unsafe, unreadable, or too short.
 
 Invalid application timezones also fail startup instead of silently shifting financial dates.
+
+## Single sign-on
+
+Foresight can delegate sign-in to one standards-compliant OpenID Connect provider while keeping its existing single shared workspace. Register this exact callback with the provider:
+
+```text
+https://foresight.example.com/auth/openid_connect/callback
+```
+
+Then configure the container:
+
+```yaml
+services:
+  foresight:
+    environment:
+      AUTH_MODE: oidc
+      APP_URL: https://foresight.example.com
+      OIDC_ISSUER: https://identity.example.com/realms/foresight
+      OIDC_CLIENT_ID: foresight
+      OIDC_CLIENT_SECRET_FILE: /run/secrets/oidc_client_secret
+      OIDC_ALLOWED_SUBJECTS: exact-owner-subject,exact-backup-subject
+      OIDC_PROVIDER_NAME: My Identity Provider
+    secrets:
+      - oidc_client_secret
+
+secrets:
+  oidc_client_secret:
+    file: ./oidc-client-secret.txt
+```
+
+For Kubernetes, provide the same variables in the pod and source the client secret from a Secret:
+
+```yaml
+env:
+  - name: AUTH_MODE
+    value: oidc
+  - name: APP_URL
+    value: https://foresight.example.com
+  - name: OIDC_ISSUER
+    value: https://identity.example.com/realms/foresight
+  - name: OIDC_CLIENT_ID
+    value: foresight
+  - name: OIDC_ALLOWED_SUBJECTS
+    value: exact-owner-subject
+  - name: OIDC_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: foresight-oidc
+        key: client-secret
+```
+
+Use the provider's opaque `sub` identifier, not an email address, in `OIDC_ALLOWED_SUBJECTS`. Foresight validates discovery metadata, issuer, signature, audience, expiry, state, nonce, and PKCE before applying this allowlist. It does not retain access, refresh, or ID tokens.
+
+OIDC mode exposes no password form or fallback route. For operator recovery, restart with `AUTH_MODE=password`, remove the OIDC variables, and supply both `AUTH_USERNAME` and `AUTH_PASSWORD`. Signing out ends only the local Foresight session; it does not sign the person out of other applications at the identity provider.
 
 ## Backups
 

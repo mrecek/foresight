@@ -4,10 +4,10 @@ class Rack::Attack
   # Use Rails cache for storing throttle data
   Rack::Attack.cache.store = Rails.cache
 
-  # Throttle login attempts by IP address
-  # Allow 10 requests per 15 minutes
+  # Throttle password attempts and OIDC request initiation by IP address.
+  # Allow 10 requests per 15 minutes.
   throttle("logins/ip", limit: 10, period: 15.minutes) do |req|
-    if req.path == "/login" && req.post?
+    if req.post? && [ "/login", "/auth/openid_connect" ].include?(req.path)
       req.ip
     end
   end

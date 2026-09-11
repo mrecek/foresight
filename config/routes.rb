@@ -5,6 +5,8 @@ Rails.application.routes.draw do
   get "login", to: "sessions#new"
   post "login", to: "sessions#create"
   delete "logout", to: "sessions#destroy"
+  get "auth/openid_connect/callback", to: "sessions#oidc_callback"
+  get "auth/failure", to: "sessions#failure"
 
   root "dashboard#index"
 

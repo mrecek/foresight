@@ -42,6 +42,7 @@ class MaintenanceJobsTest < ActiveSupport::TestCase
 
   test "audit maintenance expires authentication events and retains financial history" do
     old_login = AuditLog.create!(action: "login_failure", created_at: 91.days.ago)
+    old_denial = AuditLog.create!(action: "login_denied", created_at: 91.days.ago)
     recent_login = AuditLog.create!(action: "login_success", created_at: 89.days.ago)
     old_financial_event = AuditLog.create!(
       action: "update",
@@ -50,11 +51,12 @@ class MaintenanceJobsTest < ActiveSupport::TestCase
       created_at: 1.year.ago
     )
 
-    assert_difference -> { AuditLog.count }, -1 do
+    assert_difference -> { AuditLog.count }, -2 do
       PruneAuthenticationAuditLogsJob.perform_now
     end
 
     refute AuditLog.exists?(old_login.id)
+    refute AuditLog.exists?(old_denial.id)
     assert AuditLog.exists?(recent_login.id)
     assert AuditLog.exists?(old_financial_event.id)
 

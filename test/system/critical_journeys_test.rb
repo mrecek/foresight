@@ -3,13 +3,24 @@
 require "application_system_test_case"
 
 class CriticalJourneysTest < ApplicationSystemTestCase
+  AUTH_ENVIRONMENT_KEYS = %w[
+    AUTH_MODE AUTH_USERNAME AUTH_PASSWORD APP_URL OIDC_ISSUER OIDC_CLIENT_ID
+    OIDC_CLIENT_SECRET OIDC_CLIENT_SECRET_FILE OIDC_ALLOWED_SUBJECTS OIDC_PROVIDER_NAME
+    SESSION_ABSOLUTE_TIMEOUT_MINUTES TEST_MODE
+  ].freeze
+
   setup do
-    @original_test_mode = ENV["TEST_MODE"]
+    @original_auth_environment = AUTH_ENVIRONMENT_KEYS.to_h { |key| [ key, ENV[key] ] }
+    AUTH_ENVIRONMENT_KEYS.each { |key| ENV.delete(key) }
     ENV["TEST_MODE"] = "true"
     page.current_window.resize_to(1400, 1000)
   end
 
-  teardown { @original_test_mode.nil? ? ENV.delete("TEST_MODE") : ENV["TEST_MODE"] = @original_test_mode }
+  teardown do
+    OmniAuth.config.test_mode = false
+    OmniAuth.config.mock_auth[:openid_connect] = nil
+    @original_auth_environment.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
+  end
 
   test "owner signs in after a rejected attempt and signs out" do
     ENV.delete("TEST_MODE")
@@ -28,6 +39,38 @@ class CriticalJourneysTest < ApplicationSystemTestCase
     click_button "Logout"
     assert_current_path login_path
     assert_text "You've been signed out."
+  end
+
+  test "authorized owner signs in through OIDC without a password fallback" do
+    ENV.delete("TEST_MODE")
+    ENV.update(
+      "AUTH_MODE" => "oidc",
+      "APP_URL" => "https://money.example.com",
+      "OIDC_ISSUER" => "https://identity.example.com/realms/foresight",
+      "OIDC_CLIENT_ID" => "foresight",
+      "OIDC_CLIENT_SECRET" => "client-secret",
+      "OIDC_ALLOWED_SUBJECTS" => "owner-subject",
+      "OIDC_PROVIDER_NAME" => "Example Identity"
+    )
+    Setting.instance.update_columns(auth_username: nil, auth_password_digest: nil)
+    OmniAuth.config.test_mode = true
+    OmniAuth.config.mock_auth[:openid_connect] = OmniAuth::AuthHash.new(
+      provider: "openid_connect",
+      uid: "owner-subject",
+      credentials: { token: "discarded-provider-token", id_token: "discarded-id-token" }
+    )
+
+    visit login_path
+    assert_button "Continue with Example Identity"
+    assert_no_field "Username"
+    assert_no_field "Password"
+    click_button "Continue with Example Identity"
+
+    assert_current_path root_path
+    assert_button "Logout"
+    click_button "Logout"
+    assert_current_path login_path
+    assert_button "Continue with Example Identity"
   end
 
   test "owner chooses a theme that persists across public and authenticated pages" do

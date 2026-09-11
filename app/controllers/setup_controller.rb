@@ -34,6 +34,6 @@ class SetupController < ApplicationController
   private
 
   def redirect_if_setup_complete
-    redirect_to root_path if Setting.instance.setup_complete? || env_auth_configured?
+    redirect_to root_path if authentication_configuration.setup_complete?(Setting.instance)
   end
 end
