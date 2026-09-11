@@ -12,7 +12,7 @@
       <% first_negative_date = projection[:first_negative_date] %>
       <% first_warning_date = projection[:first_warning_date] %>
       <%= link_to root_path(account_id: account.id, months: @months_ahead),
-          class: "relative block p-5 rounded-xl border-2 transition-all min-w-[180px] xl:min-w-[220px] group #{is_selected ? 'border-primary-500 bg-white shadow-soft-lg' : 'card-hover border-transparent'}" do %>
+          class: "relative block p-5 rounded-xl border-2 transition-all min-w-[180px] xl:min-w-[220px] group #{is_selected ? 'border-primary-500 bg-surface shadow-soft-lg' : 'card-hover border-transparent'}" do %>
         <!-- Status indicator dot with tooltip -->
         <% if status != :normal %>
           <div class="absolute top-3 right-3 group/tooltip">
@@ -59,23 +59,23 @@
           </div>
         <% end %>
 
-        <div class="text-xs font-semibold text-neutral-500 uppercase tracking-wider"><%= account.account_type %></div>
-        <div class="text-base font-display font-bold text-neutral-900 mt-1"><%= account.name %></div>
+        <div class="text-xs font-semibold text-muted uppercase tracking-wider"><%= account.account_type %></div>
+        <div class="text-base font-display font-bold text-content mt-1"><%= account.name %></div>
         
         <div class="mt-3 flex items-center gap-2.5 text-sm">
-          <span class="text-money text-neutral-600">$<%= money_amount(account.current_balance) %></span>
-          <svg class="w-4 h-4 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <span class="text-money text-secondary">$<%= money_amount(account.current_balance) %></span>
+          <svg class="w-4 h-4 text-faint" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
           </svg>
-          <span class="text-money font-semibold <%= status == :danger ? 'text-danger-600' : (status == :warning ? 'text-warning-600' : 'text-success-600') %>">
-            $<%= money_amount(lowest_balance) %> <span class="font-normal <%= status == :danger ? 'text-danger-400' : (status == :warning ? 'text-warning-400' : 'text-neutral-400') %>">low</span>
+          <span class="text-money font-semibold <%= status == :danger ? 'text-negative' : (status == :warning ? 'text-caution' : 'text-positive') %>">
+            $<%= money_amount(lowest_balance) %> <span class="font-normal <%= status == :danger ? 'text-danger-400' : (status == :warning ? 'text-caution' : 'text-faint') %>">low</span>
           </span>
         </div>
         
         <!-- Show warning banner for negative balance (moved below balance) -->
         <% if status == :danger %>
-          <div class="mt-2 px-2 py-1 bg-danger-50 border border-danger-200 rounded-md">
-            <div class="text-xs font-medium text-danger-700 flex items-center gap-1">
+          <div class="mt-2 px-2 py-1 bg-danger-subtle border border-danger-line rounded-md">
+            <div class="text-xs font-medium text-negative flex items-center gap-1">
               <svg class="w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
               </svg>
@@ -87,14 +87,14 @@
     <% end %>
 
     <!-- Add Account -->
-    <%= link_to new_account_path, class: "flex items-center justify-center p-5 rounded-xl border-2 border-dashed border-neutral-300 hover:border-primary-400 hover:bg-primary-50/50 min-w-[160px] transition-all group" do %>
+    <%= link_to new_account_path, class: "flex items-center justify-center p-5 rounded-xl border-2 border-dashed border-line-strong hover:border-primary-400 hover:bg-primary-subtle/50 min-w-[160px] transition-all group" do %>
       <div class="text-center">
-        <div class="mx-auto w-10 h-10 rounded-full bg-neutral-100 group-hover:bg-primary-100 flex items-center justify-center transition-colors">
-          <svg class="h-5 w-5 text-neutral-500 group-hover:text-primary-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="mx-auto w-10 h-10 rounded-full bg-surface-muted group-hover:bg-primary-muted flex items-center justify-center transition-colors">
+          <svg class="h-5 w-5 text-muted group-hover:text-accent transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
           </svg>
         </div>
-        <span class="text-sm font-medium text-neutral-600 group-hover:text-primary-700 mt-2 block transition-colors">Add Account</span>
+        <span class="text-sm font-medium text-secondary group-hover:text-accent-strong mt-2 block transition-colors">Add Account</span>
       </div>
     <% end %>
   </div>
@@ -103,11 +103,11 @@
     <!-- Transactions List -->
     <div class="card">
       <!-- Fixed Header with Reconcile Row -->
-      <div class="border-b border-neutral-200 bg-white rounded-t-xl">
+      <div class="border-b border-line bg-surface rounded-t-xl">
         <!-- Title Row -->
         <div class="px-6 py-5 flex justify-between items-center">
           <div>
-            <h2 class="text-xl font-display font-bold text-neutral-900"><%= @selected_account.name %></h2>
+            <h2 class="text-xl font-display font-bold text-content"><%= @selected_account.name %></h2>
           </div>
           <div class="flex items-center gap-2">
             <%= design_button "New Transaction", new_transaction_path(account_id: @selected_account.id, return_url: request.fullpath), variant: :primary, size: :sm, data: { turbo_frame: "_top" } %>
@@ -117,7 +117,7 @@
 
         <!-- Reconcile Row -->
         <% # old_txn_count variable removed - now calculated dynamically by JS %>
-        <div class="px-6 py-3 bg-neutral-50 border-t border-neutral-200" data-controller="reconcile-confirm">
+        <div class="px-6 py-3 bg-surface-muted border-t border-line" data-controller="reconcile-confirm">
           
           <!-- Normal Form State -->
           <div data-reconcile-confirm-target="form" class="flex items-center justify-between flex-wrap gap-3">
@@ -126,9 +126,9 @@
                 class: "flex items-center gap-4 flex-wrap" do |f| %>
 
               <div class="flex items-center gap-2">
-                <span class="text-sm text-neutral-600">Balance:</span>
+                <span class="text-sm text-secondary">Balance:</span>
                 <div class="flex items-center">
-                  <span class="text-money font-semibold text-neutral-500 mr-1">$</span>
+                  <span class="text-money font-semibold text-muted mr-1">$</span>
                   <%= f.number_field :current_balance,
                       value: sprintf('%.2f', @selected_account.current_balance),
                       step: 0.01,
@@ -137,8 +137,8 @@
               </div>
 
               <div class="flex items-center gap-2">
-                <span class="text-sm text-neutral-600">as of</span>
-                <span class="text-sm font-semibold text-neutral-800"><%= @selected_account.balance_date.strftime("%b %d, %Y") %></span>
+                <span class="text-sm text-secondary">as of</span>
+                <span class="text-sm font-semibold text-secondary"><%= @selected_account.balance_date.strftime("%b %d, %Y") %></span>
                 <%= f.date_field :balance_date,
                     id: "reconcile_balance_date",
                     class: "form-input py-1 w-36 text-sm",
@@ -160,7 +160,7 @@
 
               <button type="button" 
                   data-action="click->reconcile-confirm#showConfirmation"
-                  class="btn-sm bg-success-600 hover:bg-success-700 text-white rounded-lg px-4 py-1.5 font-medium cursor-pointer transition-colors">
+                  class="btn-sm bg-success-700 hover:bg-success-800 text-white rounded-lg px-4 py-1.5 font-medium cursor-pointer transition-colors">
                 Reconcile ✓
               </button>
             <% end %>
@@ -173,7 +173,7 @@
                 <svg class="w-5 h-5 text-warning-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                 </svg>
-                <span class="text-sm text-neutral-700">
+                <span class="text-sm text-secondary">
                   Set balance to <strong data-reconcile-confirm-target="balance">$0.00</strong> as of <strong data-reconcile-confirm-target="date">today</strong>
                   <span data-reconcile-confirm-target="removeText"></span>
                 </span>
@@ -186,8 +186,8 @@
                       id="include_today_transactions"
                       data-reconcile-confirm-target="includeToday"
                       data-action="change->reconcile-confirm#updateTodayCount"
-                      class="w-4 h-4 rounded border-neutral-300 text-warning-600 focus:ring-warning-500">
-                  <span class="text-sm text-neutral-600">
+                      class="w-4 h-4 rounded border-line-strong text-caution focus:ring-warning-500">
+                  <span class="text-sm text-secondary">
                     Also clear <strong data-reconcile-confirm-target="todayCount">0</strong> transaction<span data-reconcile-confirm-target="todayPlural">s</span> from today
                   </span>
                 </label>
@@ -196,12 +196,12 @@
               <div class="flex items-center justify-end gap-2">
                 <button type="button" 
                     data-action="click->reconcile-confirm#cancel"
-                    class="btn-sm bg-neutral-200 hover:bg-neutral-300 text-neutral-700 rounded-lg px-4 py-1.5 font-medium cursor-pointer transition-colors">
+                    class="btn-sm bg-surface-active hover:bg-surface-active text-secondary rounded-lg px-4 py-1.5 font-medium cursor-pointer transition-colors">
                   Cancel
                 </button>
                 <button type="button" 
                     data-action="click->reconcile-confirm#confirm"
-                    class="btn-sm bg-warning-500 hover:bg-warning-600 text-white rounded-lg px-4 py-1.5 font-medium cursor-pointer transition-colors">
+                    class="btn-sm bg-warning-500 hover:bg-warning-400 text-neutral-950 rounded-lg px-4 py-1.5 font-medium cursor-pointer transition-colors">
                   Confirm Reconcile
                 </button>
               </div>
@@ -213,7 +213,7 @@
       <!-- Table Area -->
       <div>
         <!-- Mobile Transaction Cards -->
-        <div class="xl:hidden divide-y divide-neutral-200">
+        <div class="xl:hidden divide-y divide-line">
           <% prev_date_mobile = nil %>
           <% today_marker_shown_mobile = false %>
           <% @grouped_transactions.each do |item| %>
@@ -224,8 +224,8 @@
               <%# Today marker before group if crossing from past to future %>
               <% if !today_marker_shown_mobile && prev_date_mobile && prev_date_mobile < Date.current && first_txn_date >= Date.current %>
                 <% today_marker_shown_mobile = true %>
-                <div class="py-2 bg-primary-50/50 text-center">
-                  <span class="inline-flex items-center gap-2 text-sm font-medium text-primary-600">
+                <div class="py-2 bg-primary-subtle/50 text-center">
+                  <span class="inline-flex items-center gap-2 text-sm font-medium text-accent">
                     <span class="w-8 h-px bg-primary-300"></span>
                     Today
                     <span class="w-8 h-px bg-primary-300"></span>
@@ -246,8 +246,8 @@
               <%# Today marker %>
               <% if !today_marker_shown_mobile && prev_date_mobile && prev_date_mobile < Date.current && txn.date >= Date.current %>
                 <% today_marker_shown_mobile = true %>
-                <div class="py-2 bg-primary-50/50 text-center">
-                  <span class="inline-flex items-center gap-2 text-sm font-medium text-primary-600">
+                <div class="py-2 bg-primary-subtle/50 text-center">
+                  <span class="inline-flex items-center gap-2 text-sm font-medium text-accent">
                     <span class="w-8 h-px bg-primary-300"></span>
                     Today
                     <span class="w-8 h-px bg-primary-300"></span>
@@ -258,8 +258,8 @@
               <%# Also show marker if first transaction is today or future but there are no past transactions %>
               <% if !today_marker_shown_mobile && !prev_date_mobile && txn.date >= Date.current && @selected_account.balance_date < Date.current %>
                 <% today_marker_shown_mobile = true %>
-                <div class="py-2 bg-primary-50/50 text-center">
-                  <span class="inline-flex items-center gap-2 text-sm font-medium text-primary-600">
+                <div class="py-2 bg-primary-subtle/50 text-center">
+                  <span class="inline-flex items-center gap-2 text-sm font-medium text-accent">
                     <span class="w-8 h-px bg-primary-300"></span>
                     Today
                     <span class="w-8 h-px bg-primary-300"></span>
@@ -267,19 +267,19 @@
                 </div>
               <% end %>
 
-              <div class="p-4 md:p-3 lg:p-2 flex flex-col gap-2 <%= txn.estimated? ? 'bg-warning-50/30' : '' %> <%= needs_attention ? 'border-l-4 border-l-warning-400' : '' %> <%= is_past ? 'opacity-60' : '' %>" data-transaction-date="<%= txn.date.to_s %>">
+              <div class="p-4 md:p-3 lg:p-2 flex flex-col gap-2 <%= txn.estimated? ? 'bg-warning-subtle/30' : '' %> <%= needs_attention ? 'border-l-4 border-l-warning-400' : '' %> <%= is_past ? 'opacity-60' : '' %>" data-transaction-date="<%= txn.date.to_s %>">
                 <%# Row 1: Description + Frequency info (responsive) %>
                 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                   <%# Left: Status + Description + Category + Frequency (inline at md+) %>
                   <div class="flex items-center gap-2 flex-wrap">
                     <%= status_label estimated: txn.estimated?, abbreviated: true %>
-                    <span class="font-semibold text-neutral-900 md:line-clamp-3 xl:line-clamp-2"><%= txn.description %></span>
+                    <span class="font-semibold text-content md:line-clamp-3 xl:line-clamp-2"><%= txn.description %></span>
                     <%= category_badge(txn.category) %>
                     <%= transfer_badge(txn, show_account: true) %>
 
                     <%# Frequency (visible on md+) %>
                     <% if txn.recurring_rule %>
-                      <span class="hidden md:inline-flex items-center gap-1 text-xs text-neutral-500">
+                      <span class="hidden md:inline-flex items-center gap-1 text-xs text-muted">
                         <%= txn.recurring_rule.frequency.titleize %>
                         <% if txn.user_modified %>
                           <span class="inline-flex items-center cursor-help ml-0.5" title="Manually adjusted - protected from rule changes">
@@ -294,8 +294,8 @@
 
                   <%# Right: Date + Amount %>
                   <div class="flex items-center gap-3">
-                    <span class="text-sm font-medium text-neutral-600"><%= txn.date.strftime("%b %d") %></span>
-                    <span class="text-money font-semibold <%= txn.amount >= 0 ? 'text-success-600' : 'text-danger-600' %>">
+                    <span class="text-sm font-medium text-secondary"><%= txn.date.strftime("%b %d") %></span>
+                    <span class="text-money font-semibold <%= txn.amount >= 0 ? 'text-positive' : 'text-negative' %>">
                       <%= txn.formatted_amount %>
                     </span>
                   </div>
@@ -303,7 +303,7 @@
 
                 <%# Frequency (visible on mobile only) %>
                 <% if txn.recurring_rule %>
-                  <div class="md:hidden text-xs text-neutral-500 flex items-center gap-1">
+                  <div class="md:hidden text-xs text-muted flex items-center gap-1">
                     <%= txn.recurring_rule.frequency.titleize %>
                     <% if txn.user_modified %>
                       <span class="inline-flex items-center cursor-help" title="Manually adjusted - protected from rule changes">
@@ -318,8 +318,8 @@
                 <%# Row 2: Balance and Actions %>
                 <div class="flex items-center justify-between">
                   <div class="text-sm">
-                    <span class="text-neutral-500">Bal:</span>
-                    <span class="text-money font-medium <%= balance_status == :danger ? 'text-danger-600' : (balance_status == :warning ? 'text-warning-700' : 'text-neutral-900') %>">
+                    <span class="text-muted">Bal:</span>
+                    <span class="text-money font-medium <%= balance_status == :danger ? 'text-negative' : (balance_status == :warning ? 'text-caution' : 'text-content') %>">
                       $<%= money_amount(balance) %>
                     </span>
                   </div>
@@ -338,14 +338,14 @@
         </div>
 
         <table class="hidden xl:table data-table w-full">
-          <thead class="sticky top-16 z-20 bg-white shadow-sm">
+          <thead class="sticky top-16 z-20 bg-surface shadow-sm">
             <tr>
-              <th class="w-20 bg-white">Status</th>
-              <th class="bg-white">Date</th>
-              <th class="bg-white">Description</th>
-              <th class="text-right bg-white">Amount</th>
-              <th class="text-right bg-white">Balance</th>
-              <th class="text-right w-32 bg-white">Actions</th>
+              <th class="w-20 bg-surface">Status</th>
+              <th class="bg-surface">Date</th>
+              <th class="bg-surface">Description</th>
+              <th class="text-right bg-surface">Amount</th>
+              <th class="text-right bg-surface">Balance</th>
+              <th class="text-right w-32 bg-surface">Actions</th>
             </tr>
           </thead>
           <tbody class="relative z-0">
@@ -359,8 +359,8 @@
                 <%# Insert "Today" marker when crossing from past to future %>
                 <% if !today_marker_shown && prev_date && prev_date < Date.current && first_txn_date >= Date.current %>
                   <% today_marker_shown = true %>
-                  <tr class="bg-primary-50/50">
-                    <td colspan="6" class="text-center text-sm font-medium text-primary-600 py-2">
+                  <tr class="bg-primary-subtle/50">
+                    <td colspan="6" class="text-center text-sm font-medium text-accent py-2">
                       <span class="inline-flex items-center gap-2">
                         <span class="w-8 h-px bg-primary-300"></span>
                         Today
@@ -391,8 +391,8 @@
                 <%# Insert "Today" marker when crossing from past to future %>
                 <% if !today_marker_shown && prev_date && prev_date < Date.current && txn.date >= Date.current %>
                   <% today_marker_shown = true %>
-                  <tr class="bg-primary-50/50">
-                    <td colspan="6" class="text-center text-sm font-medium text-primary-600 py-2">
+                  <tr class="bg-primary-subtle/50">
+                    <td colspan="6" class="text-center text-sm font-medium text-accent py-2">
                       <span class="inline-flex items-center gap-2">
                         <span class="w-8 h-px bg-primary-300"></span>
                         Today
@@ -405,8 +405,8 @@
                 <%# Also show marker if first transaction is today or future but there are no past transactions %>
                 <% if !today_marker_shown && !prev_date && txn.date >= Date.current && @selected_account.balance_date < Date.current %>
                   <% today_marker_shown = true %>
-                  <tr class="bg-primary-50/50">
-                    <td colspan="6" class="text-center text-sm font-medium text-primary-600 py-2">
+                  <tr class="bg-primary-subtle/50">
+                    <td colspan="6" class="text-center text-sm font-medium text-accent py-2">
                       <span class="inline-flex items-center gap-2">
                         <span class="w-8 h-px bg-primary-300"></span>
                         Today
@@ -416,7 +416,7 @@
                   </tr>
                 <% end %>
 
-                <tr class="<%= txn.estimated? ? 'bg-warning-50/30' : '' %> <%= needs_attention ? 'border-l-4 border-l-warning-400' : '' %> <%= is_past ? 'opacity-60' : '' %>" data-transaction-date="<%= txn.date.to_s %>">
+                <tr class="<%= txn.estimated? ? 'bg-warning-subtle/30' : '' %> <%= needs_attention ? 'border-l-4 border-l-warning-400' : '' %> <%= is_past ? 'opacity-60' : '' %>" data-transaction-date="<%= txn.date.to_s %>">
                   <td class="cell-nowrap">
                     <%= status_label estimated: txn.estimated? %>
                   </td>
@@ -424,12 +424,12 @@
                     <%= txn.date.strftime("%b %d, %Y") %>
                   </td>
                   <td class="cell-description" title="<%= txn.description %>">
-                    <span class="font-semibold text-neutral-900 line-clamp-2"><%= txn.description %></span>
+                    <span class="font-semibold text-content line-clamp-2"><%= txn.description %></span>
                     <div class="flex items-center gap-2 mt-1 flex-wrap">
                       <%= category_badge(txn.category) %>
                       <%= transfer_badge(txn, show_account: true) %>
                       <% if txn.recurring_rule %>
-                        <span class="text-xs text-neutral-500 flex items-center gap-1">
+                        <span class="text-xs text-muted flex items-center gap-1">
                           <%= txn.recurring_rule.frequency.titleize %>
                           <% if txn.user_modified %>
                             <span class="inline-flex items-center cursor-help" title="Manually adjusted - protected from rule changes">
@@ -442,10 +442,10 @@
                       <% end %>
                     </div>
                   </td>
-                  <td class="cell-nowrap text-right text-money <%= txn.amount >= 0 ? 'text-success-600' : 'text-danger-600' %>">
+                  <td class="cell-nowrap text-right text-money <%= txn.amount >= 0 ? 'text-positive' : 'text-negative' %>">
                     <%= txn.formatted_amount %>
                   </td>
-                  <td class="cell-nowrap text-right text-money <%= balance_status == :danger ? 'text-danger-600 bg-danger-50' : (balance_status == :warning ? 'text-warning-700 bg-warning-50' : 'text-neutral-900') %>">
+                  <td class="cell-nowrap text-right text-money <%= balance_status == :danger ? 'text-negative bg-danger-subtle' : (balance_status == :warning ? 'text-caution bg-warning-subtle' : 'text-content') %>">
                     $<%= money_amount(balance) %>
                   </td>
                   <td class="cell-nowrap text-right">
@@ -466,22 +466,22 @@
 
         <% if @grouped_transactions.empty? %>
           <div class="px-6 py-16 text-center">
-            <svg class="mx-auto h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="mx-auto h-12 w-12 text-faint" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
             </svg>
-            <p class="mt-4 text-neutral-500">No transactions for this account</p>
+            <p class="mt-4 text-muted">No transactions for this account</p>
           </div>
         <% end %>
       </div>
 
       <%# Time period chips %>
-      <div class="px-6 py-4 border-t border-neutral-200 bg-white rounded-b-xl">
+      <div class="px-6 py-4 border-t border-line bg-surface rounded-b-xl">
         <div class="flex items-center justify-center gap-2">
           <%# Primary chip options %>
           <% [1, 3, 6].each do |months| %>
             <% active = @months_ahead == months %>
             <%= link_to root_path(account_id: @selected_account.id, months: months),
-                class: "px-3 py-1.5 text-sm font-medium rounded-full transition-colors #{active ? 'bg-primary-600 text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}" do %>
+                class: "px-3 py-1.5 text-sm font-medium rounded-full transition-colors #{active ? 'bg-primary-600 text-white' : 'bg-surface-muted text-secondary hover:bg-surface-active'}" do %>
               <%= months %> mo
             <% end %>
           <% end %>
@@ -493,7 +493,7 @@
                     data-dropdown-target="button"
                     data-action="click->dropdown#toggle keydown->dropdown#keydown"
                     aria-expanded="false"
-                    class="px-3 py-1.5 text-sm font-medium rounded-full transition-colors inline-flex items-center gap-1 <%= more_active ? 'bg-primary-600 text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200' %>">
+                    class="px-3 py-1.5 text-sm font-medium rounded-full transition-colors inline-flex items-center gap-1 <%= more_active ? 'bg-primary-600 text-white' : 'bg-surface-muted text-secondary hover:bg-surface-active' %>">
               <% if more_active %>
                 <%= @months_ahead >= 12 ? "#{@months_ahead / 12} yr" : "#{@months_ahead} mo" %>
               <% else %>
@@ -504,17 +504,17 @@
               </svg>
             </button>
             <div data-dropdown-target="menu"
-                 class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-32 bg-white rounded-lg shadow-lg border border-neutral-200 py-1 opacity-0 scale-95 pointer-events-none transition-all duration-150 z-20">
+                 class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-32 bg-surface rounded-lg shadow-lg border border-line py-1 opacity-0 scale-95 pointer-events-none transition-all duration-150 z-20">
               <%= link_to root_path(account_id: @selected_account.id, months: 9),
-                  class: "block px-4 py-2 text-sm hover:bg-neutral-50 #{@months_ahead == 9 ? 'text-primary-600 font-medium' : 'text-neutral-700'}" do %>
+                  class: "block px-4 py-2 text-sm hover:bg-surface-muted #{@months_ahead == 9 ? 'text-accent font-medium' : 'text-secondary'}" do %>
                 9 months
               <% end %>
               <%= link_to root_path(account_id: @selected_account.id, months: 12),
-                  class: "block px-4 py-2 text-sm hover:bg-neutral-50 #{@months_ahead == 12 ? 'text-primary-600 font-medium' : 'text-neutral-700'}" do %>
+                  class: "block px-4 py-2 text-sm hover:bg-surface-muted #{@months_ahead == 12 ? 'text-accent font-medium' : 'text-secondary'}" do %>
                 1 year
               <% end %>
               <%= link_to root_path(account_id: @selected_account.id, months: 24),
-                  class: "block px-4 py-2 text-sm hover:bg-neutral-50 #{@months_ahead == 24 ? 'text-primary-600 font-medium' : 'text-neutral-700'}" do %>
+                  class: "block px-4 py-2 text-sm hover:bg-surface-muted #{@months_ahead == 24 ? 'text-accent font-medium' : 'text-secondary'}" do %>
                 2 years
               <% end %>
             </div>
@@ -524,11 +524,11 @@
     </div>
   <% else %>
     <div class="card p-16 text-center">
-      <svg class="mx-auto h-16 w-16 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg class="mx-auto h-16 w-16 text-faint" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
       </svg>
-      <p class="mt-4 text-lg text-neutral-600">No accounts yet</p>
-      <p class="mt-2 text-sm text-neutral-500">Create your first account to start tracking your finances</p>
+      <p class="mt-4 text-lg text-secondary">No accounts yet</p>
+      <p class="mt-2 text-sm text-muted">Create your first account to start tracking your finances</p>
       <%= design_button "Create Account", new_account_path, variant: :primary, class: "mt-6" %>
     </div>
   <% end %>

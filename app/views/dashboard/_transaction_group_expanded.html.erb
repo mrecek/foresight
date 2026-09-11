@@ -3,22 +3,22 @@
 
 <%# Collapse header row %>
 <tr id="<%= group_id %>"
-    class="transaction-group-header bg-neutral-50 cursor-pointer hover:bg-neutral-100 transition-colors"
+    class="transaction-group-header bg-surface-muted cursor-pointer hover:bg-surface-muted transition-colors"
     data-controller="transaction-group"
     data-action="click->transaction-group#toggle"
     data-transaction-group-group-id-value="<%= group_id %>"
     data-transaction-group-expanded-value="true">
   <td colspan="6" class="px-4 py-2">
-    <div class="flex items-center gap-2 text-sm text-neutral-600">
+    <div class="flex items-center gap-2 text-sm text-secondary">
       <svg data-transaction-group-target="icon" 
-           class="w-4 h-4 text-neutral-400 rotate-90 transition-transform duration-200" 
+           class="w-4 h-4 text-faint rotate-90 transition-transform duration-200"
            fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
       </svg>
       <span class="font-medium"><%= group.recurring_rule.description %></span>
-      <span class="text-neutral-400">•</span>
+      <span class="text-faint">•</span>
       <span><%= group.count %> transactions</span>
-      <span class="text-neutral-400">•</span>
+      <span class="text-faint">•</span>
       <span class="text-xs">Click to collapse</span>
     </div>
   </td>
@@ -32,7 +32,7 @@
   <% needs_attention = txn.estimated? && txn.date <= @attention_threshold %>
   <% balance_status = balance < 0 ? :danger : (balance < @selected_account.warning_threshold ? :warning : :normal) %>
 
-  <tr class="<%= txn.estimated? ? 'bg-warning-50/30' : '' %> <%= needs_attention ? 'border-l-4 border-l-warning-400' : '' %> <%= is_past ? 'opacity-60' : '' %> border-l-2 border-l-primary-200" data-transaction-date="<%= txn.date.to_s %>">
+  <tr class="<%= txn.estimated? ? 'bg-warning-subtle/30' : '' %> <%= needs_attention ? 'border-l-4 border-l-warning-400' : '' %> <%= is_past ? 'opacity-60' : '' %> border-l-2 border-l-primary-200" data-transaction-date="<%= txn.date.to_s %>">
     <td class="cell-nowrap">
       <%= status_label estimated: txn.estimated? %>
     </td>
@@ -40,12 +40,12 @@
       <%= txn.date.strftime("%b %d, %Y") %>
     </td>
     <td class="cell-description" title="<%= txn.description %>">
-      <span class="font-semibold text-neutral-900 line-clamp-2"><%= txn.description %></span>
+      <span class="font-semibold text-content line-clamp-2"><%= txn.description %></span>
       <div class="flex items-center gap-2 mt-1 flex-wrap">
         <%= category_badge(txn.category) %>
         <%= transfer_badge(txn, show_account: true) %>
         <% if txn.recurring_rule %>
-          <span class="text-xs text-neutral-500 flex items-center gap-1">
+          <span class="text-xs text-muted flex items-center gap-1">
             <%= txn.recurring_rule.frequency.titleize %>
             <% if txn.user_modified %>
               <span class="inline-flex items-center cursor-help" title="Manually adjusted - protected from rule changes">
@@ -58,10 +58,10 @@
         <% end %>
       </div>
     </td>
-    <td class="cell-nowrap text-right text-money <%= txn.amount >= 0 ? 'text-success-600' : 'text-danger-600' %>">
+    <td class="cell-nowrap text-right text-money <%= txn.amount >= 0 ? 'text-positive' : 'text-negative' %>">
       <%= txn.formatted_amount %>
     </td>
-    <td class="cell-nowrap text-right text-money <%= balance_status == :danger ? 'text-danger-600 bg-danger-50' : (balance_status == :warning ? 'text-warning-700 bg-warning-50' : 'text-neutral-900') %>">
+    <td class="cell-nowrap text-right text-money <%= balance_status == :danger ? 'text-negative bg-danger-subtle' : (balance_status == :warning ? 'text-caution bg-warning-subtle' : 'text-content') %>">
       $<%= money_amount(balance) %>
     </td>
     <td class="cell-nowrap text-right">

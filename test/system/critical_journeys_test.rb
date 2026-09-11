@@ -6,6 +6,7 @@ class CriticalJourneysTest < ApplicationSystemTestCase
   setup do
     @original_test_mode = ENV["TEST_MODE"]
     ENV["TEST_MODE"] = "true"
+    page.current_window.resize_to(1400, 1000)
   end
 
   teardown { @original_test_mode.nil? ? ENV.delete("TEST_MODE") : ENV["TEST_MODE"] = @original_test_mode }
@@ -27,6 +28,79 @@ class CriticalJourneysTest < ApplicationSystemTestCase
     click_button "Logout"
     assert_current_path login_path
     assert_text "You've been signed out."
+  end
+
+  test "owner chooses a theme that persists across public and authenticated pages" do
+    visit root_path
+    page.execute_script("window.localStorage.removeItem('foresight-theme')")
+    refresh
+
+    assert_selector "html[data-theme='dark'][data-theme-preference='dark']", visible: :all
+    select "Light", from: "Color theme"
+    assert_selector "html[data-theme='light'][data-theme-preference='light']", visible: :all
+
+    visit accounts_path
+    assert_selector "html[data-theme='light'][data-theme-preference='light']", visible: :all
+    assert_select_value "application-theme", "light"
+
+    select "Dark", from: "Color theme"
+    click_link "Transactions"
+    assert_selector "html[data-theme='dark'][data-theme-preference='dark']", visible: :all
+    assert_select_value "application-theme", "dark"
+
+    page.driver.browser.execute_cdp(
+      "Emulation.setEmulatedMedia",
+      features: [ { name: "prefers-color-scheme", value: "dark" } ]
+    )
+    select "System", from: "Color theme"
+    assert_selector "html[data-theme='dark'][data-theme-preference='system']", visible: :all
+
+    ENV.delete("TEST_MODE")
+    Setting.instance.update!(auth_username: "owner", auth_password: "password-123")
+    visit login_path
+    assert_selector "html[data-theme='dark'][data-theme-preference='system']", visible: :all
+    assert_select_value "authentication-theme", "system"
+  ensure
+    page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: []) if page.driver.browser
+  end
+
+  test "theme colors meet representative WCAG AA contrast thresholds" do
+    visit root_path
+
+    %w[Dark Light].each do |theme|
+      select theme, from: "Color theme"
+
+      assert_contrast "content", "canvas", minimum: 4.5, theme: theme
+      assert_contrast "secondary", "surface", minimum: 4.5, theme: theme
+      assert_contrast "muted", "surface", minimum: 4.5, theme: theme
+      assert_contrast "faint", "surface", minimum: 4.5, theme: theme
+      assert_contrast "accent", "surface", minimum: 4.5, theme: theme
+      assert_contrast "positive", "surface", minimum: 4.5, theme: theme
+      assert_contrast "negative", "surface", minimum: 4.5, theme: theme
+      assert_contrast "caution", "surface", minimum: 4.5, theme: theme
+      assert_contrast "accent-strong", "primary-subtle", minimum: 4.5, theme: theme
+      assert_contrast "positive", "success-subtle", minimum: 4.5, theme: theme
+      assert_contrast "negative", "danger-subtle", minimum: 4.5, theme: theme
+      assert_contrast "caution", "warning-subtle", minimum: 4.5, theme: theme
+      assert_contrast "line-strong", "surface", minimum: 3.0, theme: theme
+    end
+  end
+
+  test "theme controls remain usable on small screens" do
+    page.current_window.resize_to(390, 844)
+    visit root_path
+
+    assert_selector "#application-theme"
+    assert_operator page.evaluate_script("document.documentElement.scrollWidth"), :<=,
+      page.evaluate_script("window.innerWidth")
+
+    ENV.delete("TEST_MODE")
+    Setting.instance.update!(auth_username: "owner", auth_password: "password-123")
+    visit login_path
+
+    assert_selector "#authentication-theme"
+    assert_operator page.evaluate_script("document.documentElement.scrollWidth"), :<=,
+      page.evaluate_script("window.innerWidth")
   end
 
   test "owner creates a transfer using the interactive transaction form" do
@@ -113,6 +187,47 @@ class CriticalJourneysTest < ApplicationSystemTestCase
   end
 
   private
+
+  def assert_select_value(id, value)
+    assert_equal value, find("##{id}", visible: :all).value
+  end
+
+  def assert_contrast(foreground, background, minimum:, theme:)
+    ratio = contrast_ratio(css_color(foreground), css_color(background))
+    assert_operator ratio, :>=, minimum,
+      "#{theme} #{foreground} on #{background} contrast was #{ratio.round(2)}; expected at least #{minimum}"
+  end
+
+  def css_color(token)
+    property = {
+      "secondary" => "content-secondary",
+      "muted" => "content-muted",
+      "faint" => "content-faint"
+    }.fetch(token, token)
+
+    color = page.evaluate_script(<<~JAVASCRIPT)
+      (() => getComputedStyle(document.documentElement)
+        .getPropertyValue('--foresight-#{property}')
+        .trim())()
+    JAVASCRIPT
+
+    raise "Missing or invalid theme color --foresight-#{property}: #{color.inspect}" unless color&.match?(/\A#(?:[0-9a-f]{3}|[0-9a-f]{6})\z/i)
+
+    color
+  end
+
+  def contrast_ratio(foreground, background)
+    lighter, darker = [ relative_luminance(foreground), relative_luminance(background) ].sort.reverse
+    (lighter + 0.05) / (darker + 0.05)
+  end
+
+  def relative_luminance(color)
+    hex = color.delete_prefix("#")
+    hex = hex.chars.map { |character| character * 2 }.join if hex.length == 3
+    channels = hex.scan(/../).map { |channel| channel.to_i(16) / 255.0 }
+    linear = channels.map { |channel| channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055)**2.4 }
+    (0.2126 * linear[0]) + (0.7152 * linear[1]) + (0.0722 * linear[2])
+  end
 
   def create_accounts
     [

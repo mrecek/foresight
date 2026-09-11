@@ -45,7 +45,7 @@ module ApplicationHelper
 
     content_tag :span, class: "inline-flex items-center gap-1.5" do
       concat content_tag(:span, "", class: dot_class)
-      concat content_tag(:span, text, class: "text-xs font-medium text-neutral-600")
+      concat content_tag(:span, text, class: "text-xs font-medium text-secondary")
     end
   end
 
@@ -63,7 +63,7 @@ module ApplicationHelper
       label = "Transfer"
     end
 
-    content_tag :span, class: "inline-flex items-center gap-1 text-xs font-medium text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full" do
+    content_tag :span, class: "inline-flex items-center gap-1 text-xs font-medium text-accent bg-primary-subtle px-2 py-0.5 rounded-full" do
       icon.html_safe + " " + label
     end
   end
@@ -108,13 +108,13 @@ module ApplicationHelper
     base_classes = "inline-flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-150"
     variant_classes = case variant
     when :danger
-      "text-neutral-400 hover:text-danger-600 hover:bg-danger-50"
+      "text-faint hover:text-negative hover:bg-danger-subtle"
     when :success
-      "text-neutral-400 hover:text-success-600 hover:bg-success-50"
+      "text-faint hover:text-positive hover:bg-success-subtle"
     when :primary
-      "text-neutral-400 hover:text-primary-600 hover:bg-primary-50"
+      "text-faint hover:text-accent hover:bg-primary-subtle"
     else
-      "text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100"
+      "text-faint hover:text-secondary hover:bg-surface-muted"
     end
 
     css_class = [ base_classes, variant_classes, options[:class] ].compact.join(" ")
@@ -140,11 +140,11 @@ module ApplicationHelper
 
     variant_classes = case variant
     when :danger
-      "text-danger-600 hover:bg-danger-50"
+      "text-negative hover:bg-danger-subtle"
     when :success
-      "text-success-600 hover:bg-success-50"
+      "text-positive hover:bg-success-subtle"
     else
-      "text-neutral-700 hover:bg-neutral-50"
+      "text-secondary hover:bg-surface-muted"
     end
 
     base_classes = "flex items-center gap-2 w-full px-4 py-2 text-sm transition-colors duration-150"
@@ -173,7 +173,7 @@ module ApplicationHelper
     end
 
     if color
-      css_class = amount.to_f >= 0 ? "text-success-600" : "text-danger-600"
+      css_class = amount.to_f >= 0 ? "text-positive" : "text-negative"
       content_tag :span, display, class: "font-mono tabular-nums #{css_class}"
     else
       content_tag :span, display, class: "font-mono tabular-nums"

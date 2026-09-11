@@ -32,7 +32,7 @@
         } %>
     <div class="flex items-center justify-between mt-1.5">
       <p data-inline-validator-target="error" class="form-error hidden"></p>
-      <p data-inline-validator-target="success" class="text-sm text-success-600 hidden flex items-center gap-1">
+      <p data-inline-validator-target="success" class="text-sm text-positive hidden flex items-center gap-1">
         <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
           <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
         </svg>
@@ -55,10 +55,10 @@
             ),
             { include_blank: "Select a category..." },
             class: "form-select" %>
-        <p class="form-hint"><%= link_to "Manage categories", category_groups_path, class: "text-primary-600 hover:underline" %></p>
+        <p class="form-hint"><%= link_to "Manage categories", category_groups_path, class: "text-accent hover:underline" %></p>
       <% else %>
-        <p class="text-sm text-neutral-500 p-3 bg-neutral-50 rounded-lg">
-          No categories yet. <%= link_to "Create one", new_category_group_path, class: "text-primary-600 hover:underline" %> to organize your transactions.
+        <p class="text-sm text-muted p-3 bg-surface-muted rounded-lg">
+          No categories yet. <%= link_to "Create one", new_category_group_path, class: "text-accent hover:underline" %> to organize your transactions.
         </p>
       <% end %>
     </div>
@@ -81,12 +81,12 @@
     <label class="form-label mb-3">Transaction Type & Amount</label>
 
     <%# Type Selector Buttons - Pill Toggle %>
-    <div class="inline-flex flex-wrap items-center rounded-xl bg-neutral-100 p-1.5 mb-4">
+    <div class="inline-flex flex-wrap items-center rounded-xl bg-surface-muted p-1.5 mb-4">
       <button type="button"
               data-smart-amount-target="typeButton"
               data-type="expense"
               data-action="click->smart-amount#selectType"
-              class="px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-danger-500 text-white shadow-sm">
+              class="px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-danger-600 text-white shadow-sm">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M20 12H4"/>
         </svg>
@@ -97,7 +97,7 @@
               data-smart-amount-target="typeButton"
               data-type="income"
               data-action="click->smart-amount#selectType"
-              class="px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-transparent text-neutral-500 hover:text-neutral-700">
+              class="px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-transparent text-muted hover:text-secondary">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
         </svg>
@@ -108,7 +108,7 @@
               data-smart-amount-target="typeButton"
               data-type="transfer"
               data-action="click->smart-amount#selectType"
-              class="px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-transparent text-neutral-500 hover:text-neutral-700">
+              class="px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-transparent text-muted hover:text-secondary">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
         </svg>
@@ -125,7 +125,7 @@
       <div>
         <%= label_tag :transaction_amount_display, "Amount", class: "form-label" %>
         <div class="relative" data-smart-amount-target="wrapper">
-          <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-mono font-semibold text-danger-600 transition-colors duration-200"
+          <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-mono font-semibold text-negative transition-colors duration-200"
                 data-smart-amount-target="prefix">$</span>
           <%# Hidden field stores the actual signed value %>
           <%= f.hidden_field :amount, data: { smart_amount_target: "hiddenInput" } %>
@@ -160,11 +160,11 @@
               action: "focus->date-helper#showShortcuts blur->date-helper#hideShortcuts"
             } %>
         <div data-date-helper-target="shortcuts" class="flex flex-wrap gap-2 mt-2 transition-all duration-200">
-          <button type="button" class="text-xs px-2.5 py-1 rounded-md bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors"
+          <button type="button" class="text-xs px-2.5 py-1 rounded-md bg-surface-muted text-secondary hover:bg-surface-active transition-colors"
                   data-action="click->date-helper#setDate" data-date="today">Today</button>
-          <button type="button" class="text-xs px-2.5 py-1 rounded-md bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors"
+          <button type="button" class="text-xs px-2.5 py-1 rounded-md bg-surface-muted text-secondary hover:bg-surface-active transition-colors"
                   data-action="click->date-helper#setDate" data-date="yesterday">Yesterday</button>
-          <button type="button" class="text-xs px-2.5 py-1 rounded-md bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors"
+          <button type="button" class="text-xs px-2.5 py-1 rounded-md bg-surface-muted text-secondary hover:bg-surface-active transition-colors"
                   data-action="click->date-helper#setDate" data-date="tomorrow">Tomorrow</button>
         </div>
       </div>
@@ -184,21 +184,21 @@
       <div data-conditional-fields-target="conditional"
            data-field="destination_account"
            class="transition-all duration-300 ease-out overflow-hidden lg:col-span-2 <%= 'hidden opacity-0 scale-95' unless initial_type == 'transfer' %>">
-        <div class="bg-primary-50 rounded-xl p-4 border border-primary-100">
-          <%= f.label :destination_account_id, "Destination Account", class: "form-label text-primary-700" %>
+        <div class="bg-primary-subtle rounded-xl p-4 border border-accent-line">
+          <%= f.label :destination_account_id, "Destination Account", class: "form-label text-accent-strong" %>
           <%= f.collection_select :destination_account_id, @accounts, :id, :name,
               { include_blank: "Select destination account...", selected: (transaction.linked_transaction&.account_id) },
-              class: "form-select bg-white", disabled: initial_type != "transfer",
+              class: "form-select bg-surface", disabled: initial_type != "transfer",
               data: { transfer_validator_target: "destination", action: "change->transfer-validator#validate" } %>
-          <p data-transfer-validator-target="error" class="text-sm text-danger-600 mt-1.5 hidden"></p>
-          <p class="text-sm text-primary-600 mt-1.5">Where the money will be transferred to</p>
+          <p data-transfer-validator-target="error" class="text-sm text-negative mt-1.5 hidden"></p>
+          <p class="text-sm text-accent mt-1.5">Where the money will be transferred to</p>
         </div>
       </div>
     </div>
   </div>
 
   <%# Form Actions %>
-  <div class="flex items-center justify-end gap-3 pt-6 border-t border-neutral-200">
+  <div class="flex items-center justify-end gap-3 pt-6 border-t border-line">
     <%= link_to "Cancel", (@return_url || transactions_path), class: "btn-secondary" %>
     <%= f.submit transaction.persisted? ? "Update Transaction" : "Create Transaction", class: "btn-primary cursor-pointer", data: { turbo_submits_with: "Saving..." } %>
   </div>

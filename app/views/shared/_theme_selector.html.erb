@@ -1,0 +1,18 @@
+<div class="relative inline-flex items-center" data-controller="theme" data-action="foresight:theme-changed@window->theme#sync">
+  <label for="<%= id %>" class="sr-only">Color theme</label>
+  <svg class="pointer-events-none absolute left-2.5 h-4 w-4 text-muted" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
+    <circle cx="12" cy="12" r="3.25" />
+    <path stroke-linecap="round" d="M12 2.75v2M12 19.25v2M2.75 12h2M19.25 12h2M5.46 5.46l1.42 1.42M17.12 17.12l1.42 1.42M18.54 5.46l-1.42 1.42M6.88 17.12l-1.42 1.42" />
+  </svg>
+  <select
+    id="<%= id %>"
+    class="theme-select"
+    data-theme-target="select"
+    data-action="change->theme#change"
+    aria-label="Color theme"
+  >
+    <option value="dark">Dark</option>
+    <option value="light">Light</option>
+    <option value="system">System</option>
+  </select>
+</div>
