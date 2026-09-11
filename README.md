@@ -74,6 +74,11 @@ Background maintenance runs inside the web process by default. Advanced deployme
 | `OIDC_CLIENT_SECRET_FILE` | File containing the provider-issued client secret | Alternative to `OIDC_CLIENT_SECRET` |
 | `OIDC_ALLOWED_SUBJECTS` | Comma-separated allowlist of exact OIDC subject identifiers | Required for OIDC |
 | `OIDC_PROVIDER_NAME` | Provider label shown on the sign-in button | `OpenID Connect` |
+| `OIDC_AUTHORIZATION_ENDPOINT` | Public HTTPS authorization endpoint when discovery cannot be used | Optional; explicit endpoints are all-or-none |
+| `OIDC_TOKEN_ENDPOINT` | Server-side token endpoint for explicit endpoint mode | Optional |
+| `OIDC_USERINFO_ENDPOINT` | Server-side user-info endpoint for explicit endpoint mode | Optional |
+| `OIDC_JWKS_URI` | Server-side signing-key endpoint for explicit endpoint mode | Optional |
+| `OIDC_ALLOW_INSECURE_BACKCHANNEL` | Allow explicit server-side endpoints to use HTTP on a trusted private network | `false` |
 | `SESSION_ABSOLUTE_TIMEOUT_MINUTES` | Maximum session lifetime, from 1 minute through 24 hours | `720` |
 | `SECRET_KEY_BASE` | Externally managed session-encryption key of at least 30 bytes | Generated per installation |
 | `SECRET_KEY_BASE_FILE` | Path for the generated installation key | `/rails/storage/.secret_key_base` |
@@ -135,7 +140,26 @@ env:
         key: client-secret
 ```
 
-Use the provider's opaque `sub` identifier, not an email address, in `OIDC_ALLOWED_SUBJECTS`. Foresight validates discovery metadata, issuer, signature, audience, expiry, state, nonce, and PKCE before applying this allowlist. It does not retain access, refresh, or ID tokens.
+Use the provider's opaque `sub` identifier, not an email address, in `OIDC_ALLOWED_SUBJECTS`. Foresight validates discovery metadata when discovery is enabled, and always validates issuer, signature, audience, expiry, state, nonce, and PKCE before applying this allowlist. It does not retain access, refresh, or ID tokens.
+
+By default, Foresight discovers every provider endpoint from `OIDC_ISSUER`. If a
+deployment cannot route server-side requests through the provider's public
+hostname, configure all four explicit endpoint variables. Keep
+`OIDC_AUTHORIZATION_ENDPOINT` public and HTTPS because the browser is redirected
+there. The token, user-info, and JWKS endpoints may point at a private
+backchannel; HTTP requires the deliberate
+`OIDC_ALLOW_INSECURE_BACKCHANNEL=true` opt-in and should be used only on a
+trusted private network. Token issuer validation still uses the exact public
+`OIDC_ISSUER` in either mode.
+
+```yaml
+environment:
+  OIDC_AUTHORIZATION_ENDPOINT: https://identity.example.com/oauth2/authorize
+  OIDC_TOKEN_ENDPOINT: http://identity-backchannel:8080/oauth2/token
+  OIDC_USERINFO_ENDPOINT: http://identity-backchannel:8080/oauth2/userinfo
+  OIDC_JWKS_URI: http://identity-backchannel:8080/oauth2/jwks
+  OIDC_ALLOW_INSECURE_BACKCHANNEL: "true"
+```
 
 OIDC mode exposes no password form or fallback route. For operator recovery, restart with `AUTH_MODE=password`, remove the OIDC variables, and supply both `AUTH_USERNAME` and `AUTH_PASSWORD`. Signing out ends only the local Foresight session; it does not sign the person out of other applications at the identity provider.
 
