@@ -3,19 +3,19 @@
 
 <%# Collapse header %>
 <div id="<%= group_id %>"
-     class="transaction-group-header bg-neutral-50 p-3 cursor-pointer hover:bg-neutral-100 transition-colors border-b border-neutral-200"
+     class="transaction-group-header bg-surface-muted p-3 cursor-pointer hover:bg-surface-muted transition-colors border-b border-line"
      data-controller="transaction-group"
      data-action="click->transaction-group#toggle"
      data-transaction-group-group-id-value="<%= group_id %>"
      data-transaction-group-expanded-value="true">
-  <div class="flex items-center gap-2 text-sm text-neutral-600">
+  <div class="flex items-center gap-2 text-sm text-secondary">
     <svg data-transaction-group-target="icon" 
-         class="w-4 h-4 text-neutral-400 rotate-90 transition-transform duration-200" 
+         class="w-4 h-4 text-faint rotate-90 transition-transform duration-200"
          fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
     </svg>
     <span class="font-medium"><%= group.recurring_rule.description %></span>
-    <span class="text-neutral-400">•</span>
+    <span class="text-faint">•</span>
     <span><%= group.count %> transactions</span>
   </div>
 </div>
@@ -28,17 +28,17 @@
   <% needs_attention = txn.estimated? && txn.date <= @attention_threshold %>
   <% balance_status = balance < 0 ? :danger : (balance < @selected_account.warning_threshold ? :warning : :normal) %>
 
-  <div class="p-4 md:p-3 lg:p-2 flex flex-col gap-2 <%= txn.estimated? ? 'bg-warning-50/30' : '' %> <%= needs_attention ? 'border-l-4 border-l-warning-400' : '' %> <%= is_past ? 'opacity-60' : '' %> border-l-2 border-l-primary-200" data-transaction-date="<%= txn.date.to_s %>">
+  <div class="p-4 md:p-3 lg:p-2 flex flex-col gap-2 <%= txn.estimated? ? 'bg-warning-subtle/30' : '' %> <%= needs_attention ? 'border-l-4 border-l-warning-400' : '' %> <%= is_past ? 'opacity-60' : '' %> border-l-2 border-l-primary-200" data-transaction-date="<%= txn.date.to_s %>">
     <%# Row 1: Description + Date + Amount %>
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
       <div class="flex items-center gap-2 flex-wrap">
         <%= status_label estimated: txn.estimated?, abbreviated: true %>
-        <span class="font-semibold text-neutral-900"><%= txn.description %></span>
+        <span class="font-semibold text-content"><%= txn.description %></span>
         <%= category_badge(txn.category) %>
         <%= transfer_badge(txn, show_account: true) %>
 
         <% if txn.recurring_rule %>
-          <span class="hidden md:inline-flex items-center gap-1 text-xs text-neutral-500">
+          <span class="hidden md:inline-flex items-center gap-1 text-xs text-muted">
             <%= txn.recurring_rule.frequency.titleize %>
             <% if txn.user_modified %>
               <span class="inline-flex items-center cursor-help ml-0.5" title="Manually adjusted - protected from rule changes">
@@ -52,8 +52,8 @@
       </div>
 
       <div class="flex items-center gap-3">
-        <span class="text-sm font-medium text-neutral-600"><%= txn.date.strftime("%b %d") %></span>
-        <span class="text-money font-semibold <%= txn.amount >= 0 ? 'text-success-600' : 'text-danger-600' %>">
+        <span class="text-sm font-medium text-secondary"><%= txn.date.strftime("%b %d") %></span>
+        <span class="text-money font-semibold <%= txn.amount >= 0 ? 'text-positive' : 'text-negative' %>">
           <%= txn.formatted_amount %>
         </span>
       </div>
@@ -61,7 +61,7 @@
 
     <%# Frequency (mobile only) %>
     <% if txn.recurring_rule %>
-      <div class="md:hidden text-xs text-neutral-500 flex items-center gap-1">
+      <div class="md:hidden text-xs text-muted flex items-center gap-1">
         <%= txn.recurring_rule.frequency.titleize %>
         <% if txn.user_modified %>
           <span class="inline-flex items-center cursor-help" title="Manually adjusted - protected from rule changes">
@@ -76,8 +76,8 @@
     <%# Row 2: Balance and Actions %>
     <div class="flex items-center justify-between">
       <div class="text-sm">
-        <span class="text-neutral-500">Bal:</span>
-        <span class="text-money font-medium <%= balance_status == :danger ? 'text-danger-600' : (balance_status == :warning ? 'text-warning-700' : 'text-neutral-900') %>">
+        <span class="text-muted">Bal:</span>
+        <span class="text-money font-medium <%= balance_status == :danger ? 'text-negative' : (balance_status == :warning ? 'text-caution' : 'text-content') %>">
           $<%= money_amount(balance) %>
         </span>
       </div>

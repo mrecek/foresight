@@ -1,41 +1,41 @@
 <div class="max-w-lg mx-auto">
   <div class="mb-8">
-    <%= link_to @return_url, class: "inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-700 transition-colors" do %>
+    <%= link_to @return_url, class: "inline-flex items-center gap-1.5 text-sm text-muted hover:text-secondary transition-colors" do %>
       <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
       </svg>
       Back
     <% end %>
-    <h1 class="text-2xl font-display font-bold text-neutral-900 mt-2">Mark as Actual</h1>
-    <p class="text-neutral-500 mt-1">Confirm the actual amount for this transaction</p>
+    <h1 class="text-2xl font-display font-bold text-content mt-2">Mark as Actual</h1>
+    <p class="text-muted mt-1">Confirm the actual amount for this transaction</p>
   </div>
 
   <div class="card p-8">
     <%# Transaction Info %>
     <div class="mb-6">
-      <div class="text-sm text-neutral-500">Transaction</div>
-      <div class="text-lg font-semibold text-neutral-900"><%= @transaction.description %></div>
-      <div class="text-sm text-neutral-500"><%= @transaction.account.name %> · <%= @transaction.date.strftime("%B %d, %Y") %></div>
+      <div class="text-sm text-muted">Transaction</div>
+      <div class="text-lg font-semibold text-content"><%= @transaction.description %></div>
+      <div class="text-sm text-muted"><%= @transaction.account.name %> · <%= @transaction.date.strftime("%B %d, %Y") %></div>
     </div>
 
     <%# Current Estimated Amount %>
-    <div class="mb-6 p-4 bg-warning-50 rounded-xl border border-warning-100">
-      <div class="text-sm font-medium text-warning-700">Current estimated amount</div>
-      <div class="text-2xl font-display font-bold mt-1 <%= @transaction.amount >= 0 ? 'text-success-600' : 'text-danger-600' %>">
+    <div class="mb-6 p-4 bg-warning-subtle rounded-xl border border-warning-line">
+      <div class="text-sm font-medium text-caution">Current estimated amount</div>
+      <div class="text-2xl font-display font-bold mt-1 <%= @transaction.amount >= 0 ? 'text-positive' : 'text-negative' %>">
         <%= @transaction.formatted_amount %>
       </div>
     </div>
 
     <%# Transfer Info - show when this is a linked transfer %>
     <% if @transaction.transfer? && @transaction.linked_transaction %>
-      <div class="mb-8 p-4 bg-primary-50 rounded-xl border border-primary-100">
-        <div class="flex items-center gap-2 text-sm font-medium text-primary-700">
+      <div class="mb-8 p-4 bg-primary-subtle rounded-xl border border-accent-line">
+        <div class="flex items-center gap-2 text-sm font-medium text-accent-strong">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
           </svg>
           This is a transfer
         </div>
-        <p class="text-sm text-primary-600 mt-2">
+        <p class="text-sm text-accent mt-2">
           The linked transaction in <strong><%= @transaction.linked_transaction.account.name %></strong> 
           will also be marked as actual with the corresponding amount.
         </p>
@@ -49,16 +49,16 @@
       <%# Type Indicator (read-only) %>
       <div>
         <label class="form-label mb-3">Transaction Type</label>
-        <div class="inline-flex flex-wrap items-center rounded-xl bg-neutral-100 p-1.5">
+        <div class="inline-flex flex-wrap items-center rounded-xl bg-surface-muted p-1.5">
           <span class="px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2
-                       <%= is_expense ? 'bg-danger-500 text-white shadow-sm' : 'bg-transparent text-neutral-400' %>">
+                       <%= is_expense ? 'bg-danger-600 text-white shadow-sm' : 'bg-transparent text-faint' %>">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M20 12H4"/>
             </svg>
             Expense
           </span>
           <span class="px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2
-                       <%= !is_expense ? 'bg-success-500 text-white shadow-sm' : 'bg-transparent text-neutral-400' %>">
+                       <%= !is_expense ? 'bg-success-700 text-white shadow-sm' : 'bg-transparent text-faint' %>">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
             </svg>
@@ -72,7 +72,7 @@
         <label class="form-label">Actual Amount</label>
         <div class="relative">
           <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-mono font-semibold
-                       <%= is_expense ? 'text-danger-600' : 'text-success-600' %>">$</span>
+                       <%= is_expense ? 'text-negative' : 'text-positive' %>">$</span>
           <input type="number"
                  name="amount"
                  id="amount"
@@ -86,7 +86,7 @@
       </div>
 
       <%# Actions %>
-      <div class="flex justify-end gap-3 pt-4 border-t border-neutral-200">
+      <div class="flex justify-end gap-3 pt-4 border-t border-line">
         <%= link_to "Cancel", @return_url, class: "btn-secondary" %>
         <button type="submit" class="btn-success cursor-pointer">
           <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">

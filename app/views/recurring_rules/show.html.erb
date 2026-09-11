@@ -1,12 +1,12 @@
 <div class="space-y-6">
   <div class="flex justify-between items-center">
     <div>
-      <h1 class="text-2xl font-display font-bold text-neutral-900"><%= @recurring_rule.description %></h1>
-      <p class="text-sm text-neutral-500"><%= @recurring_rule.frequency.titleize %> <%= @recurring_rule.rule_type %></p>
+      <h1 class="text-2xl font-display font-bold text-content"><%= @recurring_rule.description %></h1>
+      <p class="text-sm text-muted"><%= @recurring_rule.frequency.titleize %> <%= @recurring_rule.rule_type %></p>
     </div>
     <div class="flex items-center gap-2">
       <%= design_button "Edit", edit_recurring_rule_path(@recurring_rule), variant: :secondary, size: :sm %>
-      <%= link_to "Back", recurring_rules_path, class: "text-neutral-500 hover:text-neutral-700 text-sm" %>
+      <%= link_to "Back", recurring_rules_path, class: "text-muted hover:text-secondary text-sm" %>
     </div>
   </div>
 
@@ -14,24 +14,24 @@
   <div class="card p-6">
     <dl class="grid grid-cols-1 md:grid-cols-2 gap-6">
       <div>
-        <dt class="text-sm font-medium text-neutral-500">Account</dt>
-        <dd class="mt-1 text-sm text-neutral-900"><%= @recurring_rule.account.name %></dd>
+        <dt class="text-sm font-medium text-muted">Account</dt>
+        <dd class="mt-1 text-sm text-content"><%= @recurring_rule.account.name %></dd>
       </div>
       <% if @recurring_rule.transfer? && @recurring_rule.destination_account %>
         <div>
-          <dt class="text-sm font-medium text-neutral-500">Destination Account</dt>
-          <dd class="mt-1 text-sm text-neutral-900"><%= @recurring_rule.destination_account.name %></dd>
+          <dt class="text-sm font-medium text-muted">Destination Account</dt>
+          <dd class="mt-1 text-sm text-content"><%= @recurring_rule.destination_account.name %></dd>
         </div>
       <% end %>
       <div>
-        <dt class="text-sm font-medium text-neutral-500">Amount</dt>
+        <dt class="text-sm font-medium text-muted">Amount</dt>
         <dd class="mt-1">
           <%= format_money(@recurring_rule.income? ? @recurring_rule.amount : -@recurring_rule.amount) %>
         </dd>
       </div>
       <div>
-        <dt class="text-sm font-medium text-neutral-500">Frequency</dt>
-        <dd class="mt-1 text-sm text-neutral-900">
+        <dt class="text-sm font-medium text-muted">Frequency</dt>
+        <dd class="mt-1 text-sm text-content">
           <%= @recurring_rule.frequency.titleize %>
           <% if @recurring_rule.day_of_month %>
             on day <%= @recurring_rule.day_of_month %>
@@ -41,14 +41,14 @@
         </dd>
       </div>
       <div>
-        <dt class="text-sm font-medium text-neutral-500">Transaction Type</dt>
+        <dt class="text-sm font-medium text-muted">Transaction Type</dt>
         <dd class="mt-1">
           <%= status_label estimated: @recurring_rule.is_estimated? %>
-          <span class="text-sm text-neutral-500 ml-1">transactions</span>
+          <span class="text-sm text-muted ml-1">transactions</span>
         </dd>
       </div>
       <div>
-        <dt class="text-sm font-medium text-neutral-500">Status</dt>
+        <dt class="text-sm font-medium text-muted">Status</dt>
         <dd class="mt-1">
           <% if @recurring_rule.active? %>
             <%= badge "Active", variant: :success %>
@@ -62,22 +62,22 @@
 
   <!-- Upcoming Transactions -->
   <div class="card">
-    <div class="px-6 py-4 border-b border-neutral-200">
-      <h2 class="text-lg font-display font-semibold text-neutral-900">Next Occurrences</h2>
+    <div class="px-6 py-4 border-b border-line">
+      <h2 class="text-lg font-display font-semibold text-content">Next Occurrences</h2>
     </div>
-    <ul class="divide-y divide-neutral-200">
+    <ul class="divide-y divide-line">
       <% @upcoming.each do |txn| %>
         <li class="px-6 py-4 flex justify-between items-center">
           <div>
-            <span class="text-sm text-neutral-900"><%= txn.date.strftime("%B %d, %Y") %></span>
-            <span class="text-xs text-neutral-500 ml-2">(<%= distance_of_time_in_words_to_now(txn.date) %>)</span>
+            <span class="text-sm text-content"><%= txn.date.strftime("%B %d, %Y") %></span>
+            <span class="text-xs text-muted ml-2">(<%= distance_of_time_in_words_to_now(txn.date) %>)</span>
           </div>
           <%= format_money(txn.amount) %>
         </li>
       <% end %>
     </ul>
     <% if @upcoming.empty? %>
-      <div class="px-6 py-8 text-center text-neutral-500">
+      <div class="px-6 py-8 text-center text-muted">
         No upcoming transactions
       </div>
     <% end %>

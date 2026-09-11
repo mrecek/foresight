@@ -2,61 +2,61 @@
   <%# Page Header %>
   <div class="flex flex-col xl:flex-row xl:justify-between xl:items-center gap-4">
     <div>
-      <h1 class="text-2xl font-display font-bold text-neutral-900"><%= @account.name %></h1>
-      <p class="text-sm text-neutral-500"><%= @account.account_type.titleize %> Account</p>
+      <h1 class="text-2xl font-display font-bold text-content"><%= @account.name %></h1>
+      <p class="text-sm text-muted"><%= @account.account_type.titleize %> Account</p>
     </div>
     <div class="flex items-center gap-2">
       <%= link_to "Edit", edit_account_path(@account), class: "btn-secondary btn-sm" %>
-      <%= link_to "Back", accounts_path, class: "text-neutral-500 hover:text-neutral-700 text-sm" %>
+      <%= link_to "Back", accounts_path, class: "text-muted hover:text-secondary text-sm" %>
     </div>
   </div>
 
   <%# Balance Summary %>
   <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
     <div class="card p-6">
-      <p class="text-sm font-medium text-neutral-500">Current Balance</p>
-      <p class="mt-2 text-3xl font-display font-bold text-neutral-900">$<%= money_amount(@account.current_balance) %></p>
-      <p class="text-xs text-neutral-400 mt-1">as of <%= @account.balance_date.strftime("%b %d, %Y") %></p>
+      <p class="text-sm font-medium text-muted">Current Balance</p>
+      <p class="mt-2 text-3xl font-display font-bold text-content">$<%= money_amount(@account.current_balance) %></p>
+      <p class="text-xs text-faint mt-1">as of <%= @account.balance_date.strftime("%b %d, %Y") %></p>
     </div>
     <div class="card p-6">
-      <p class="text-sm font-medium text-neutral-500">Projected Balance (<%= @settings.default_view_months %>mo)</p>
+      <p class="text-sm font-medium text-muted">Projected Balance (<%= @settings.default_view_months %>mo)</p>
       <% projected = @account.projected_balance %>
-      <p class="mt-2 text-3xl font-display font-bold <%= projected >= 0 ? 'text-success-600' : 'text-danger-600' %>">
+      <p class="mt-2 text-3xl font-display font-bold <%= projected >= 0 ? 'text-positive' : 'text-negative' %>">
         $<%= money_amount(projected) %>
       </p>
-      <p class="text-xs text-neutral-400 mt-1"><%= (projected - @account.current_balance) >= 0 ? '+' : '' %>$<%= money_amount((projected - @account.current_balance).abs) %> change</p>
+      <p class="text-xs text-faint mt-1"><%= (projected - @account.current_balance) >= 0 ? '+' : '' %>$<%= money_amount((projected - @account.current_balance).abs) %> change</p>
     </div>
     <div class="card p-6">
-      <p class="text-sm font-medium text-neutral-500">Transactions</p>
-      <p class="mt-2 text-3xl font-display font-bold text-neutral-900"><%= @transactions.count %></p>
-      <p class="text-xs text-neutral-400 mt-1">in projection window</p>
+      <p class="text-sm font-medium text-muted">Transactions</p>
+      <p class="mt-2 text-3xl font-display font-bold text-content"><%= @transactions.count %></p>
+      <p class="text-xs text-faint mt-1">in projection window</p>
     </div>
   </div>
 
   <%# Transaction List %>
   <div class="card overflow-hidden">
-    <div class="px-6 py-4 border-b border-neutral-200">
-      <h2 class="text-lg font-display font-semibold text-neutral-900">Transactions</h2>
+    <div class="px-6 py-4 border-b border-line">
+      <h2 class="text-lg font-display font-semibold text-content">Transactions</h2>
     </div>
 
     <%# Mobile Transaction Cards %>
-    <div class="xl:hidden divide-y divide-neutral-200">
+    <div class="xl:hidden divide-y divide-line">
       <% running_balance_mobile = @account.current_balance %>
       <% @transactions.each do |txn| %>
         <% running_balance_mobile += txn.amount %>
-        <div class="p-4 md:p-3 lg:p-2 flex flex-col gap-2 <%= txn.estimated? ? 'bg-warning-50/30' : '' %>">
+        <div class="p-4 md:p-3 lg:p-2 flex flex-col gap-2 <%= txn.estimated? ? 'bg-warning-subtle/30' : '' %>">
           <%# Row 1: Description + Date/Amount (responsive) %>
           <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
             <%# Left: Status + Description %>
             <div class="flex items-center gap-2">
               <%= status_label estimated: txn.estimated?, abbreviated: true %>
-              <span class="font-semibold text-neutral-900"><%= txn.description %></span>
+              <span class="font-semibold text-content"><%= txn.description %></span>
             </div>
 
             <%# Right: Date + Amount %>
             <div class="flex items-center gap-3">
-              <span class="text-sm font-medium text-neutral-600"><%= txn.date.strftime("%b %d") %></span>
-              <span class="text-money font-semibold <%= txn.amount >= 0 ? 'text-success-600' : 'text-danger-600' %>">
+              <span class="text-sm font-medium text-secondary"><%= txn.date.strftime("%b %d") %></span>
+              <span class="text-money font-semibold <%= txn.amount >= 0 ? 'text-positive' : 'text-negative' %>">
                 <%= txn.formatted_amount %>
               </span>
             </div>
@@ -64,8 +64,8 @@
 
           <%# Row 2: Balance %>
           <div class="text-sm">
-            <span class="text-neutral-500">Bal:</span>
-            <span class="text-money font-medium <%= running_balance_mobile >= 0 ? 'text-neutral-900' : 'text-danger-600' %>">
+            <span class="text-muted">Bal:</span>
+            <span class="text-money font-medium <%= running_balance_mobile >= 0 ? 'text-content' : 'text-negative' %>">
               $<%= money_amount(running_balance_mobile) %>
             </span>
           </div>
@@ -89,20 +89,20 @@
           <% running_balance = @account.current_balance %>
           <% @transactions.each do |txn| %>
             <% running_balance += txn.amount %>
-            <tr class="<%= txn.estimated? ? 'bg-warning-50/30' : '' %>">
+            <tr class="<%= txn.estimated? ? 'bg-warning-subtle/30' : '' %>">
               <td class="cell-nowrap">
                 <%= status_label estimated: txn.estimated?, abbreviated: true %>
               </td>
-              <td class="cell-nowrap text-neutral-900">
+              <td class="cell-nowrap text-content">
                 <%= txn.date.strftime("%b %d, %Y") %>
               </td>
-              <td class="cell-description text-neutral-900" title="<%= txn.description %>">
+              <td class="cell-description text-content" title="<%= txn.description %>">
                 <span class="line-clamp-2"><%= txn.description %></span>
               </td>
               <td class="cell-nowrap text-right">
                 <%= format_money(txn.amount) %>
               </td>
-              <td class="cell-nowrap text-right text-money <%= running_balance >= 0 ? 'text-neutral-900' : 'text-danger-600 font-semibold' %>">
+              <td class="cell-nowrap text-right text-money <%= running_balance >= 0 ? 'text-content' : 'text-negative font-semibold' %>">
                 $<%= money_amount(running_balance) %>
               </td>
             </tr>
@@ -112,7 +112,7 @@
     </div>
 
     <% if @transactions.empty? %>
-      <div class="px-6 py-8 text-center text-neutral-500">
+      <div class="px-6 py-8 text-center text-muted">
         No transactions for this account
       </div>
     <% end %>

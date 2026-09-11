@@ -19,7 +19,7 @@
                    class="sr-only peer" <%= 'checked' if category_group.color == color || (category_group.color.blank? && color == 'teal') %>>
             <div class="flex items-center justify-center p-3 rounded-lg border-2 transition-all
                         peer-checked:border-primary-500 peer-checked:ring-2 peer-checked:ring-primary-200
-                        border-neutral-200 hover:border-neutral-300">
+                        border-line hover:border-line-strong">
               <span class="category-badge-<%= color %>"><%= color.titleize %></span>
             </div>
           </label>

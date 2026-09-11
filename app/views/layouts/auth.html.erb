@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<html>
+<html data-theme="dark" data-theme-preference="dark">
   <head>
     <title><%= content_for(:title) || "Foresight" %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="application-name" content="Foresight">
     <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#09090b">
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
 
@@ -20,11 +21,15 @@
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/icon.png">
 
+    <%= javascript_include_tag "theme_bootstrap", "data-turbo-track": "reload" %>
     <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
     <%= javascript_importmap_tags %>
   </head>
 
-  <body class="bg-neutral-50 min-h-screen antialiased">
+  <body class="bg-canvas text-content min-h-screen antialiased">
+    <div class="fixed right-4 top-4 z-10">
+      <%= render "shared/theme_selector", id: "authentication-theme" %>
+    </div>
     <%= yield %>
   </body>
 </html>
