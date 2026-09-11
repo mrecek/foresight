@@ -5,15 +5,18 @@ require "test_helper"
 class SessionsControllerTest < ActionDispatch::IntegrationTest
   include ActiveSupport::Testing::TimeHelpers
 
+  AUTH_ENVIRONMENT_KEYS = %w[
+    AUTH_MODE AUTH_USERNAME AUTH_PASSWORD APP_URL OIDC_ISSUER OIDC_CLIENT_ID
+    OIDC_CLIENT_SECRET OIDC_CLIENT_SECRET_FILE OIDC_ALLOWED_SUBJECTS OIDC_PROVIDER_NAME
+    SESSION_ABSOLUTE_TIMEOUT_MINUTES TEST_MODE
+  ].freeze
+
   def setup
-    @original_environment = {
-      "AUTH_USERNAME" => ENV["AUTH_USERNAME"],
-      "AUTH_PASSWORD" => ENV["AUTH_PASSWORD"],
-      "TEST_MODE" => ENV["TEST_MODE"]
-    }
+    @original_environment = AUTH_ENVIRONMENT_KEYS.to_h { |key| [ key, ENV[key] ] }
+    AUTH_ENVIRONMENT_KEYS.each { |key| ENV.delete(key) }
+    ENV["AUTH_MODE"] = "password"
     ENV["AUTH_USERNAME"] = "configured-user"
     ENV["AUTH_PASSWORD"] = "configured-password"
-    ENV.delete("TEST_MODE")
   end
 
   def teardown
@@ -26,6 +29,11 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_redirected_to root_path
+    principal = Foresight::Authentication::SessionPrincipal.from_session(session[:principal])
+    assert_equal "password", principal.authentication_method
+    assert_equal "configured-user", principal.subject
+    assert_nil session[:authenticated]
+    assert_nil session[:last_seen_at]
     follow_redirect!
     assert_response :success
   end
@@ -71,6 +79,19 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     post login_path, params: { username: "configured-user", password: "configured-password" }
 
     travel 31.minutes do
+      get accounts_path
+      assert_redirected_to login_path
+      follow_redirect!
+      assert_select ".alert-info", text: "Your session has expired. Please log in again."
+    end
+  end
+
+  test "an active session still expires at the absolute lifetime" do
+    ENV["SESSION_ABSOLUTE_TIMEOUT_MINUTES"] = "120"
+    Setting.instance.update!(session_timeout_minutes: 120)
+    post login_path, params: { username: "configured-user", password: "configured-password" }
+
+    travel 121.minutes do
       get accounts_path
       assert_redirected_to login_path
       follow_redirect!

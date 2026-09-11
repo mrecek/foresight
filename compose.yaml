@@ -8,6 +8,17 @@ services:
       - "${FORESIGHT_PORT:-3000}:8080"
     environment:
       - "APP_TIME_ZONE=${APP_TIME_ZONE:-UTC}"
+      - AUTH_MODE
+      - AUTH_USERNAME
+      - AUTH_PASSWORD
+      - APP_URL
+      - OIDC_ISSUER
+      - OIDC_CLIENT_ID
+      - OIDC_CLIENT_SECRET
+      - OIDC_CLIENT_SECRET_FILE
+      - OIDC_ALLOWED_SUBJECTS
+      - OIDC_PROVIDER_NAME
+      - SESSION_ABSOLUTE_TIMEOUT_MINUTES
       # When unset, Foresight generates an installation-specific key in the
       # persistent storage volume. Set it through the host environment when an
       # external secret manager owns session encryption.

@@ -3,8 +3,14 @@
 require "test_helper"
 
 class SetupControllerTest < ActionDispatch::IntegrationTest
+  AUTH_ENVIRONMENT_KEYS = %w[
+    AUTH_MODE AUTH_USERNAME AUTH_PASSWORD APP_URL OIDC_ISSUER OIDC_CLIENT_ID
+    OIDC_CLIENT_SECRET OIDC_CLIENT_SECRET_FILE OIDC_ALLOWED_SUBJECTS OIDC_PROVIDER_NAME
+    SESSION_ABSOLUTE_TIMEOUT_MINUTES TEST_MODE
+  ].freeze
+
   setup do
-    @environment = %w[AUTH_USERNAME AUTH_PASSWORD TEST_MODE].to_h { |key| [ key, ENV[key] ] }
+    @environment = AUTH_ENVIRONMENT_KEYS.to_h { |key| [ key, ENV[key] ] }
     @environment.each_key { |key| ENV.delete(key) }
     Setting.instance.update_columns(auth_username: nil, auth_password_digest: nil)
   end
@@ -56,6 +62,21 @@ class SetupControllerTest < ActionDispatch::IntegrationTest
     ENV["AUTH_USERNAME"] = "environment-owner"
     ENV["AUTH_PASSWORD"] = "environment-password"
     get setup_path
+    assert_redirected_to root_path
+  end
+
+  test "complete OIDC deployment does not expose password setup" do
+    ENV.update(
+      "AUTH_MODE" => "oidc",
+      "APP_URL" => "https://money.example.com",
+      "OIDC_ISSUER" => "https://identity.example.com",
+      "OIDC_CLIENT_ID" => "foresight",
+      "OIDC_CLIENT_SECRET" => "client-secret",
+      "OIDC_ALLOWED_SUBJECTS" => "owner-subject"
+    )
+
+    get setup_path
+
     assert_redirected_to root_path
   end
 end
