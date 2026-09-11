@@ -41,6 +41,43 @@ class Foresight::OidcStrategyTest < ActiveSupport::TestCase
     assert_instance_of OmniAuth::RailsCsrfProtection::TokenVerifier, OmniAuth.config.request_validation_phase
   end
 
+  test "explicit endpoints disable discovery without weakening the security profile" do
+    configuration = Foresight::Authentication::Configuration.new(
+      environment: {
+        "AUTH_MODE" => "oidc",
+        "APP_URL" => "https://money.example.com",
+        "OIDC_ISSUER" => "https://identity.example.com/application/o/foresight/",
+        "OIDC_CLIENT_ID" => "foresight",
+        "OIDC_CLIENT_SECRET" => "client-secret",
+        "OIDC_ALLOWED_SUBJECTS" => "owner-subject",
+        "OIDC_AUTHORIZATION_ENDPOINT" => "https://identity.example.com/application/o/authorize/",
+        "OIDC_TOKEN_ENDPOINT" => "http://identity-backchannel:8080/application/o/token/",
+        "OIDC_USERINFO_ENDPOINT" => "http://identity-backchannel:8080/application/o/userinfo/",
+        "OIDC_JWKS_URI" => "http://identity-backchannel:8080/application/o/foresight/jwks/",
+        "OIDC_ALLOW_INSECURE_BACKCHANNEL" => "true"
+      },
+      rails_environment: "production"
+    ).validate!
+    strategy = OmniAuth::Strategies::OpenIDConnect.new(->(_environment) { [ 200, {}, [] ] })
+
+    Foresight::Authentication::OidcStrategy.configure!(strategy, configuration)
+
+    refute strategy.options.discovery
+    assert_equal "https://identity.example.com/application/o/foresight/", strategy.options.issuer
+    assert_equal "https://identity.example.com/application/o/authorize/",
+      strategy.options.client_options.authorization_endpoint
+    assert_equal "http://identity-backchannel:8080/application/o/token/",
+      strategy.options.client_options.token_endpoint
+    assert_equal "http://identity-backchannel:8080/application/o/userinfo/",
+      strategy.options.client_options.userinfo_endpoint
+    assert_equal "http://identity-backchannel:8080/application/o/foresight/jwks/",
+      strategy.options.client_options.jwks_uri
+    assert strategy.options.send_state
+    assert strategy.options.require_state
+    assert strategy.options.send_nonce
+    assert strategy.options.pkce
+  end
+
   test "OIDC strategy cannot be activated in password mode" do
     configuration = Foresight::Authentication::Configuration.new(environment: {}, rails_environment: "test").validate!
     strategy = OmniAuth::Strategies::OpenIDConnect.new(->(_environment) { [ 200, {}, [] ] })

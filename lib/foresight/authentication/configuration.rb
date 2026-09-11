@@ -15,6 +15,22 @@ module Foresight
         OIDC_CLIENT_SECRET_FILE
         OIDC_ALLOWED_SUBJECTS
         OIDC_PROVIDER_NAME
+        OIDC_AUTHORIZATION_ENDPOINT
+        OIDC_TOKEN_ENDPOINT
+        OIDC_USERINFO_ENDPOINT
+        OIDC_JWKS_URI
+        OIDC_ALLOW_INSECURE_BACKCHANNEL
+      ].freeze
+      OIDC_EXPLICIT_ENDPOINT_KEYS = %w[
+        OIDC_AUTHORIZATION_ENDPOINT
+        OIDC_TOKEN_ENDPOINT
+        OIDC_USERINFO_ENDPOINT
+        OIDC_JWKS_URI
+      ].freeze
+      OIDC_BACKCHANNEL_ENDPOINT_KEYS = %w[
+        OIDC_TOKEN_ENDPOINT
+        OIDC_USERINFO_ENDPOINT
+        OIDC_JWKS_URI
       ].freeze
       DEFAULT_ABSOLUTE_SESSION_LIFETIME_MINUTES = 720
       MAXIMUM_ABSOLUTE_SESSION_LIFETIME_MINUTES = 1440
@@ -92,6 +108,30 @@ module Foresight
         environment["OIDC_PROVIDER_NAME"].presence || "OpenID Connect"
       end
 
+      def oidc_explicit_endpoints?
+        OIDC_EXPLICIT_ENDPOINT_KEYS.all? { |key| environment[key].present? }
+      end
+
+      def oidc_authorization_endpoint
+        environment["OIDC_AUTHORIZATION_ENDPOINT"].to_s
+      end
+
+      def oidc_token_endpoint
+        environment["OIDC_TOKEN_ENDPOINT"].to_s
+      end
+
+      def oidc_userinfo_endpoint
+        environment["OIDC_USERINFO_ENDPOINT"].to_s
+      end
+
+      def oidc_jwks_uri
+        environment["OIDC_JWKS_URI"].to_s
+      end
+
+      def oidc_insecure_backchannel_allowed?
+        environment["OIDC_ALLOW_INSECURE_BACKCHANNEL"].to_s == "true"
+      end
+
       def public_url
         environment["APP_URL"].to_s.delete_suffix("/")
       end
@@ -134,16 +174,49 @@ module Foresight
         validate_url(errors, "APP_URL", environment["APP_URL"], public: true) if environment["APP_URL"].present?
         validate_url(errors, "OIDC_ISSUER", environment["OIDC_ISSUER"]) if environment["OIDC_ISSUER"].present?
         validate_secret_file(errors) if secret_file
+        validate_explicit_oidc_endpoints(errors)
       end
 
-      def validate_url(errors, name, value, public: false)
+      def validate_explicit_oidc_endpoints(errors)
+        configured_keys = OIDC_EXPLICIT_ENDPOINT_KEYS.select { |key| environment[key].present? }
+        allow_insecure_value = environment["OIDC_ALLOW_INSECURE_BACKCHANNEL"].to_s
+
+        if allow_insecure_value.present? && !%w[true false].include?(allow_insecure_value)
+          errors << "OIDC_ALLOW_INSECURE_BACKCHANNEL must be true or false"
+        end
+
+        if configured_keys.any? && configured_keys.length != OIDC_EXPLICIT_ENDPOINT_KEYS.length
+          errors << "configure all or none of #{OIDC_EXPLICIT_ENDPOINT_KEYS.join(', ')}"
+          return
+        end
+
+        unless oidc_explicit_endpoints?
+          errors << "OIDC_ALLOW_INSECURE_BACKCHANNEL requires explicit OIDC endpoints" if oidc_insecure_backchannel_allowed?
+          return
+        end
+
+        validate_url(errors, "OIDC_AUTHORIZATION_ENDPOINT", oidc_authorization_endpoint)
+        OIDC_BACKCHANNEL_ENDPOINT_KEYS.each do |name|
+          validate_url(
+            errors,
+            name,
+            environment[name],
+            allow_http: oidc_insecure_backchannel_allowed?
+          )
+        end
+      end
+
+      def validate_url(errors, name, value, public: false, allow_http: false)
         uri = URI.parse(value.to_s)
         valid = uri.is_a?(URI::HTTP) && uri.host.present? && uri.userinfo.nil? && uri.query.nil? && uri.fragment.nil?
         valid &&= uri.path.blank? || uri.path == "/" if public
-        valid &&= uri.scheme == "https" unless local_http_url_allowed?(uri)
-        errors << "#{name} must be an absolute HTTPS URL#{' without a path' if public}" unless valid
+        valid &&= %w[http https].include?(uri.scheme) if allow_http
+        valid &&= uri.scheme == "https" unless allow_http || local_http_url_allowed?(uri)
+        scheme = allow_http ? "HTTP or HTTPS" : "HTTPS"
+        errors << "#{name} must be an absolute #{scheme} URL#{' without a path' if public}" unless valid
       rescue URI::InvalidURIError
-        errors << "#{name} must be an absolute HTTPS URL#{' without a path' if public}"
+        scheme = allow_http ? "HTTP or HTTPS" : "HTTPS"
+        errors << "#{name} must be an absolute #{scheme} URL#{' without a path' if public}"
       end
 
       def local_http_url_allowed?(uri)

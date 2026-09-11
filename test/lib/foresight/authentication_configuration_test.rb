@@ -66,6 +66,61 @@ class Foresight::AuthenticationConfigurationTest < ActiveSupport::TestCase
     end
   end
 
+  test "OIDC accepts a complete explicit endpoint set" do
+    configuration = build_configuration(valid_oidc_environment.merge(explicit_endpoint_environment)).validate!
+
+    assert configuration.oidc_explicit_endpoints?
+    assert_equal "https://identity.example.com/application/o/authorize/",
+      configuration.oidc_authorization_endpoint
+    assert_equal "http://identity-backchannel:8080/application/o/token/", configuration.oidc_token_endpoint
+    assert_equal "http://identity-backchannel:8080/application/o/userinfo/", configuration.oidc_userinfo_endpoint
+    assert_equal "http://identity-backchannel:8080/application/o/foresight/jwks/", configuration.oidc_jwks_uri
+    assert configuration.oidc_insecure_backchannel_allowed?
+  end
+
+  test "OIDC rejects partial explicit endpoints" do
+    error = assert_raises(Configuration::Error) do
+      build_configuration(valid_oidc_environment.merge(
+        "OIDC_TOKEN_ENDPOINT" => "https://identity-backchannel.example.com/application/o/token/"
+      )).validate!
+    end
+
+    assert_includes error.message, "configure all or none of OIDC_AUTHORIZATION_ENDPOINT"
+  end
+
+  test "OIDC requires explicit opt-in for HTTP backchannel endpoints" do
+    environment = valid_oidc_environment.merge(explicit_endpoint_environment.except(
+      "OIDC_ALLOW_INSECURE_BACKCHANNEL"
+    ))
+
+    error = assert_raises(Configuration::Error) { build_configuration(environment).validate! }
+
+    assert_includes error.message, "OIDC_TOKEN_ENDPOINT must be an absolute HTTPS URL"
+    assert_includes error.message, "OIDC_USERINFO_ENDPOINT must be an absolute HTTPS URL"
+    assert_includes error.message, "OIDC_JWKS_URI must be an absolute HTTPS URL"
+  end
+
+  test "OIDC always requires HTTPS for the browser authorization endpoint" do
+    environment = valid_oidc_environment.merge(
+      explicit_endpoint_environment,
+      "OIDC_AUTHORIZATION_ENDPOINT" => "http://identity.example.com/application/o/authorize/"
+    )
+
+    error = assert_raises(Configuration::Error) { build_configuration(environment).validate! }
+
+    assert_includes error.message, "OIDC_AUTHORIZATION_ENDPOINT must be an absolute HTTPS URL"
+  end
+
+  test "OIDC rejects an insecure-backchannel flag without explicit endpoints" do
+    error = assert_raises(Configuration::Error) do
+      build_configuration(valid_oidc_environment.merge(
+        "OIDC_ALLOW_INSECURE_BACKCHANNEL" => "true"
+      )).validate!
+    end
+
+    assert_includes error.message, "OIDC_ALLOW_INSECURE_BACKCHANNEL requires explicit OIDC endpoints"
+  end
+
   test "OIDC rejects dual secrets and unsafe public URLs" do
     error = assert_raises(Configuration::Error) do
       build_configuration(valid_oidc_environment.merge(
@@ -113,6 +168,16 @@ class Foresight::AuthenticationConfigurationTest < ActiveSupport::TestCase
       "OIDC_CLIENT_ID" => "foresight",
       "OIDC_CLIENT_SECRET" => "client-secret",
       "OIDC_ALLOWED_SUBJECTS" => "owner-subject, backup-subject, owner-subject"
+    }
+  end
+
+  def explicit_endpoint_environment
+    {
+      "OIDC_AUTHORIZATION_ENDPOINT" => "https://identity.example.com/application/o/authorize/",
+      "OIDC_TOKEN_ENDPOINT" => "http://identity-backchannel:8080/application/o/token/",
+      "OIDC_USERINFO_ENDPOINT" => "http://identity-backchannel:8080/application/o/userinfo/",
+      "OIDC_JWKS_URI" => "http://identity-backchannel:8080/application/o/foresight/jwks/",
+      "OIDC_ALLOW_INSECURE_BACKCHANNEL" => "true"
     }
   end
 end
