@@ -20,8 +20,8 @@ abort "Ruby update must move forward from #{current}" unless (version_parts <=> 
 abort "Invalid image digest: #{digest.inspect}" unless digest.match?(/\Asha256:[0-9a-f]{64}\z/)
 
 dockerfile = File.read("Dockerfile")
-replacement = "FROM docker.io/library/ruby:#{version}-slim@#{digest} AS base"
-updated = dockerfile.sub(%r{^FROM docker\.io/library/ruby:\d+\.\d+\.\d+-slim@sha256:[0-9a-f]{64} AS base$}, replacement)
+replacement = "FROM docker.io/library/ruby:#{version}-slim-trixie@#{digest} AS base"
+updated = dockerfile.sub(%r{^FROM docker\.io/library/ruby:\d+\.\d+\.\d+-slim-trixie@sha256:[0-9a-f]{64} AS base$}, replacement)
 abort "Dockerfile Ruby base declaration was not found" if updated == dockerfile
 
 mise_config = File.read(".mise.toml")

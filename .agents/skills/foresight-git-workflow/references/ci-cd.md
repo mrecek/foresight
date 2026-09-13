@@ -24,10 +24,13 @@ Completion means every required check is present on the pull request and success
 - Dependabot owns Bundler, GitHub Actions, and Docker base-digest proposals.
 - Only Bundler patch and minor changes are eligible for auto-merge.
 - The Ruby freshness workflow owns patch updates across `.ruby-version`, `.mise.toml`, `mise.lock`, and the digest-pinned Docker base.
+- The OS package freshness workflow inspects the immutable released image. When Debian packages are stale, it advances only `OS_PATCH_EPOCH`, validates a rebuilt image, opens one pull request, explicitly dispatches protected CI, and enables squash auto-merge.
 - Ruby minor and major upgrades, GitHub Actions, and Docker changes stay under human review.
 - The scheduled security workflow detects dependency, application, and image findings; remediation still travels through a pull request.
 
 Inspect Dependabot metadata and the eligibility script before changing an auto-merge boundary. Complete a change only when an ineligible ecosystem and major Bundler update still fail closed.
+
+Automation pull requests created with `GITHUB_TOKEN` do not emit a new `pull_request` workflow run. Ruby and OS refresh workflows therefore dispatch `ci.yml` explicitly on the automation branch. If one stalls, inspect the source freshness run, the dispatched CI run at the pull-request head, and repository auto-merge settings before changing code.
 
 ## Container Publication
 

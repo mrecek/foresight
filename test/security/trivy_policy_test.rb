@@ -31,8 +31,9 @@ class TrivyPolicyTest < ActiveSupport::TestCase
 
     refute status.success?
     assert_includes stdout, "2 fixable HIGH/CRITICAL"
-    assert_includes stdout, "CVE-HIGH: demo 1.2.3 -> 1.2.4"
-    assert_includes stdout, "CVE-CRITICAL: demo 1.2.3 -> 2.0.0"
+    assert_includes stdout, "across 1 package"
+    assert_includes stdout, "demo 1.2.3 -> 1.2.4, 2.0.0: 2 finding"
+    assert_includes stdout, "CVE-CRITICAL, CVE-HIGH"
   end
 
   test "medium findings do not block even when fixable" do

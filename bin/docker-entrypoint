@@ -1,101 +1,85 @@
-#!/bin/bash
-set -euo pipefail
+#!/usr/bin/env ruby
+# frozen_string_literal: true
 
-readonly SECRET_KEY_BASE_MIN_BYTES=30
-readonly SECRET_KEY_BASE_FILE="${SECRET_KEY_BASE_FILE:-/rails/storage/.secret_key_base}"
+require "securerandom"
 
-fail_secret() {
-  printf 'Foresight startup error: %s\n' "$1" >&2
+SECRET_KEY_BASE_MIN_BYTES = 30
+secret_path = ENV.fetch("SECRET_KEY_BASE_FILE", "/rails/storage/.secret_key_base")
+
+def fail_secret(message)
+  warn "Foresight startup error: #{message}"
   exit 1
-}
+end
 
-secret_byte_length() {
-  LC_ALL=C printf '%s' "$1" | wc -c | tr -d ' '
-}
+def validate_secret_value(value, source)
+  return if value.bytesize >= SECRET_KEY_BASE_MIN_BYTES
 
-validate_secret_value() {
-  local value="$1"
-  local source="$2"
-  local byte_length
+  fail_secret "#{source} must contain at least #{SECRET_KEY_BASE_MIN_BYTES} bytes"
+end
 
-  byte_length="$(secret_byte_length "$value")"
-  if [ "$byte_length" -lt "$SECRET_KEY_BASE_MIN_BYTES" ]; then
-    fail_secret "$source must contain at least $SECRET_KEY_BASE_MIN_BYTES bytes"
-  fi
-}
+def load_persisted_secret(path)
+  stat = File.lstat(path)
+  fail_secret "#{path} must not be a symbolic link" if stat.symlink?
+  fail_secret "#{path} must be a regular file" unless stat.file?
+  fail_secret "#{path} must be owned by the container user" unless stat.uid == Process.euid
+  fail_secret "#{path} must not grant group or other permissions" unless (stat.mode & 0o077).zero?
+  fail_secret "#{path} is not readable by the container user" unless File.readable?(path)
 
-file_owner_id() {
-  stat -c '%u' "$1" 2>/dev/null || stat -f '%u' "$1"
-}
+  value = File.binread(path).sub(/\n+\z/, "")
+  validate_secret_value(value, path)
+  value
+rescue Errno::ENOENT
+  fail_secret "#{path} does not exist"
+end
 
-file_mode() {
-  stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"
-}
+def persist_generated_secret(path)
+  directory = File.dirname(path)
+  directory_stat = File.lstat(directory)
+  fail_secret "#{directory} must not be a symbolic link" if directory_stat.symlink?
+  fail_secret "#{directory} does not exist" unless directory_stat.directory?
 
-load_persisted_secret() {
-  local path="$1"
-  local owner mode value
+  generated = SecureRandom.hex(64)
+  validate_secret_value(generated, "generated session secret")
+  temporary = "#{path}.tmp.#{Process.pid}.#{SecureRandom.hex(8)}"
 
-  [ ! -L "$path" ] || fail_secret "$path must not be a symbolic link"
-  [ -f "$path" ] || fail_secret "$path must be a regular file"
+  begin
+    File.open(temporary, File::WRONLY | File::CREAT | File::EXCL, 0o600) do |file|
+      file.write("#{generated}\n")
+      file.flush
+      file.fsync
+    end
 
-  owner="$(file_owner_id "$path")"
-  [ "$owner" = "$(id -u)" ] || fail_secret "$path must be owned by the container user"
+    begin
+      # Publish the complete file only if no concurrent process won first.
+      File.link(temporary, path)
+      File.open(directory, File::RDONLY, &:fsync)
+    rescue Errno::EEXIST
+      raise unless File.exist?(path) || File.symlink?(path)
+    end
+  rescue SystemCallError
+    fail_secret "cannot create a private secret in #{directory}"
+  ensure
+    File.unlink(temporary) if File.exist?(temporary)
+  end
 
-  mode="$(file_mode "$path")"
-  (( (8#$mode & 077) == 0 )) || fail_secret "$path must not grant group or other permissions"
-  [ -r "$path" ] || fail_secret "$path is not readable by the container user"
+  load_persisted_secret(path)
+rescue Errno::ENOENT
+  fail_secret "#{directory} does not exist"
+end
 
-  value="$(<"$path")"
-  validate_secret_value "$value" "$path"
-  SECRET_KEY_BASE="$value"
-}
-
-persist_generated_secret() {
-  local path="$1"
-  local directory temporary generated
-
-  directory="$(dirname "$path")"
-  [ -d "$directory" ] || fail_secret "$directory does not exist"
-  [ ! -L "$directory" ] || fail_secret "$directory must not be a symbolic link"
-
-  umask 077
-  temporary="$(mktemp "${path}.tmp.XXXXXX")" || fail_secret "cannot create a private secret in $directory"
-  trap 'rm -f -- "$temporary"' RETURN EXIT
-
-  generated="$(ruby -rsecurerandom -e 'print SecureRandom.hex(64)')" || fail_secret "cannot generate a random session secret"
-  validate_secret_value "$generated" "generated session secret"
-  printf '%s\n' "$generated" > "$temporary" || fail_secret "cannot write a private secret in $directory"
-  chmod 0600 "$temporary" || fail_secret "cannot secure generated session secret permissions"
-  ruby -e 'File.open(ARGV.fetch(0), "r") { |file| file.fsync }' "$temporary" || fail_secret "cannot sync generated session secret"
-
-  # A hard link publishes the already-complete file only if the destination does
-  # not exist. Concurrent containers then read back the single winning value.
-  if ln "$temporary" "$path" 2>/dev/null; then
-    rm -f -- "$temporary"
-    ruby -e 'File.open(File.dirname(ARGV.fetch(0)), "r") { |directory| directory.fsync }' "$path" || fail_secret "cannot sync session secret directory"
-  elif [ ! -e "$path" ] && [ ! -L "$path" ]; then
-    fail_secret "cannot persist session secret at $path"
-  fi
-
-  trap - RETURN EXIT
-  rm -f -- "$temporary"
-  load_persisted_secret "$path"
-}
-
-if [ "${SECRET_KEY_BASE+x}" = "x" ]; then
-  validate_secret_value "$SECRET_KEY_BASE" "SECRET_KEY_BASE"
-elif [ -e "$SECRET_KEY_BASE_FILE" ] || [ -L "$SECRET_KEY_BASE_FILE" ]; then
-  load_persisted_secret "$SECRET_KEY_BASE_FILE"
+secret = if ENV.key?("SECRET_KEY_BASE")
+  ENV.fetch("SECRET_KEY_BASE").tap { |value| validate_secret_value(value, "SECRET_KEY_BASE") }
+elsif File.exist?(secret_path) || File.symlink?(secret_path)
+  load_persisted_secret(secret_path)
 else
-  persist_generated_secret "$SECRET_KEY_BASE_FILE"
-fi
+  persist_generated_secret(secret_path)
+end
 
-export SECRET_KEY_BASE
+ENV["SECRET_KEY_BASE"] = secret
 
-# If running the rails server then create or migrate existing database
-if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
-  ./bin/rails db:prepare
-fi
+# Create or migrate the database only for the packaged server command.
+if ARGV.last(2) == [ "./bin/rails", "server" ]
+  exit 1 unless system("./bin/rails", "db:prepare")
+end
 
-exec "${@}"
+exec(*ARGV)

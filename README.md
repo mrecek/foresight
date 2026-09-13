@@ -194,7 +194,7 @@ The production image uses Thruster in front of Puma, runs without root privilege
 
 ## Maintenance and security
 
-Routine gem patch and minor updates are proposed by Dependabot and may merge only after the complete pull-request validation contract passes. Ruby patch releases update the local runtime declaration and digest-pinned container base together. GitHub Actions, Docker changes, major dependency versions, and Ruby minor or major upgrades remain under human review.
+Routine gem patch and minor updates are proposed by Dependabot and may merge only after the complete pull-request validation contract passes. Ruby patch releases update the local runtime declaration and digest-pinned container base together. A daily package-freshness check inspects the last released image and, when Debian updates are available, proposes a cache-safe rebuild that must pass the same application and container checks. GitHub Actions, Docker architecture changes, major dependency versions, and Ruby minor or major upgrades remain under human review.
 
 Scheduled security checks audit Ruby dependencies, browser imports, Rails application code, and the built production image. Release publication builds an unpromoted candidate, smoke-tests both supported architectures, verifies provenance, and only then promotes public tags.
 

@@ -8,18 +8,24 @@
 # For a containerized dev environment, see Dev Containers: https://guides.rubyonrails.org/getting_started_with_devcontainer.html
 
 # Keep this version in sync with .ruby-version. The digest pins the complete
-# multi-architecture base identity while Dependabot watches for rebuilt images
-# containing Debian and operating-system security fixes.
-FROM docker.io/library/ruby:3.4.10-slim@sha256:9d50d98e61ccbe4f1ef436349911e09b53c42a00364bcd3bda6ac107abc29528 AS base
+# multi-architecture Debian 13 base identity. OS_PATCH_EPOCH is advanced only
+# by the operating-system refresh workflow so the package layer cannot remain
+# stale in BuildKit's cache.
+FROM docker.io/library/ruby:3.4.10-slim-trixie@sha256:9d50d98e61ccbe4f1ef436349911e09b53c42a00364bcd3bda6ac107abc29528 AS base
 
 ARG DEBIAN_FRONTEND=noninteractive
+ARG OS_PATCH_EPOCH=2026-09-13T00:00:00Z
 
 # Rails app lives here
 WORKDIR /rails
 
-# Install base packages
-RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y curl libjemalloc2 openssl sqlite3 && \
+# Upgrade inherited packages and install the one additional runtime library.
+# Referencing the tracked epoch makes each approved refresh a new cache key and
+# therefore a new immutable image rather than a mutation of an existing tag.
+RUN echo "Applying Debian package refresh ${OS_PATCH_EPOCH}" && \
+    apt-get update -qq && \
+    apt-get upgrade --with-new-pkgs -y && \
+    apt-get install --no-install-recommends -y libjemalloc2 && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
@@ -65,7 +71,7 @@ FROM base
 
 # Run and own only the runtime files as a non-root user for security
 RUN groupadd --system --gid 1000 rails && \
-    useradd rails --uid 1000 --gid 1000 --create-home --shell /bin/bash
+    useradd rails --uid 1000 --gid 1000 --create-home --shell /usr/sbin/nologin
 USER 1000:1000
 
 # Copy built artifacts: gems, application
@@ -77,7 +83,7 @@ ENTRYPOINT ["/rails/bin/docker-entrypoint"]
 
 # Health check for container orchestration (Docker, Kubernetes, etc.)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD curl -f "http://localhost:${THRUSTER_HTTP_PORT}/up" || exit 1
+  CMD ["bin/container-healthcheck"]
 
 # Start server via Thruster by default, this can be overwritten at runtime
 EXPOSE 8080
