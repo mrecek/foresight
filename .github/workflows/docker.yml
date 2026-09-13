@@ -11,6 +11,8 @@ on:
       - "docs/**"
       - ".agents/**"
       - ".claude/**"
+      - ".github/**"
+      - "test/**"
 
 concurrency:
   group: container-release

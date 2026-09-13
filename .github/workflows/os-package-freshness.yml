@@ -24,12 +24,9 @@ jobs:
 
       - name: Inspect the immutable released image
         id: packages
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           repository="ghcr.io/${GITHUB_REPOSITORY,,}"
-          echo "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           digest="$(docker buildx imagetools inspect "${repository}:latest" | awk '$1 == "Digest:" { print $2; exit }')"
           [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
           image="${repository}@${digest}"
