@@ -64,6 +64,7 @@ class DependabotAutomationTest < ActiveSupport::TestCase
 
     assert_includes workflow, 'cron: "15 10 * * *"'
     assert_includes workflow, 'image="${repository}@${digest}"'
+    refute_includes workflow, "docker login"
     assert_includes workflow, "bin/check-os-updates"
     assert_includes workflow, "bin/update-os-patch-epoch"
     assert_includes workflow, '[[ "$(git diff --name-only)" == "Dockerfile" ]]'
@@ -72,6 +73,13 @@ class DependabotAutomationTest < ActiveSupport::TestCase
     assert_includes workflow, "gh workflow run ci.yml"
     assert_includes workflow, "gh pr merge --auto --squash"
     assert_includes ci, "workflow_dispatch:"
+  end
+
+  test "workflow-only and test-only changes do not publish an application image" do
+    workflow = Rails.root.join(".github/workflows/docker.yml").read
+
+    assert_includes workflow, '- ".github/**"'
+    assert_includes workflow, '- "test/**"'
   end
 
   test "Docker base is pinned by version and multi-architecture digest" do
