@@ -1,0 +1,12 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "net/http"
+
+begin
+  port = ENV.fetch("THRUSTER_HTTP_PORT", "8080")
+  response = Net::HTTP.get_response(URI("http://127.0.0.1:#{port}/up"))
+  exit(response.is_a?(Net::HTTPSuccess) ? 0 : 1)
+rescue StandardError
+  exit 1
+end

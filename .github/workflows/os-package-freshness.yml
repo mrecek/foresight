@@ -1,0 +1,113 @@
+name: OS Package Freshness
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 10 * * *"
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: os-package-freshness
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Inspect the immutable released image
+        id: packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          repository="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          digest="$(docker buildx imagetools inspect "${repository}:latest" | awk '$1 == "Digest:" { print $2; exit }')"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          image="${repository}@${digest}"
+          docker pull "$image"
+          bin/check-os-updates --github-output "$GITHUB_OUTPUT" "$image"
+
+      - name: Check for an existing refresh
+        if: steps.packages.outputs.status == 'stale'
+        id: existing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: automation/os-package-refresh-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          open_count="$(gh pr list --state open --limit 100 --json headRefName --jq '[.[] | select(.headRefName | startswith("automation/os-package-refresh-"))] | length')"
+          branch_count="$(gh pr list --state all --head "$BRANCH" --json number --jq length)"
+          echo "found=$([[ "$open_count" -gt 0 || "$branch_count" -gt 0 ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Advance the package refresh epoch
+        if: steps.packages.outputs.status == 'stale' && steps.existing.outputs.found == 'false'
+        run: bin/update-os-patch-epoch --time "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+      - name: Set up Ruby
+        if: steps.packages.outputs.status == 'stale' && steps.existing.outputs.found == 'false'
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1
+        with:
+          bundler-cache: true
+
+      - name: Validate the refresh candidate
+        if: steps.packages.outputs.status == 'stale' && steps.existing.outputs.found == 'false'
+        run: |
+          bin/validate --ci
+          bin/validate container
+
+      - name: Open, validate, and queue the refresh pull request
+        if: steps.packages.outputs.status == 'stale' && steps.existing.outputs.found == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: automation/os-package-refresh-${{ github.run_id }}-${{ github.run_attempt }}
+          PACKAGES: ${{ steps.packages.outputs.packages }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch --create "$BRANCH"
+          [[ "$(git diff --name-only)" == "Dockerfile" ]]
+          git add Dockerfile
+          git commit -m "Refresh Debian packages"
+          git push origin "$BRANCH"
+          pr_url="$(gh pr create \
+            --base "${{ github.event.repository.default_branch }}" \
+            --head "$BRANCH" \
+            --label dependencies \
+            --title "Refresh Debian packages" \
+            --body "Advances the container package epoch to rebuild against current Debian packages: ${PACKAGES}. The full validation contract passed in [the refresh run](${RUN_URL}).")"
+          # GITHUB_TOKEN-authored pushes do not emit pull_request workflow runs.
+          # An explicit dispatch attaches the protected CI checks to this head.
+          gh workflow run ci.yml --ref "$BRANCH"
+          gh pr merge --auto --squash "$pr_url"
+
+      - name: Publish freshness summary
+        if: always()
+        env:
+          STATUS: ${{ steps.packages.outputs.status }}
+          COUNT: ${{ steps.packages.outputs.count }}
+          PACKAGES: ${{ steps.packages.outputs.packages }}
+          EXISTING: ${{ steps.existing.outputs.found }}
+        run: |
+          {
+            echo "## OS package freshness"
+            echo
+            echo "- Released-image status: \`${STATUS:-inspection-failed}\`"
+            echo "- Available package updates: \`${COUNT:-unknown}\`"
+            echo "- Packages: \`${PACKAGES:-none}\`"
+            if [[ "${EXISTING}" == "true" ]]; then
+              echo "- An open refresh pull request already owns remediation."
+            fi
+            echo
+            echo "A refresh changes only the cache epoch. Required CI rebuilds and tests the complete image before auto-merge."
+          } >> "$GITHUB_STEP_SUMMARY"

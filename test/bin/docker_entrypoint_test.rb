@@ -132,7 +132,7 @@ class DockerEntrypointTest < Minitest::Test
       "SECRET_KEY_BASE" => nil,
       "SECRET_KEY_BASE_FILE" => @secret_file
     }.merge(environment)
-    stdout, stderr, status = Open3.capture3(child_environment, "bash", ENTRYPOINT, *HASH_COMMAND)
+    stdout, stderr, status = Open3.capture3(child_environment, RbConfig.ruby, ENTRYPOINT, *HASH_COMMAND)
 
     { stdout: stdout, stderr: stderr, status: status }
   end

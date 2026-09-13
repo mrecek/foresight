@@ -1,0 +1,27 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "optparse"
+require "time"
+
+options = {}
+OptionParser.new do |parser|
+  parser.on("--time UTC_TIMESTAMP") { |value| options[:time] = value }
+end.parse!
+
+requested = options.fetch(:time) { abort "--time is required" }
+begin
+  requested_time = Time.iso8601(requested)
+rescue ArgumentError
+  abort "Invalid patch epoch: #{requested.inspect}"
+end
+abort "Patch epoch must use UTC YYYY-MM-DDTHH:MM:SSZ" unless requested.match?(/\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\z/)
+
+dockerfile = File.read("Dockerfile")
+current = dockerfile[/^ARG OS_PATCH_EPOCH=(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)$/, 1]
+abort "Dockerfile OS_PATCH_EPOCH declaration was not found" unless current
+abort "OS patch epoch must move forward from #{current}" unless requested_time > Time.iso8601(current)
+
+updated = dockerfile.sub(/^ARG OS_PATCH_EPOCH=#{Regexp.escape(current)}$/, "ARG OS_PATCH_EPOCH=#{requested}")
+File.write("Dockerfile", updated)
+puts "Advanced OS patch epoch from #{current} to #{requested}."

@@ -54,12 +54,34 @@ class DependabotAutomationTest < ActiveSupport::TestCase
     assert_includes workflow, "mise lock ruby"
     assert_includes workflow, "bin/validate --ci"
     assert_includes workflow, "gh pr create"
+    assert_includes workflow, "gh workflow run ci.yml"
+    assert_includes workflow, "gh pr merge --auto --squash"
+  end
+
+  test "OS package automation refreshes only a stale immutable release" do
+    workflow = Rails.root.join(".github/workflows/os-package-freshness.yml").read
+    ci = Rails.root.join(".github/workflows/ci.yml").read
+
+    assert_includes workflow, 'cron: "15 10 * * *"'
+    assert_includes workflow, 'image="${repository}@${digest}"'
+    assert_includes workflow, "bin/check-os-updates"
+    assert_includes workflow, "bin/update-os-patch-epoch"
+    assert_includes workflow, '[[ "$(git diff --name-only)" == "Dockerfile" ]]'
+    assert_includes workflow, "bin/validate --ci"
+    assert_includes workflow, "bin/validate container"
+    assert_includes workflow, "gh workflow run ci.yml"
+    assert_includes workflow, "gh pr merge --auto --squash"
+    assert_includes ci, "workflow_dispatch:"
   end
 
   test "Docker base is pinned by version and multi-architecture digest" do
     dockerfile = Rails.root.join("Dockerfile").read
 
-    assert_match %r{^FROM docker\.io/library/ruby:3\.4\.10-slim@sha256:[0-9a-f]{64} AS base$}, dockerfile
+    assert_match %r{^FROM docker\.io/library/ruby:3\.4\.10-slim-trixie@sha256:[0-9a-f]{64} AS base$}, dockerfile
+    assert_match(/^ARG OS_PATCH_EPOCH=\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/, dockerfile)
+    assert_includes dockerfile, "apt-get upgrade --with-new-pkgs -y"
+    refute_match(/apt-get install[^\n]+(?:curl|sqlite3)/, dockerfile)
+    assert_includes dockerfile, 'CMD ["bin/container-healthcheck"]'
   end
 
   test "automation does not depend on an automerge label" do

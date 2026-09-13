@@ -1,0 +1,46 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "open3"
+require "optparse"
+
+options = {}
+OptionParser.new do |parser|
+  parser.banner = "Usage: bin/check-os-updates [--github-output PATH] IMAGE"
+  parser.on("--github-output PATH") { |path| options[:github_output] = path }
+end.parse!
+
+image = ARGV.fetch(0) { abort "Usage: bin/check-os-updates [--github-output PATH] IMAGE" }
+abort "Expected exactly one image reference" unless ARGV.one?
+
+probe = <<~SH
+  set -eu
+  apt-get update -qq
+  apt-get --simulate --no-install-recommends upgrade
+SH
+
+stdout, stderr, status = Open3.capture3(
+  "docker", "run", "--rm", "--user", "0", "--entrypoint", "/bin/sh", image, "-c", probe
+)
+abort "Could not inspect OS packages in #{image}:\n#{stderr}" unless status.success?
+
+updates = stdout.each_line.filter_map do |line|
+  match = line.match(/^Inst\s+(\S+)\s+\[([^\]]+)\]\s+\((\S+)/)
+  [ match[1], match[2], match[3] ] if match
+end
+
+state = updates.empty? ? "current" : "stale"
+if updates.empty?
+  puts "OS packages are current in #{image}."
+else
+  puts "OS packages are stale in #{image}:"
+  updates.sort.each { |package, installed, candidate| puts "- #{package}: #{installed} -> #{candidate}" }
+end
+
+if options[:github_output]
+  File.open(options[:github_output], "a") do |file|
+    file.puts "status=#{state}"
+    file.puts "count=#{updates.size}"
+    file.puts "packages=#{updates.map(&:first).uniq.sort.join(',')}"
+  end
+end

@@ -33,12 +33,17 @@ summary = if blocking.empty?
   end
   message
 else
-  details = blocking.map do |vulnerability|
-    "- #{vulnerability['VulnerabilityID']}: #{vulnerability['PkgName']} " \
-      "#{vulnerability['InstalledVersion']} -> #{vulnerability['FixedVersion']} " \
-      "(#{vulnerability['Severity']})"
+  details = blocking.group_by { |vulnerability| vulnerability.fetch("PkgName") }.sort.map do |package, findings|
+    installed = findings.map { |finding| finding.fetch("InstalledVersion") }.uniq.sort.join(", ")
+    fixed = findings.map { |finding| finding.fetch("FixedVersion") }.uniq.sort.join(", ")
+    severities = findings.group_by { |finding| finding.fetch("Severity") }
+      .sort.map { |severity, matches| "#{matches.size} #{severity}" }.join(", ")
+    identifiers = findings.map { |finding| finding.fetch("VulnerabilityID") }.uniq.sort.join(", ")
+    "- #{package} #{installed} -> #{fixed}: #{findings.size} finding(s) (#{severities}); #{identifiers}"
   end
-  ([ "Trivy policy failed with #{blocking.size} fixable HIGH/CRITICAL finding(s):" ] + details).join("\n")
+  heading = "Trivy policy failed with #{blocking.size} fixable HIGH/CRITICAL finding(s) " \
+    "across #{blocking.map { |finding| finding.fetch('PkgName') }.uniq.size} package(s):"
+  ([ heading ] + details).join("\n")
 end
 
 puts summary

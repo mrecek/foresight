@@ -44,7 +44,7 @@ wait_for_health() {
 
 wait_for_internal_health() {
   for _attempt in $(seq 1 "$health_attempts"); do
-    if docker exec "$container_name" curl --fail --silent "http://127.0.0.1:8080/up" >/dev/null 2>&1; then
+    if docker exec "$container_name" bin/container-healthcheck >/dev/null 2>&1; then
       return
     fi
     sleep 1
@@ -73,7 +73,7 @@ second_fingerprint="$(docker run --rm \
   exit 1
 }
 
-raw_secret="$(docker exec "$container_name" sh -c 'cat /rails/storage/.secret_key_base')"
+raw_secret="$(docker exec "$container_name" ruby -e 'print File.read("/rails/storage/.secret_key_base").strip')"
 container_logs="$(docker logs "$container_name" 2>&1)"
 if [[ "$container_logs" == *"$raw_secret"* ]]; then
   echo "Raw session key appeared in container logs." >&2

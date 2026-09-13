@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require "open3"
+require "time"
 
 root = File.expand_path("..", __dir__)
 expected_ruby = File.read(File.join(root, ".ruby-version")).strip
@@ -10,9 +11,12 @@ mise_ruby = mise_config[/^ruby\s*=\s*"(\d+\.\d+\.\d+)"\s*$/, 1]
 abort ".mise.toml must pin Ruby to an exact version" unless mise_ruby
 abort "Ruby source/mise mismatch: #{expected_ruby} != #{mise_ruby}" unless expected_ruby == mise_ruby
 dockerfile = File.read(File.join(root, "Dockerfile"))
-docker_ruby = dockerfile[%r{^FROM docker\.io/library/ruby:(\d+\.\d+\.\d+)-slim@sha256:[0-9a-f]{64} AS base$}, 1]
-abort "Dockerfile must pin the Ruby slim image by version and digest" unless docker_ruby
+docker_ruby = dockerfile[%r{^FROM docker\.io/library/ruby:(\d+\.\d+\.\d+)-slim-trixie@sha256:[0-9a-f]{64} AS base$}, 1]
+abort "Dockerfile must pin the Ruby slim-trixie image by version and digest" unless docker_ruby
 abort "Ruby source/Docker mismatch: #{expected_ruby} != #{docker_ruby}" unless expected_ruby == docker_ruby
+os_patch_epoch = dockerfile[/^ARG OS_PATCH_EPOCH=(\S+)$/, 1]
+abort "Dockerfile must declare a valid UTC OS patch epoch" unless os_patch_epoch&.match?(/\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\z/)
+Time.iso8601(os_patch_epoch)
 abort "Running Ruby mismatch: expected #{expected_ruby}, got #{RUBY_VERSION}" unless expected_ruby == RUBY_VERSION
 
 lockfile = File.read(File.join(root, "Gemfile.lock"))

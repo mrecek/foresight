@@ -6,6 +6,7 @@ on:
     - cron: "15 15 * * 1"
 
 permissions:
+  actions: write
   contents: write
   pull-requests: write
 
@@ -49,7 +50,7 @@ jobs:
           VERSION: ${{ steps.ruby.outputs.latest }}
         run: |
           set -euo pipefail
-          image="docker.io/library/ruby:${VERSION}-slim"
+          image="docker.io/library/ruby:${VERSION}-slim-trixie"
           digest="$(docker buildx imagetools inspect "$image" | awk '$1 == "Digest:" { print $2; exit }')"
           bin/update-ruby-patch --version "$VERSION" --digest "$digest"
           mise lock ruby
@@ -79,12 +80,14 @@ jobs:
           git add .ruby-version .mise.toml mise.lock Dockerfile
           git commit -m "Update Ruby to ${VERSION}"
           git push origin "$BRANCH"
-          gh pr create \
+          pr_url="$(gh pr create \
             --base "${{ github.event.repository.default_branch }}" \
             --head "$BRANCH" \
             --label dependencies \
             --title "Update Ruby to ${VERSION}" \
-            --body "Updates the supported Ruby patch and pins the matching multi-architecture base-image digest. The full non-container validation contract passed in [the freshness run](${RUN_URL}). Major and minor Ruby upgrades remain manual."
+            --body "Updates the supported Ruby patch and pins the matching multi-architecture base-image digest. The full non-container validation contract passed in [the freshness run](${RUN_URL}). Major and minor Ruby upgrades remain manual.")"
+          gh workflow run ci.yml --ref "$BRANCH"
+          gh pr merge --auto --squash "$pr_url"
 
       - name: Publish freshness summary
         if: always()
