@@ -1,0 +1,27 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "json"
+require "open3"
+
+reference = ARGV.fetch(0) { abort "Usage: bin/container-package-inventory IMAGE@DIGEST PLATFORM" }
+platform = ARGV.fetch(1) { abort "Platform is required" }
+abort "Image must be digest-addressed" unless reference.match?(/@sha256:[0-9a-f]{64}\z/)
+abort "Unsupported platform: #{platform}" unless %w[linux/amd64 linux/arm64].include?(platform)
+
+format = '${binary:Package}\t${Architecture}\t${Version}\n'
+output, status = Open3.capture2e(
+  "docker", "run", "--rm", "--platform", platform, "--entrypoint", "dpkg-query",
+  reference, "-W", "-f=#{format}"
+)
+abort "Could not inventory #{reference} for #{platform}: #{output}" unless status.success?
+
+packages = output.lines.filter_map do |line|
+  name, architecture, version = line.chomp.split("\t", 3)
+  next if [ name, architecture, version ].any? { |value| value.nil? || value.empty? }
+
+  { "package" => name, "architecture" => architecture, "version" => version }
+end.sort_by { |package| [ package.fetch("package"), package.fetch("architecture") ] }
+
+abort "Package inventory was empty for #{reference} on #{platform}" if packages.empty?
+puts JSON.pretty_generate("platform" => platform, "packages" => packages)

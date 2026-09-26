@@ -13,9 +13,13 @@ security_policy = YAML.safe_load_file(File.join(root, "config/security.yml")).fe
 locked_versions = Bundler::LockfileParser.new(Bundler.read_file(File.join(root, "Gemfile.lock")))
   .specs.to_h { |spec| [ spec.name, spec.version ] }
 
-covered_default_gems, blocking = vulnerabilities.select do |vulnerability|
+actionable = vulnerabilities.select do |vulnerability|
   %w[HIGH CRITICAL].include?(vulnerability["Severity"]) && vulnerability["FixedVersion"].to_s.strip != ""
-end.partition do |vulnerability|
+end
+unfixed = vulnerabilities.select do |vulnerability|
+  %w[HIGH CRITICAL].include?(vulnerability["Severity"]) && vulnerability["FixedVersion"].to_s.strip == ""
+end
+covered_default_gems, blocking = actionable.partition do |vulnerability|
   gem_policy = security_policy[vulnerability["PkgName"]]
   locked = locked_versions[vulnerability["PkgName"]]
   next false unless gem_policy && locked
@@ -47,6 +51,10 @@ else
 end
 
 puts summary
+if unfixed.any?
+  identifiers = unfixed.map { |finding| finding.fetch("VulnerabilityID") }.uniq.sort.join(", ")
+  puts "Non-blocking unfixed HIGH/CRITICAL findings (#{unfixed.size}): #{identifiers}"
+end
 if (summary_path = ENV["GITHUB_STEP_SUMMARY"])
   File.open(summary_path, "a") do |file|
     file.puts "## Container vulnerability audit"

@@ -8,7 +8,27 @@ workflow_paths = Dir.glob(File.join(root, ".github/workflows/*.{yml,yaml}"))
 errors = []
 
 workflow_paths.each do |path|
+  relative_path = path.delete_prefix("#{root}/")
   YAML.safe_load_file(path, aliases: true)
+  contents = File.read(path)
+
+  if contents.each_line.any? { |line| line.match?(/^\s*runs-on:\s*ubuntu-(?!24\.04\s*$)/) }
+    errors << "#{relative_path}: hosted Linux jobs must pin ubuntu-24.04"
+  end
+
+  if contents.include?("docker buildx")
+    errors << "#{relative_path}: Buildx use requires docker/setup-buildx-action" unless
+      contents.include?("docker/setup-buildx-action@")
+    errors << "#{relative_path}: Buildx version must be explicit" unless
+      contents.match?(/^\s*BUILDX_VERSION:\s*v\d+\.\d+\.\d+\s*$/)
+    errors << "#{relative_path}: BuildKit image must be pinned by version and digest" unless
+      contents.match?(/^\s*BUILDKIT_IMAGE:\s*moby\/buildkit:v\d+\.\d+\.\d+@sha256:[0-9a-f]{64}\s*$/)
+    errors << "#{relative_path}: setup-buildx must select the declared Buildx version" unless
+      contents.include?('version: ${{ env.BUILDX_VERSION }}')
+    errors << "#{relative_path}: setup-buildx must select the declared BuildKit image" unless
+      contents.include?('image=${{ env.BUILDKIT_IMAGE }}')
+  end
+
   File.foreach(path).with_index(1) do |line, line_number|
     match = line.match(/^\s*uses:\s*([^\s#]+)/)
     next unless match
@@ -20,8 +40,8 @@ workflow_paths.each do |path|
     errors << "#{path.delete_prefix("#{root}/")}:#{line_number}: unpinned action #{reference}"
   end
 rescue Psych::SyntaxError => error
-  errors << "#{path.delete_prefix("#{root}/")}: invalid YAML: #{error.message.lines.first.strip}"
+  errors << "#{relative_path}: invalid YAML: #{error.message.lines.first.strip}"
 end
 
 abort errors.join("\n") if errors.any?
-puts "Action references passed: #{workflow_paths.size} workflow files parsed; all remote actions use immutable SHAs."
+puts "Action contract passed: #{workflow_paths.size} workflows pin actions, hosted runners, Buildx, and BuildKit."

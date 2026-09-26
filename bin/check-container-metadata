@@ -1,0 +1,23 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "json"
+require "open3"
+
+reference = ARGV.fetch(0) { abort "Usage: bin/check-container-metadata IMAGE@DIGEST" }
+abort "Image must be digest-addressed" unless reference.match?(/@sha256:[0-9a-f]{64}\z/)
+
+{ "provenance" => ".Provenance", "SBOM" => ".SBOM" }.each do |name, field|
+  output, status = Open3.capture2e(
+    "docker", "buildx", "imagetools", "inspect", reference,
+    "--format", "{{json #{field}}}"
+  )
+  abort "Could not inspect #{name} for #{reference}: #{output}" unless status.success?
+
+  value = JSON.parse(output)
+  abort "#{reference} has no #{name} metadata" if value.nil? || value == {} || value == [] || value == ""
+rescue JSON::ParserError => error
+  abort "Invalid #{name} metadata for #{reference}: #{error.message}"
+end
+
+puts "Container metadata passed: #{reference} has provenance and SBOM attestations."

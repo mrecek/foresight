@@ -1,5 +1,9 @@
 name: Ruby Patch Freshness
 
+env:
+  BUILDX_VERSION: v0.37.1
+  BUILDKIT_IMAGE: moby/buildkit:v0.33.0@sha256:6c2fa84a6b61ccd72899dde4239f8d5717f05f9a8ca6f3cad185fb1a95a94de3
+
 on:
   workflow_dispatch:
   schedule:
@@ -16,10 +20,17 @@ concurrency:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+        with:
+          version: ${{ env.BUILDX_VERSION }}
+          driver-opts: |
+            image=${{ env.BUILDKIT_IMAGE }}
 
       - name: Set up mise for lockfile maintenance
         uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
@@ -51,7 +62,8 @@ jobs:
         run: |
           set -euo pipefail
           image="docker.io/library/ruby:${VERSION}-slim-trixie"
-          digest="$(docker buildx imagetools inspect "$image" | awk '$1 == "Digest:" { print $2; exit }')"
+          digest="$(docker buildx imagetools inspect "$image" --format '{{json .Manifest.Digest}}' | jq -r .)"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
           bin/update-ruby-patch --version "$VERSION" --digest "$digest"
           mise lock ruby
 

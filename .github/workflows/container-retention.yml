@@ -1,0 +1,77 @@
+name: Enforce Container Retention
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Delete artifacts selected by the plan
+        required: true
+        default: false
+        type: boolean
+  schedule:
+    - cron: "17 9 * * 1"
+
+concurrency:
+  group: foresight-container-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  retention:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout retention policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Fetch complete package inventory
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          package="${GITHUB_REPOSITORY#*/}"
+          endpoint="/users/${GITHUB_REPOSITORY_OWNER}/packages/container/${package}/versions"
+          if ! gh api --paginate "$endpoint?per_page=100" --slurp > package-versions.json 2>/dev/null; then
+            endpoint="/orgs/${GITHUB_REPOSITORY_OWNER}/packages/container/${package}/versions"
+            gh api --paginate "$endpoint?per_page=100" --slurp > package-versions.json
+          fi
+          jq 'flatten' package-versions.json > package-versions-flat.json
+          echo "endpoint=$endpoint" >> "$GITHUB_ENV"
+
+      - name: Build fail-closed retention plan
+        run: bin/plan-container-retention package-versions-flat.json > retention-plan.json
+
+      - name: Upload dry-run evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: container-retention-${{ github.run_id }}
+          path: retention-plan.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Apply retention plan
+        if: github.event_name == 'schedule' || inputs.apply == true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          jq -r '.delete[].id' retention-plan.json | while read -r version_id; do
+            gh api --method DELETE "${endpoint}/${version_id}"
+          done
+
+      - name: Publish retention summary
+        if: always()
+        run: |
+          {
+            echo "## Container retention"
+            echo
+            echo "- Apply requested: \`${{ github.event_name == 'schedule' || inputs.apply == true }}\`"
+            echo "- Selected for deletion: \`$(jq '.delete | length' retention-plan.json)\`"
+            echo "- Protected: \`$(jq '.protected | length' retention-plan.json)\`"
+            echo
+            jq -r '.delete[] | "- Delete version \(.id): \(.reason); tags=\(.tags | join(","))"' retention-plan.json
+            jq -r '.protected[] | "- Protect version \(.id): \(.reason); tags=\(.tags | join(","))"' retention-plan.json
+          } >> "$GITHUB_STEP_SUMMARY"

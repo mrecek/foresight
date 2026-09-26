@@ -1,0 +1,97 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "fileutils"
+require "json"
+require "open3"
+
+promoted = ARGV.fetch(0) { abort "Usage: bin/classify-container-refresh PROMOTED_OR_NONE CANDIDATE OUTPUT_DIR" }
+candidate = ARGV.fetch(1) { abort "Candidate reference is required" }
+output_directory = ARGV.fetch(2) { abort "Output directory is required" }
+platforms = %w[linux/amd64 linux/arm64]
+root = File.expand_path("..", __dir__)
+FileUtils.mkdir_p(output_directory)
+
+def inventory(root, reference, platform)
+  output, status = Open3.capture2e(File.join(root, "bin/container-package-inventory"), reference, platform)
+  abort output unless status.success?
+
+  JSON.parse(output)
+rescue JSON::ParserError => error
+  abort "Invalid package inventory for #{reference} on #{platform}: #{error.message}"
+end
+
+def index_packages(document)
+  document.fetch("packages").to_h do |package|
+    [ [ package.fetch("package"), package.fetch("architecture") ], package.fetch("version") ]
+  end
+end
+
+def version_relation(reference, platform, old_version, new_version)
+  return "unchanged" if old_version == new_version
+
+  _output, newer = Open3.capture2e(
+    "docker", "run", "--rm", "--platform", platform, "--entrypoint", "dpkg",
+    reference, "--compare-versions", new_version, "gt", old_version
+  )
+  return "upgraded" if newer.success?
+
+  _output, older = Open3.capture2e(
+    "docker", "run", "--rm", "--platform", platform, "--entrypoint", "dpkg",
+    reference, "--compare-versions", new_version, "lt", old_version
+  )
+  return "downgraded" if older.success?
+
+  abort "Could not compare package versions #{old_version.inspect} and #{new_version.inspect}"
+end
+
+result = { "promoted" => promoted == "none" ? nil : promoted, "candidate" => candidate, "platforms" => {} }
+
+platforms.each do |platform|
+  candidate_inventory = inventory(root, candidate, platform)
+  filename = platform.delete_prefix("linux/")
+  File.write(File.join(output_directory, "candidate-#{filename}.json"), JSON.pretty_generate(candidate_inventory) << "\n")
+  candidate_packages = index_packages(candidate_inventory)
+
+  promoted_packages = if promoted == "none"
+    {}
+  else
+    promoted_inventory = inventory(root, promoted, platform)
+    File.write(File.join(output_directory, "promoted-#{filename}.json"), JSON.pretty_generate(promoted_inventory) << "\n")
+    index_packages(promoted_inventory)
+  end
+
+  added = candidate_packages.keys - promoted_packages.keys
+  removed = promoted_packages.keys - candidate_packages.keys
+  common = candidate_packages.keys & promoted_packages.keys
+  changed = common.filter_map do |key|
+    old_version = promoted_packages.fetch(key)
+    new_version = candidate_packages.fetch(key)
+    relation = version_relation(candidate, platform, old_version, new_version)
+    next if relation == "unchanged"
+
+    {
+      "package" => key.first, "architecture" => key.last,
+      "from" => old_version, "to" => new_version, "change" => relation
+    }
+  end
+
+  result.fetch("platforms")[platform] = {
+    "added" => added.sort.map { |name, architecture| { "package" => name, "architecture" => architecture, "version" => candidate_packages.fetch([ name, architecture ]) } },
+    "removed" => removed.sort.map { |name, architecture| { "package" => name, "architecture" => architecture, "version" => promoted_packages.fetch([ name, architecture ]) } },
+    "changed" => changed.sort_by { |package| [ package.fetch("package"), package.fetch("architecture") ] }
+  }
+end
+
+changes = result.fetch("platforms").values.sum do |platform|
+  platform.fetch("added").size + platform.fetch("removed").size + platform.fetch("changed").size
+end
+result["material_change"] = changes.positive?
+result["change_count"] = changes
+result["has_downgrade"] = result.fetch("platforms").values.any? do |platform|
+  platform.fetch("changed").any? { |package| package.fetch("change") == "downgraded" }
+end
+result["has_removal"] = result.fetch("platforms").values.any? { |platform| platform.fetch("removed").any? }
+
+File.write(File.join(output_directory, "classification.json"), JSON.pretty_generate(result) << "\n")
+puts JSON.generate(result)

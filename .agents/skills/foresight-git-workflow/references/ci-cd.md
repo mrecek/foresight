@@ -24,19 +24,21 @@ Completion means every required check is present on the pull request and success
 - Dependabot owns Bundler, GitHub Actions, and Docker base-digest proposals.
 - Only Bundler patch and minor changes are eligible for auto-merge.
 - The Ruby freshness workflow owns patch updates across `.ruby-version`, `.mise.toml`, `mise.lock`, and the digest-pinned Docker base.
-- The OS package freshness workflow inspects the immutable released image. When Debian packages are stale, it advances only `OS_PATCH_EPOCH`, validates a rebuilt image, opens one pull request, explicitly dispatches protected CI, and enables squash auto-merge.
+- The container release workflow owns weekly OS-package refreshes. It rebuilds the named `os-packages` stage without changing source, classifies package inventories, and promotes a changed digest only after the common release gates pass.
 - Ruby minor and major upgrades, GitHub Actions, and Docker changes stay under human review.
-- The scheduled security workflow detects dependency, application, and image findings; remediation still travels through a pull request.
+- The scheduled security workflow audits dependencies and scans the released digest daily. A stale or vulnerable released artifact dispatches one refresh through the common production lane; source dependency remediation still travels through a pull request.
 
 Inspect Dependabot metadata and the eligibility script before changing an auto-merge boundary. Complete a change only when an ineligible ecosystem and major Bundler update still fail closed.
 
-Automation pull requests created with `GITHUB_TOKEN` do not emit a new `pull_request` workflow run. Ruby and OS refresh workflows therefore dispatch `ci.yml` explicitly on the automation branch. If one stalls, inspect the source freshness run, the dispatched CI run at the pull-request head, and repository auto-merge settings before changing code.
+Automation pull requests created with `GITHUB_TOKEN` do not emit a new `pull_request` workflow run. The Ruby freshness workflow therefore dispatches `ci.yml` explicitly on its automation branch. If one stalls, inspect the freshness run, dispatched CI run at the pull-request head, and repository auto-merge settings before changing code.
 
 ## Container Publication
 
-`docker.yml` builds an unpromoted candidate, smoke-tests every supported architecture, verifies provenance, then promotes release tags. The full commit-SHA tag is the completion marker. `reconcile-container-release.yml` repairs a partial promotion without rebuilding accepted artifacts.
+`docker.yml` is the common entry point for source, weekly, security, and manual releases. It builds a run-specific candidate, records both platform package inventories, stops unchanged refreshes without moving production, and gates changed candidates on application validation, package policy, vulnerability policy, manifest portability, smoke tests, provenance, and SBOM evidence.
 
-Publication is complete only when the manifest contains every supported architecture, smoke tests passed, provenance refers to the promoted digest, and the commit-SHA marker exists.
+Every accepted digest receives an immutable `release-<UTC time>-<source SHA>-<run>-<attempt>` recovery tag before `latest` moves. `rollback-container-release.yml` restores one retained verified release with an expected-current-digest guard. `container-retention.yml` defaults manual runs to dry-run, keeps the latest five promoted digests, and expires candidate-only artifacts after 14 days. All production tag mutation and cleanup uses the `foresight-container-production` concurrency group.
+
+Publication is complete only when `latest` and the immutable release tag resolve to the verified digest. A failed partial promotion is recovered by rerunning the same workflow attempt; tag creation is idempotent and collisions fail closed.
 
 ## Inspection Commands
 

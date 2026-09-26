@@ -1,0 +1,37 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "json"
+require "open3"
+
+reference = ARGV.fetch(0) { abort "Usage: bin/resolve-image-digest IMAGE[:TAG] [--allow-missing]" }
+allow_missing = ARGV.include?("--allow-missing")
+attempts = Integer(ENV.fetch("REGISTRY_RETRY_ATTEMPTS", "3"), 10)
+abort "REGISTRY_RETRY_ATTEMPTS must be positive" unless attempts.positive?
+
+missing_patterns = [ /not found/i, /manifest unknown/i, /no such manifest/i ]
+
+attempts.times do |attempt|
+  output, status = Open3.capture2e(
+    "docker", "buildx", "imagetools", "inspect", reference,
+    "--format", "{{json .Manifest.Digest}}"
+  )
+
+  if status.success?
+    digest = JSON.parse(output)
+    abort "Invalid digest returned for #{reference}: #{digest.inspect}" unless digest.match?(/\Asha256:[0-9a-f]{64}\z/)
+
+    puts digest
+    exit 0
+  end
+
+  if allow_missing && missing_patterns.any? { |pattern| output.match?(pattern) }
+    exit 0
+  end
+
+  if attempt + 1 < attempts
+    sleep Integer(ENV.fetch("REGISTRY_RETRY_DELAY", "2"), 10)
+  else
+    abort "Could not resolve #{reference} after #{attempts} attempt(s): #{output.strip}"
+  end
+end

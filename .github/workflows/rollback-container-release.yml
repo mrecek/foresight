@@ -1,0 +1,73 @@
+name: Roll Back Container Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Retained immutable release tag to restore
+        required: true
+        type: string
+      expected_current_digest:
+        description: Current production digest (optimistic concurrency guard)
+        required: true
+        type: string
+      reason:
+        description: Operator reason for rollback
+        required: true
+        type: string
+
+concurrency:
+  group: foresight-container-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  BUILDX_VERSION: v0.37.1
+  BUILDKIT_IMAGE: moby/buildkit:v0.33.0@sha256:6c2fa84a6b61ccd72899dde4239f8d5717f05f9a8ca6f3cad185fb1a95a94de3
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  rollback:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout trusted rollback tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+        with:
+          version: ${{ env.BUILDX_VERSION }}
+          driver-opts: |
+            image=${{ env.BUILDKIT_IMAGE }}
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restore retained verified digest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          EXPECTED_CURRENT_DIGEST: ${{ inputs.expected_current_digest }}
+          ROLLBACK_REASON: ${{ inputs.reason }}
+        run: bin/rollback-container-release "${REGISTRY}/${IMAGE_NAME}" "$RELEASE_TAG" "$EXPECTED_CURRENT_DIGEST" "$ROLLBACK_REASON"
+
+      - name: Record rollback
+        if: always()
+        run: |
+          {
+            echo "## Container rollback"
+            echo
+            echo "- Selected release: \`${{ inputs.release_tag }}\`"
+            echo "- Previous expected digest: \`${{ inputs.expected_current_digest }}\`"
+            echo "- Reason: ${{ inputs.reason }}"
+            echo "- Production was moved only if the current digest matched the operator's expectation."
+          } >> "$GITHUB_STEP_SUMMARY"

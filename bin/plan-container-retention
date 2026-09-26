@@ -1,0 +1,63 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "json"
+require "time"
+
+path = ARGV.fetch(0) { abort "Usage: bin/plan-container-retention VERSIONS.json [NOW]" }
+now = Time.iso8601(ARGV.fetch(1, Time.now.utc.iso8601))
+versions = JSON.parse(File.read(path))
+abort "Package versions response must be an array" unless versions.is_a?(Array)
+
+records = versions.map do |version|
+  id = version.fetch("id")
+  created_at = Time.iso8601(version.fetch("created_at"))
+  tags = version.fetch("metadata").fetch("container").fetch("tags")
+  abort "Tags for package version #{id} must be an array" unless tags.is_a?(Array)
+
+  { "id" => id, "created_at" => created_at, "tags" => tags.sort }
+rescue KeyError, ArgumentError => error
+  abort "Incomplete package version metadata: #{error.message}"
+end
+
+promoted = records.select { |record| record.fetch("tags").any? { |tag| tag.start_with?("release-") } }
+  .sort_by { |record| record.fetch("created_at") }.reverse
+protected_promoted = promoted.first(5).map { |record| record.fetch("id") }
+latest = records.select { |record| record.fetch("tags").include?("latest") }.map { |record| record.fetch("id") }
+protected_ids = (protected_promoted + latest).uniq
+candidate_cutoff = now - (14 * 24 * 60 * 60)
+
+delete = records.filter_map do |record|
+  next if protected_ids.include?(record.fetch("id"))
+
+  tags = record.fetch("tags")
+  if tags.any? { |tag| tag.start_with?("release-") }
+    record.merge("reason" => "promoted digest exceeds latest-five rollback window")
+  elsif tags.any? && tags.all? { |tag| tag.start_with?("candidate-") } && record.fetch("created_at") < candidate_cutoff
+    record.merge("reason" => "candidate-only artifact is older than 14 days")
+  end
+end
+
+protected = records.filter_map do |record|
+  reason = if latest.include?(record.fetch("id"))
+    "current latest target"
+  elsif protected_promoted.include?(record.fetch("id"))
+    "latest-five promoted rollback set"
+  elsif record.fetch("tags").empty?
+    "untagged metadata or attestation; never selected by cleanup"
+  elsif record.fetch("tags").any? { |tag| tag.start_with?("candidate-") }
+    "candidate is within 14-day evidence window"
+  else
+    "tag is outside the cleanup contract"
+  end
+  next if delete.any? { |candidate| candidate.fetch("id") == record.fetch("id") }
+
+  record.merge("reason" => reason)
+end
+
+puts JSON.pretty_generate(
+  "evaluated_at" => now.utc.iso8601,
+  "candidate_cutoff" => candidate_cutoff.utc.iso8601,
+  "delete" => delete,
+  "protected" => protected
+)

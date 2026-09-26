@@ -1,7 +1,16 @@
-name: Build and Promote Docker Image
+name: Build, Verify, and Promote Container
 
 on:
   workflow_dispatch:
+    inputs:
+      reason:
+        description: Why this release is being built
+        required: true
+        default: manual
+        type: choice
+        options: [manual, security]
+  schedule:
+    - cron: "37 7 * * 0"
   push:
     branches: [main]
     paths-ignore:
@@ -15,13 +24,15 @@ on:
       - "test/**"
 
 concurrency:
-  group: container-release
+  group: foresight-container-production
   cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+  BUILDX_VERSION: v0.37.1
+  BUILDKIT_IMAGE: moby/buildkit:v0.33.0@sha256:6c2fa84a6b61ccd72899dde4239f8d5717f05f9a8ca6f3cad185fb1a95a94de3
 
 permissions:
   contents: read
@@ -32,7 +43,8 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     steps:
       - name: Checkout release commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -44,6 +56,15 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+        with:
+          version: ${{ env.BUILDX_VERSION }}
+          driver-opts: |
+            image=${{ env.BUILDKIT_IMAGE }}
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1
+        with:
+          bundler-cache: true
 
       - name: Log in to Container Registry
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
@@ -55,19 +76,30 @@ jobs:
       - name: Compute candidate identity
         id: release
         env:
-          COMMIT_SHA: ${{ github.sha }}
+          REQUESTED_REASON: ${{ inputs.reason }}
         run: |
           set -euo pipefail
-          release_date="$(git show -s --format=%cs "$COMMIT_SHA" | tr - .)"
-          candidate="candidate-${COMMIT_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          echo "date=$release_date" >> "$GITHUB_OUTPUT"
-          echo "candidate=$candidate" >> "$GITHUB_OUTPUT"
+          case "${GITHUB_EVENT_NAME}" in
+            push) reason=source ;;
+            schedule) reason=weekly-refresh ;;
+            workflow_dispatch) reason="${REQUESTED_REASON}" ;;
+            *) echo "::error::Unsupported trigger ${GITHUB_EVENT_NAME}"; exit 1 ;;
+          esac
+          built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          identity="$(date -u +%Y%m%dT%H%M%SZ)-${GITHUB_SHA:0:12}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          {
+            echo "reason=$reason"
+            echo "built_at=$built_at"
+            echo "candidate=candidate-$identity"
+            echo "release_id=$identity"
+            echo "refresh=$([[ "$reason" != source ]] && echo true || echo false)"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Ensure run-specific candidate tag is unused
         env:
           CANDIDATE: ${{ steps.release.outputs.candidate }}
         run: |
-          if docker buildx imagetools inspect "${REGISTRY}/${IMAGE_NAME}:${CANDIDATE}" >/dev/null 2>&1; then
+          if bin/resolve-image-digest "${REGISTRY}/${IMAGE_NAME}:${CANDIDATE}" --allow-missing | grep -q .; then
             echo "::error::Run-specific candidate tag already exists"
             exit 1
           fi
@@ -82,13 +114,77 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.release.outputs.candidate }}
           cache-from: type=gha,scope=foresight
           cache-to: type=gha,mode=max,scope=foresight
+          no-cache-filters: ${{ steps.release.outputs.refresh == 'true' && 'os-packages' || '' }}
           provenance: mode=max
           sbom: true
 
+      - name: Resolve promoted digest
+        id: promoted
+        run: |
+          digest="$(bin/resolve-image-digest "${REGISTRY}/${IMAGE_NAME}:latest" --allow-missing)"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "reference=$([[ -n "$digest" ]] && echo "${REGISTRY}/${IMAGE_NAME}@${digest}" || echo none)" >> "$GITHUB_OUTPUT"
+
+      - name: Classify package changes
+        id: classification
+        env:
+          CANDIDATE_DIGEST: ${{ steps.push.outputs.digest }}
+          PROMOTED_REFERENCE: ${{ steps.promoted.outputs.reference }}
+        run: |
+          candidate="${REGISTRY}/${IMAGE_NAME}@${CANDIDATE_DIGEST}"
+          bin/classify-container-refresh "$PROMOTED_REFERENCE" "$candidate" refresh-evidence >/dev/null
+          {
+            echo "material=$(jq -r .material_change refresh-evidence/classification.json)"
+            echo "downgrade=$(jq -r .has_downgrade refresh-evidence/classification.json)"
+            echo "removal=$(jq -r .has_removal refresh-evidence/classification.json)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Record candidate metadata
+        env:
+          CANDIDATE: ${{ steps.release.outputs.candidate }}
+          CANDIDATE_DIGEST: ${{ steps.push.outputs.digest }}
+          PROMOTED_DIGEST: ${{ steps.promoted.outputs.digest }}
+          RELEASE_REASON: ${{ steps.release.outputs.reason }}
+          BUILT_AT: ${{ steps.release.outputs.built_at }}
+        run: |
+          jq -n \
+            --arg source_commit "$GITHUB_SHA" \
+            --arg built_at "$BUILT_AT" \
+            --arg trigger_reason "$RELEASE_REASON" \
+            --arg candidate_tag "$CANDIDATE" \
+            --arg candidate_digest "$CANDIDATE_DIGEST" \
+            --arg promoted_digest "$PROMOTED_DIGEST" \
+            --argjson material_change "${{ steps.classification.outputs.material }}" \
+            --argjson has_downgrade "${{ steps.classification.outputs.downgrade }}" \
+            --argjson has_removal "${{ steps.classification.outputs.removal }}" \
+            '{source_commit: $source_commit, built_at: $built_at, trigger_reason: $trigger_reason,
+              candidate_tag: $candidate_tag, candidate_digest: $candidate_digest,
+              promoted_digest: (if $promoted_digest == "" then null else $promoted_digest end),
+              material_change: $material_change, has_downgrade: $has_downgrade,
+              has_removal: $has_removal}' > refresh-evidence/candidate.json
+
+      - name: Stop an unchanged refresh successfully
+        if: steps.release.outputs.refresh == 'true' && steps.classification.outputs.material == 'false'
+        run: echo "No package changes detected; production tags remain unchanged." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Verify candidate platforms
+        if: steps.release.outputs.refresh != 'true' || steps.classification.outputs.material == 'true'
         run: bin/check-container-manifest "${REGISTRY}/${IMAGE_NAME}@${{ steps.push.outputs.digest }}"
 
+      - name: Verify candidate provenance and SBOM
+        if: steps.release.outputs.refresh != 'true' || steps.classification.outputs.material == 'true'
+        run: bin/check-container-metadata "${REGISTRY}/${IMAGE_NAME}@${{ steps.push.outputs.digest }}"
+
+      - name: Enforce package change policy
+        if: steps.release.outputs.refresh != 'true' || steps.classification.outputs.material == 'true'
+        run: bin/enforce-package-change-policy refresh-evidence/classification.json "${{ steps.release.outputs.reason }}"
+
+      - name: Validate application at candidate source
+        if: steps.release.outputs.refresh != 'true' || steps.classification.outputs.material == 'true'
+        run: bin/validate --ci
+
       - name: Smoke test candidate on amd64 and arm64
+        if: steps.release.outputs.refresh != 'true' || steps.classification.outputs.material == 'true'
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
           CONTAINER_SMOKE_HEALTH_ATTEMPTS: 120
@@ -98,12 +194,48 @@ jobs:
           for platform in linux/amd64 linux/arm64; do
             docker pull --platform "$platform" "$reference"
             DOCKER_DEFAULT_PLATFORM="$platform" bin/container-smoke "$reference"
-            # A digest reference can point at only one platform in the local
-            # image store. Remove it before resolving the next platform.
             docker image rm "$reference"
           done
 
+      - name: Scan amd64 candidate with Trivy
+        if: steps.release.outputs.refresh != 'true' || steps.classification.outputs.material == 'true'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
+          version: v0.74.0
+          format: json
+          output: refresh-evidence/trivy-amd64.json
+          exit-code: "0"
+          ignore-unfixed: false
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          scanners: vuln
+
+      - name: Enforce amd64 vulnerability policy
+        if: steps.release.outputs.refresh != 'true' || steps.classification.outputs.material == 'true'
+        run: bin/check-trivy-report refresh-evidence/trivy-amd64.json
+
+      - name: Scan and enforce arm64 vulnerability policy
+        if: steps.release.outputs.refresh != 'true' || steps.classification.outputs.material == 'true'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          trivy image --platform linux/arm64 --format json --output refresh-evidence/trivy-arm64.json \
+            --scanners vuln --vuln-type os,library --severity HIGH,CRITICAL --ignore-unfixed=false \
+            "${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+          bin/check-trivy-report refresh-evidence/trivy-arm64.json
+
+      - name: Upload candidate evidence
+        if: always() && steps.push.outputs.digest != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: container-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: refresh-evidence
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Generate provenance attestation
+        if: steps.release.outputs.refresh != 'true' || steps.classification.outputs.material == 'true'
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
@@ -111,18 +243,21 @@ jobs:
           push-to-registry: true
 
       - name: Promote verified candidate
+        if: steps.release.outputs.refresh != 'true' || steps.classification.outputs.material == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bin/promote-container-release "${REGISTRY}/${IMAGE_NAME}" "${{ steps.push.outputs.digest }}" "${{ github.sha }}" "${{ steps.release.outputs.date }}"
+          EXPECTED_PROMOTED_DIGEST: ${{ steps.promoted.outputs.digest }}
+        run: bin/promote-container-release "${REGISTRY}/${IMAGE_NAME}" "${{ steps.push.outputs.digest }}" "${{ github.sha }}" "${{ steps.release.outputs.release_id }}" "${{ steps.release.outputs.reason }}"
 
       - name: Publish release summary
         if: always()
         run: |
           {
-            echo "## Container release"
+            echo "## Container candidate"
             echo
+            echo "- Trigger: \`${{ steps.release.outputs.reason }}\`"
             echo "- Candidate: \`${REGISTRY}/${IMAGE_NAME}:${{ steps.release.outputs.candidate }}@${{ steps.push.outputs.digest }}\`"
-            echo "- Completion marker: \`${REGISTRY}/${IMAGE_NAME}:sha-${{ github.sha }}\`"
-            echo "- Candidate tags are retained as immutable audit references."
-            echo "- Release tags change only after both architecture smoke tests and attestation verification pass."
+            echo "- Previous production digest: \`${{ steps.promoted.outputs.digest || 'none' }}\`"
+            echo "- Material package change: \`${{ steps.classification.outputs.material || 'unknown' }}\`"
+            echo "- Release tags move only after manifest, smoke, vulnerability, and attestation gates pass."
           } >> "$GITHUB_STEP_SUMMARY"

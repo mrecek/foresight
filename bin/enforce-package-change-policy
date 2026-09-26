@@ -1,0 +1,21 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "json"
+
+path = ARGV.fetch(0) { abort "Usage: bin/enforce-package-change-policy CLASSIFICATION.json REASON" }
+reason = ARGV.fetch(1) { abort "Release reason is required" }
+classification = JSON.parse(File.read(path))
+
+unless %w[source weekly-refresh security manual].include?(reason)
+  abort "Unsupported release reason: #{reason}"
+end
+
+if reason != "source" && classification.fetch("has_downgrade")
+  abort "Package policy failed: #{reason} candidates may not downgrade packages"
+end
+if reason != "source" && classification.fetch("has_removal")
+  abort "Package policy failed: #{reason} candidates may not remove packages"
+end
+
+puts "Package change policy passed for #{reason}."
