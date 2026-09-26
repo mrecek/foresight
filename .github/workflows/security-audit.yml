@@ -6,12 +6,21 @@ on:
     - cron: "15 13 * * *"
 
 permissions:
+  actions: write
   contents: read
+  packages: read
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+  BUILDX_VERSION: v0.37.1
+  BUILDKIT_IMAGE: moby/buildkit:v0.33.0@sha256:6c2fa84a6b61ccd72899dde4239f8d5717f05f9a8ca6f3cad185fb1a95a94de3
 
 jobs:
   dependencies:
     name: Security/dependencies
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -42,40 +51,125 @@ jobs:
 
   image:
     name: Security/image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
       - name: Checkout default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Build production image
-        run: docker build --tag foresight-security-audit:${{ github.sha }} .
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+        with:
+          version: ${{ env.BUILDX_VERSION }}
+          driver-opts: |
+            image=${{ env.BUILDKIT_IMAGE }}
 
-      - name: Scan image with Trivy
+      - name: Log in to Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve released digest and freshness deadline
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          digest="$(bin/resolve-image-digest "${REGISTRY}/${IMAGE_NAME}:latest")"
+          package="${IMAGE_NAME#*/}"
+          versions="$(gh api "/users/${GITHUB_REPOSITORY_OWNER}/packages/container/${package}/versions?per_page=100" 2>/dev/null || \
+            gh api "/orgs/${GITHUB_REPOSITORY_OWNER}/packages/container/${package}/versions?per_page=100")"
+          promoted_at="$(jq -r '[.[] | select(.metadata.container.tags | index("latest"))][0].updated_at // empty' <<<"$versions")"
+          [[ -n "$promoted_at" ]] || { echo "::error::Could not determine latest promotion time"; exit 1; }
+          due_at="$(date -u -d "$promoted_at + 7 days" +%Y-%m-%dT%H:%M:%SZ)"
+          now="$(date -u +%s)"
+          due_epoch="$(date -u -d "$due_at" +%s)"
+          {
+            echo "digest=$digest"
+            echo "promoted_at=$promoted_at"
+            echo "due_at=$due_at"
+            echo "stale=$([[ "$now" -gt "$due_epoch" ]] && echo true || echo false)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Scan released amd64 digest with Trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: foresight-security-audit:${{ github.sha }}
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.release.outputs.digest }}
           version: v0.74.0
           format: json
-          output: trivy-report.json
+          output: trivy-amd64.json
           exit-code: "0"
           ignore-unfixed: false
           vuln-type: os,library
           severity: HIGH,CRITICAL
           scanners: vuln
 
-      - name: Report scanner and database versions
-        run: trivy --version | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Scan released arm64 digest with Trivy
+        run: |
+          trivy image --platform linux/arm64 --format json --output trivy-arm64.json \
+            --scanners vuln --vuln-type os,library --severity HIGH,CRITICAL --ignore-unfixed=false \
+            "${REGISTRY}/${IMAGE_NAME}@${{ steps.release.outputs.digest }}"
 
-      - name: Enforce actionable image vulnerability policy
-        run: bin/check-trivy-report trivy-report.json
+      - name: Evaluate released vulnerability policy
+        id: policy
+        continue-on-error: true
+        run: |
+          bin/check-trivy-report trivy-amd64.json
+          bin/check-trivy-report trivy-arm64.json
+
+      - name: Dispatch one required refresh
+        id: remediation
+        if: steps.policy.outcome == 'failure' || steps.release.outputs.stale == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          critical="$(jq -s '[.[].Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL" and (.FixedVersion // "") != "")] | length' trivy-*.json)"
+          reason=$([[ "$critical" -gt 0 ]] && echo security || echo manual)
+          active="$(gh run list --workflow docker.yml --branch "$GITHUB_DEFAULT_BRANCH" --json status --jq '[.[] | select(.status == "queued" or .status == "in_progress")] | length')"
+          if [[ "$active" -eq 0 ]]; then
+            gh workflow run docker.yml --ref "$GITHUB_DEFAULT_BRANCH" -f reason="$reason"
+            echo "dispatched=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "dispatched=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ "$critical" -gt 0 ]]; then
+            detected_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            due_at="$(date -u -d "$detected_at + 24 hours" +%Y-%m-%dT%H:%M:%SZ)"
+            echo "critical_due_at=$due_at" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report scanner, freshness, and remediation state
+        if: always()
+        run: |
+          trivy --version | tee -a "$GITHUB_STEP_SUMMARY"
+          {
+            echo
+            echo "## Released container SLO"
+            echo
+            echo "- Digest: \`${REGISTRY}/${IMAGE_NAME}@${{ steps.release.outputs.digest }}\`"
+            echo "- Promoted: \`${{ steps.release.outputs.promoted_at }}\`"
+            echo "- Seven-day freshness deadline: \`${{ steps.release.outputs.due_at }}\`"
+            echo "- Stale: \`${{ steps.release.outputs.stale }}\`"
+            echo "- Vulnerability policy: \`${{ steps.policy.outcome }}\`"
+            echo "- Refresh dispatched: \`${{ steps.remediation.outputs.dispatched || 'not-needed' }}\`"
+            echo "- Fixable-critical remediation deadline: \`${{ steps.remediation.outputs.critical_due_at || 'not-applicable' }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload complete Trivy report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: trivy-image-report-${{ github.run_id }}
-          path: trivy-report.json
+          path: trivy-*.json
           if-no-files-found: error
           retention-days: 30
+
+      - name: Fail when the released digest is outside policy
+        if: steps.policy.outcome == 'failure' || steps.release.outputs.stale == 'true'
+        run: |
+          echo "Released container is outside freshness or vulnerability policy; remediation was requested." >&2
+          exit 1

@@ -8,22 +8,19 @@
 # For a containerized dev environment, see Dev Containers: https://guides.rubyonrails.org/getting_started_with_devcontainer.html
 
 # Keep this version in sync with .ruby-version. The digest pins the complete
-# multi-architecture Debian 13 base identity. OS_PATCH_EPOCH is advanced only
-# by the operating-system refresh workflow so the package layer cannot remain
-# stale in BuildKit's cache.
-FROM docker.io/library/ruby:3.4.10-slim-trixie@sha256:9d50d98e61ccbe4f1ef436349911e09b53c42a00364bcd3bda6ac107abc29528 AS base
+# multi-architecture Debian 13 base identity. Refresh builds invalidate the
+# named os-packages stage explicitly while normal source builds may reuse it.
+FROM docker.io/library/ruby:3.4.10-slim-trixie@sha256:9d50d98e61ccbe4f1ef436349911e09b53c42a00364bcd3bda6ac107abc29528 AS os-packages
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG OS_PATCH_EPOCH=2026-09-13T00:00:00Z
 
 # Rails app lives here
 WORKDIR /rails
 
 # Upgrade inherited packages and install the one additional runtime library.
-# Referencing the tracked epoch makes each approved refresh a new cache key and
-# therefore a new immutable image rather than a mutation of an existing tag.
-RUN echo "Applying Debian package refresh ${OS_PATCH_EPOCH}" && \
-    apt-get update -qq && \
+# apt metadata refresh, upgrade, install, and cleanup stay in one layer so a
+# targeted --no-cache-filter os-packages build observes the current archive.
+RUN apt-get update -qq && \
     apt-get upgrade --with-new-pkgs -y && \
     apt-get install --no-install-recommends -y libjemalloc2 && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
@@ -41,7 +38,7 @@ ENV RAILS_ENV="production" \
     THRUSTER_HTTP_PORT="8080"
 
 # Throw-away build stage to reduce size of final image
-FROM base AS build
+FROM os-packages AS build
 
 # Install packages needed to build gems
 RUN apt-get update -qq && \
@@ -67,7 +64,7 @@ RUN bundle exec bootsnap precompile -j 1 app/ lib/
 RUN SECRET_KEY_BASE_DUMMY=1 ./bin/rails tailwindcss:build assets:precompile
 
 # Final stage for app image
-FROM base
+FROM os-packages AS runtime
 
 # Run and own only the runtime files as a non-root user for security
 RUN groupadd --system --gid 1000 rails && \

@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+image="${1:?Usage: bin/rollback-container-release IMAGE RELEASE_TAG EXPECTED_CURRENT_DIGEST REASON}"
+release_tag="${2:?Release tag is required}"
+expected_current="${3:?Expected current digest is required}"
+reason="${4:?Rollback reason is required}"
+
+[[ "$release_tag" =~ ^release-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9]+-[0-9]+$ ]] || { echo "Invalid retained release tag: $release_tag" >&2; exit 1; }
+[[ "$expected_current" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "Invalid expected digest: $expected_current" >&2; exit 1; }
+[[ -n "$reason" ]] || { echo "Rollback reason cannot be empty" >&2; exit 1; }
+
+repository="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
+target_digest="$(bin/resolve-image-digest "${image}:${release_tag}")"
+target="${image}@${target_digest}"
+
+bin/check-container-manifest "$target"
+bin/check-container-metadata "$target"
+gh attestation verify "oci://${target}" \
+  --repo "$repository" \
+  --signer-workflow "${repository}/.github/workflows/docker.yml" >/dev/null
+
+current="$(bin/resolve-image-digest "${image}:latest")"
+[[ "$current" == "$expected_current" ]] || {
+  echo "Production changed before rollback: latest is $current, expected $expected_current" >&2
+  exit 1
+}
+
+docker buildx imagetools create --tag "${image}:latest" "$target"
+actual="$(bin/resolve-image-digest "${image}:latest")"
+[[ "$actual" == "$target_digest" ]] || { echo "Rollback verification failed" >&2; exit 1; }
+
+echo "Container rollback complete: ${image}:latest -> ${release_tag}@${target_digest}; reason: ${reason}"

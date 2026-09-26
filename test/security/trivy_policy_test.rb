@@ -20,6 +20,7 @@ class TrivyPolicyTest < ActiveSupport::TestCase
 
     assert status.success?
     assert_includes stdout, "policy passed"
+    assert_includes stdout, "Non-blocking unfixed HIGH/CRITICAL findings (1): CVE-DEMO"
   end
 
   test "fails actionably for fixable high and critical findings" do

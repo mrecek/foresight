@@ -7,7 +7,7 @@ on:
 jobs:
   scan_ruby:
     name: CI/scan_ruby (pull_request)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout code
@@ -23,7 +23,7 @@ jobs:
       
   scan_js:
     name: CI/scan_js (pull_request)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout code
@@ -39,7 +39,7 @@ jobs:
 
   lint:
     name: CI/lint (pull_request)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       RUBOCOP_CACHE_ROOT: tmp/rubocop
     steps:
@@ -66,7 +66,7 @@ jobs:
 
   test:
     name: CI/test (pull_request)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Checkout code
@@ -90,7 +90,7 @@ jobs:
 
   architecture:
     name: CI/architecture (pull_request)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -105,7 +105,7 @@ jobs:
 
   container:
     name: CI/container (pull_request)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Checkout code

@@ -43,7 +43,7 @@ docker run -d \
   ghcr.io/mrecek/foresight:latest
 ```
 
-The image supports `linux/amd64` and `linux/arm64`. `latest` follows the newest accepted release; use a published full commit-SHA tag when deployment policy requires an immutable version.
+The image supports `linux/amd64` and `linux/arm64`. `latest` follows the newest accepted release. Each accepted build also has an immutable `release-<UTC time>-<source SHA>-<run>-<attempt>` tag for pinning and rollback.
 
 ## Deployment contract
 
@@ -194,9 +194,13 @@ The production image uses Thruster in front of Puma, runs without root privilege
 
 ## Maintenance and security
 
-Routine gem patch and minor updates are proposed by Dependabot and may merge only after the complete pull-request validation contract passes. Ruby patch releases update the local runtime declaration and digest-pinned container base together. A daily package-freshness check inspects the last released image and, when Debian updates are available, proposes a cache-safe rebuild that must pass the same application and container checks. GitHub Actions, Docker architecture changes, major dependency versions, and Ruby minor or major upgrades remain under human review.
+Routine gem patch and minor updates are proposed by Dependabot and may merge only after the complete pull-request validation contract passes. Ruby patch releases update the local runtime declaration and digest-pinned container base together. GitHub Actions, Docker architecture changes, major dependency versions, and Ruby minor or major upgrades remain under human review.
 
-Scheduled security checks audit Ruby dependencies, browser imports, Rails application code, and the built production image. Release publication builds an unpromoted candidate, smoke-tests both supported architectures, verifies provenance, and only then promotes public tags.
+Container freshness is an artifact operation rather than a source-code change. Every Sunday at an off-minute schedule, the release workflow rebuilds the named OS-package stage against current Debian repositories without changing Git. It compares canonical package inventories for `linux/amd64` and `linux/arm64`; an unchanged rebuild stops successfully without moving `latest`.
+
+A changed candidate must pass application validation, both platform smoke tests, package downgrade/removal policy, fixable HIGH/CRITICAL vulnerability policy, manifest checks, and provenance/SBOM verification before its digest is promoted automatically. A daily audit scans the released digest itself, reports its seven-day freshness deadline, and dispatches one security refresh when remediation is available. Fixable CRITICAL findings expose a 24-hour remediation deadline.
+
+Source releases, refreshes, retention, and rollback share one serialized production lane. Manual rollback selects a retained immutable release tag and supplies the expected current digest, preventing an operator from overwriting a newer release accidentally. Manual retention runs are dry-run by default; scheduled cleanup keeps the latest five promoted digests, preserves the current release and attestation metadata, and expires candidate-only artifacts after 14 days.
 
 Foresight is maintained primarily for the author's own use and shared in the hope that it is useful to other self-hosters. Bug reports are welcome; feature work is intentionally kept focused.
 

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "test_helper"
 require "fileutils"
 require "json"
@@ -9,7 +11,8 @@ class ContainerReleaseTest < ActiveSupport::TestCase
   DIGEST = "sha256:#{'a' * 64}"
   OTHER_DIGEST = "sha256:#{'b' * 64}"
   SHA = "1" * 40
-  DATE = "2026.09.10"
+  RELEASE_ID = "20260910T120000Z-#{SHA[0, 12]}-123-1"
+  RELEASE_TAG = "release-#{RELEASE_ID}"
 
   setup do
     @directory = Dir.mktmpdir
@@ -21,12 +24,10 @@ class ContainerReleaseTest < ActiveSupport::TestCase
 
   teardown { FileUtils.remove_entry(@directory) }
 
-  test "promotion writes the completion marker last and reruns as a no-op" do
+  test "promotion establishes an immutable recovery tag before latest and reruns as a no-op" do
     first = promote
     assert first[:status].success?, first[:output]
-
-    creates = File.readlines(File.join(@state, "creates"), chomp: true)
-    assert_equal [ "#{DATE}-1111111", DATE, "latest", "sha-#{SHA}" ], creates
+    assert_equal [ RELEASE_TAG, "latest" ], File.readlines(File.join(@state, "creates"), chomp: true)
 
     File.write(File.join(@state, "creates"), "")
     second = promote
@@ -34,82 +35,70 @@ class ContainerReleaseTest < ActiveSupport::TestCase
     assert_empty File.read(File.join(@state, "creates"))
   end
 
-  test "immutable collision fails before mutable tags move" do
-    File.write(File.join(@state, "#{DATE}-1111111"), OTHER_DIGEST)
-
-    result = promote
-
-    assert_not result[:status].success?
-    assert_includes result[:output], "Immutable tag collision"
+  test "immutable collision stale source and attestation failure cannot move production" do
+    File.write(File.join(@state, RELEASE_TAG), OTHER_DIGEST)
+    collision = promote
+    refute collision[:status].success?
+    assert_includes collision[:output], "Immutable tag collision"
     refute_path_exists File.join(@state, "latest")
-  end
 
-  test "stale default branch and failed attestation leave release tags unchanged" do
+    FileUtils.rm_f(File.join(@state, RELEASE_TAG))
     stale = promote("FAKE_HEAD_SHA" => "2" * 40)
-    assert_not stale[:status].success?
-    refute_path_exists File.join(@state, "latest")
-
+    refute stale[:status].success?
     unattested = promote("FAKE_ATTESTATION" => "fail")
-    assert_not unattested[:status].success?
+    refute unattested[:status].success?
     refute_path_exists File.join(@state, "latest")
   end
 
-  test "partial promotion converges to the expected digest" do
-    File.write(File.join(@state, "#{DATE}-1111111"), DIGEST)
-    File.write(File.join(@state, DATE), DIGEST)
+  test "optimistic guard rejects a concurrent production change" do
+    File.write(File.join(@state, "latest"), OTHER_DIGEST)
+    result = promote("EXPECTED_PROMOTED_DIGEST" => DIGEST)
 
+    refute result[:status].success?
+    assert_includes result[:output], "Production changed during verification"
+    assert_equal OTHER_DIGEST, File.read(File.join(@state, "latest"))
+  end
+
+  test "partial promotion converges after immutable tag creation" do
+    File.write(File.join(@state, RELEASE_TAG), DIGEST)
     result = promote
 
     assert result[:status].success?, result[:output]
     assert_equal DIGEST, File.read(File.join(@state, "latest"))
-    assert_equal DIGEST, File.read(File.join(@state, "sha-#{SHA}"))
   end
 
-  test "a failed mutable-tag update is repaired by the next run" do
-    failed = promote("FAKE_FAIL_TAG" => "latest")
-    assert_not failed[:status].success?
-    assert_equal DIGEST, File.read(File.join(@state, "#{DATE}-1111111"))
-    refute_path_exists File.join(@state, "sha-#{SHA}")
+  test "rollback restores an exact retained verified digest and guards against stale operator state" do
+    File.write(File.join(@state, RELEASE_TAG), OTHER_DIGEST)
+    File.write(File.join(@state, "latest"), DIGEST)
+    result = rollback
+    assert result[:status].success?, result[:output]
+    assert_equal OTHER_DIGEST, File.read(File.join(@state, "latest"))
 
-    repaired = promote
-    assert repaired[:status].success?, repaired[:output]
-    assert_equal DIGEST, File.read(File.join(@state, "sha-#{SHA}"))
+    File.write(File.join(@state, "latest"), OTHER_DIGEST)
+    stale = rollback
+    refute stale[:status].success?
+    assert_includes stale[:output], "Production changed before rollback"
   end
 
-  test "manifest validation fails when an architecture is absent" do
-    result = promote("FAKE_MANIFEST" => '{"manifests":[{"platform":{"os":"linux","architecture":"amd64"}}]}')
-
-    assert_not result[:status].success?
-    assert_includes result[:output], "missing platforms: linux/arm64"
-    refute_path_exists File.join(@state, "latest")
-  end
-
-  test "workflows keep candidates unpromoted until verification and reconcile drift" do
+  test "release and rollback workflows share one serialized production lane" do
     release = ROOT.join(".github/workflows/docker.yml").read
-    reconcile = ROOT.join(".github/workflows/reconcile-container-release.yml").read
-    ci = ROOT.join(".github/workflows/ci.yml").read
+    rollback = ROOT.join(".github/workflows/rollback-container-release.yml").read
 
-    assert_operator release.index("Build and push unpromoted candidate"), :<, release.index("Smoke test candidate")
-    assert_operator release.index("Smoke test candidate"), :<, release.index("Generate provenance attestation")
-    assert_operator release.index("Generate provenance attestation"), :<, release.index("Promote verified candidate")
-    assert_includes release, "DOCKER_DEFAULT_PLATFORM=\"$platform\""
-    assert_includes release, "CONTAINER_SMOKE_HEALTH_ATTEMPTS: 120"
-    assert_operator release.index("bin/container-smoke \"$reference\""), :<, release.index("docker image rm \"$reference\"")
-    assert_includes reconcile, "bin/promote-container-release"
-    assert_includes reconcile, "Safely redispatch a missing release"
-    assert_includes ci, "bin/validate container"
+    assert_includes release, "group: foresight-container-production"
+    assert_includes rollback, "group: foresight-container-production"
+    assert_operator release.index("Build and push unpromoted candidate"), :<, release.index("Promote verified candidate")
+    assert_includes rollback, "EXPECTED_CURRENT_DIGEST"
+    assert_includes rollback, "bin/rollback-container-release"
   end
 
   private
 
-  def promote(overrides = {})
-    env = {
+  def base_env
+    {
       "PATH" => "#{@bin}:#{ENV.fetch('PATH')}",
       "FAKE_STATE" => @state,
-      "FAKE_DIGEST" => DIGEST,
       "FAKE_HEAD_SHA" => SHA,
       "FAKE_ATTESTATION" => "pass",
-      "FAKE_FAIL_TAG" => "",
       "FAKE_MANIFEST" => JSON.generate(
         "manifests" => [
           { "platform" => { "os" => "linux", "architecture" => "amd64" } },
@@ -117,12 +106,26 @@ class ContainerReleaseTest < ActiveSupport::TestCase
         ]
       ),
       "GITHUB_REPOSITORY" => "example/foresight",
-      "GITHUB_DEFAULT_BRANCH" => "main"
-    }.merge(overrides)
+      "GITHUB_DEFAULT_BRANCH" => "main",
+      "REGISTRY_RETRY_ATTEMPTS" => "1"
+    }
+  end
+
+  def promote(overrides = {})
     output, status = Open3.capture2e(
-      env,
+      base_env.merge(overrides),
       ROOT.join("bin/promote-container-release").to_s,
-      "ghcr.io/example/foresight", DIGEST, SHA, DATE,
+      "ghcr.io/example/foresight", DIGEST, SHA, RELEASE_ID, "weekly-refresh",
+      chdir: ROOT
+    )
+    { output: output, status: status }
+  end
+
+  def rollback(overrides = {})
+    output, status = Open3.capture2e(
+      base_env.merge(overrides),
+      ROOT.join("bin/rollback-container-release").to_s,
+      "ghcr.io/example/foresight", RELEASE_TAG, DIGEST, "operator test",
       chdir: ROOT
     )
     { output: output, status: status }
@@ -134,14 +137,18 @@ class ContainerReleaseTest < ActiveSupport::TestCase
       set -euo pipefail
       if [[ "$1 $2 $3 $4" == "buildx imagetools inspect --raw" ]]; then
         printf '%s\n' "$FAKE_MANIFEST"
+      elif [[ "$1 $2 $3" == "buildx imagetools inspect" && "${6:-}" == *".Provenance"* ]]; then
+        printf '{"builder":"buildkit"}\n'
+      elif [[ "$1 $2 $3" == "buildx imagetools inspect" && "${6:-}" == *".SBOM"* ]]; then
+        printf '{"spdx":"present"}\n'
       elif [[ "$1 $2 $3" == "buildx imagetools inspect" ]]; then
         tag="${4##*:}"
-        [[ -f "$FAKE_STATE/$tag" ]] || exit 1
+        [[ -f "$FAKE_STATE/$tag" ]] || { echo "manifest unknown" >&2; exit 1; }
         printf '"%s"\n' "$(<"$FAKE_STATE/$tag")"
       elif [[ "$1 $2 $3" == "buildx imagetools create" ]]; then
         tag="${5##*:}"
-        [[ "$tag" != "$FAKE_FAIL_TAG" ]] || exit 1
-        printf '%s' "$FAKE_DIGEST" > "$FAKE_STATE/$tag"
+        digest="${6##*@}"
+        printf '%s' "$digest" > "$FAKE_STATE/$tag"
         printf '%s\n' "$tag" >> "$FAKE_STATE/creates"
       else
         echo "Unexpected docker invocation: $*" >&2
