@@ -106,6 +106,7 @@ class ContainerRefreshTest < ActiveSupport::TestCase
 
     assert_includes release, 'cron: "37 7 * * 0"'
     assert_includes audit, 'cron: "15 13 * * *"'
+    assert_match(/docker image rm --force "\$reference".*\n\s+docker pull --platform/, release)
     assert_includes audit, 'bin/resolve-image-digest "${REGISTRY}/${IMAGE_NAME}:latest"'
     refute_includes audit, "docker build --tag foresight-security-audit"
     assert_includes audit, "gh workflow run docker.yml"
