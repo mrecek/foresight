@@ -7,7 +7,7 @@ path = ARGV.fetch(0) { abort "Usage: bin/enforce-package-change-policy CLASSIFIC
 reason = ARGV.fetch(1) { abort "Release reason is required" }
 classification = JSON.parse(File.read(path))
 
-unless %w[source weekly-refresh security manual].include?(reason)
+unless %w[source weekly-refresh security manual validation].include?(reason)
   abort "Unsupported release reason: #{reason}"
 end
 

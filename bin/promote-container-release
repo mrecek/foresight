@@ -10,7 +10,7 @@ reason="${5:?Release reason is required}"
 [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "Invalid digest: $digest" >&2; exit 1; }
 [[ "$commit_sha" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid commit SHA: $commit_sha" >&2; exit 1; }
 [[ "$release_id" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9]+-[0-9]+$ ]] || { echo "Invalid release ID: $release_id" >&2; exit 1; }
-[[ "$reason" =~ ^(source|weekly-refresh|security|manual)$ ]] || { echo "Invalid release reason: $reason" >&2; exit 1; }
+[[ "$reason" =~ ^(source|weekly-refresh|security|manual|validation)$ ]] || { echo "Invalid release reason: $reason" >&2; exit 1; }
 
 source_reference="${image}@${digest}"
 release_tag="release-${release_id}"

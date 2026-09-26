@@ -8,7 +8,7 @@ on:
         required: true
         default: manual
         type: choice
-        options: [manual, security]
+        options: [manual, security, validation]
   schedule:
     - cron: "37 7 * * 0"
   push:
@@ -92,7 +92,7 @@ jobs:
             echo "built_at=$built_at"
             echo "candidate=candidate-$identity"
             echo "release_id=$identity"
-            echo "refresh=$([[ "$reason" != source ]] && echo true || echo false)"
+            echo "refresh=$([[ "$reason" =~ ^(weekly-refresh|security|manual)$ ]] && echo true || echo false)"
           } >> "$GITHUB_OUTPUT"
 
       - name: Ensure run-specific candidate tag is unused
