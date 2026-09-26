@@ -187,6 +187,8 @@ class ContainerRefreshTest < ActiveSupport::TestCase
         else
           [[ "$new" < "$old" ]]
         fi
+      elif [[ "$1 $2" == "image rm" ]]; then
+        exit 0
       else
         echo "Unexpected docker invocation: $*" >&2
         exit 1

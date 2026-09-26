@@ -45,9 +45,19 @@ def version_relation(reference, platform, old_version, new_version)
   abort "Could not compare package versions #{old_version.inspect} and #{new_version.inspect}"
 end
 
+def remove_local_image(reference)
+  Open3.capture2e("docker", "image", "rm", "--force", reference)
+end
+
 result = { "promoted" => promoted == "none" ? nil : promoted, "candidate" => candidate, "platforms" => {} }
 
 platforms.each do |platform|
+  # Docker's classic image store cannot keep two platform variants under the
+  # same manifest-list digest. Remove the previous variant before selecting
+  # the next platform so arm64 cannot collide with the earlier amd64 pull.
+  remove_local_image(candidate)
+  remove_local_image(promoted) unless promoted == "none"
+
   candidate_inventory = inventory(root, candidate, platform)
   filename = platform.delete_prefix("linux/")
   File.write(File.join(output_directory, "candidate-#{filename}.json"), JSON.pretty_generate(candidate_inventory) << "\n")
