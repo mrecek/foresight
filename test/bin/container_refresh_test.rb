@@ -86,6 +86,10 @@ class ContainerRefreshTest < ActiveSupport::TestCase
     refute status.success?
     assert_includes output, "may not downgrade"
 
+    output, status = run_script("enforce-package-change-policy", path, "validation")
+    refute status.success?
+    assert_includes output, "may not downgrade"
+
     output, status = run_script("enforce-package-change-policy", path, "source")
     assert status.success?, output
   end
@@ -105,6 +109,7 @@ class ContainerRefreshTest < ActiveSupport::TestCase
     audit = ROOT.join(".github/workflows/security-audit.yml").read
 
     assert_includes release, 'cron: "37 7 * * 0"'
+    assert_includes release, "options: [manual, security, validation]"
     assert_includes audit, 'cron: "15 13 * * *"'
     assert_match(/docker image rm --force "\$reference".*\n\s+docker pull --platform/, release)
     assert_includes audit, 'bin/resolve-image-digest "${REGISTRY}/${IMAGE_NAME}:latest"'
