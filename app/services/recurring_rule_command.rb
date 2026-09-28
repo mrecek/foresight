@@ -46,7 +46,6 @@ class RecurringRuleCommand
 
     def destroy_future_automatic_occurrences(rule)
       scope = rule.transactions
-        .where(account_id: rule.account_id)
         .where("date >= ?", Date.current)
         .not_user_modified
       destroy_occurrences(rule, scope)

@@ -19,7 +19,11 @@ class ProjectionMaterializer
       return rule unless rule.active?
 
       dates = RecurrenceCalculator.new(rule).dates_between([ rule.anchor_date, Date.current ].max, through)
-      existing_dates = rule.transactions.where(account_id: rule.account_id, date: dates).pluck(:date).to_set
+      existing_dates = rule.transactions
+        .where(account_id: rule.account_id, date: dates)
+        .includes(:linked_transaction)
+        .filter_map { |transaction| transaction.date if complete_occurrence?(rule, transaction) }
+        .to_set
       skipped_dates = dates_to_skip(rule)
 
       dates.each do |date|
@@ -74,8 +78,21 @@ class ProjectionMaterializer
     end
 
     def occurrence_complete?(rule, date)
-      account_ids = rule.transfer? ? [ rule.account_id, rule.destination_account_id ] : [ rule.account_id ]
-      rule.transactions.where(date: date, account_id: account_ids).distinct.count(:account_id) == account_ids.size
+      transaction = rule.transactions.includes(:linked_transaction).find_by(date: date, account_id: rule.account_id)
+      complete_occurrence?(rule, transaction)
+    end
+
+    def complete_occurrence?(rule, transaction)
+      return false unless transaction
+      return true unless rule.transfer?
+
+      counterpart = transaction.linked_transaction
+      counterpart.present? &&
+        counterpart.account_id == rule.destination_account_id &&
+        counterpart.recurring_rule_id == rule.id &&
+        counterpart.linked_transaction_id == transaction.id &&
+        counterpart.date == transaction.date &&
+        counterpart.amount == -transaction.amount
     end
 
     def signed_amount(rule)

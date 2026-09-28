@@ -99,7 +99,7 @@ class RecurrenceCalculator
       current_month += 1.month
     end
 
-    dates.sort
+    dates.sort.uniq
   end
 
   def monthly_dates(start_date, end_date)
@@ -131,51 +131,27 @@ class RecurrenceCalculator
   end
 
   def quarterly_dates(start_date, end_date)
-    dates = []
-    anchor = @rule.anchor_date
-
-    current = anchor
-    while current < start_date
-      current += 3.months
-    end
-
-    while current <= end_date
-      dates << current if current >= start_date
-      current += 3.months
-    end
-
-    dates
+    anchored_month_dates(start_date, end_date, 3)
   end
 
   def biyearly_dates(start_date, end_date)
-    dates = []
-    anchor = @rule.anchor_date
-
-    current = anchor
-    while current < start_date
-      current += 6.months
-    end
-
-    while current <= end_date
-      dates << current if current >= start_date
-      current += 6.months
-    end
-
-    dates
+    anchored_month_dates(start_date, end_date, 6)
   end
 
   def yearly_dates(start_date, end_date)
+    anchored_month_dates(start_date, end_date, 12)
+  end
+
+  def anchored_month_dates(start_date, end_date, interval_months)
     dates = []
     anchor = @rule.anchor_date
+    interval = 0
 
-    current = anchor
-    while current < start_date
-      current += 1.year
-    end
-
+    current = anchor.advance(months: interval_months * interval)
     while current <= end_date
       dates << current if current >= start_date
-      current += 1.year
+      interval += 1
+      current = anchor.advance(months: interval_months * interval)
     end
 
     dates

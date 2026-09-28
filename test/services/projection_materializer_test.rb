@@ -50,6 +50,25 @@ class ProjectionMaterializerTest < ActiveSupport::TestCase
     assert_equal 1, rule.transactions.where(account: @account, date: moved_date).count
   end
 
+  test "a destination collision cannot leave an unlinked projected debit" do
+    destination = Account.create!(name: "Destination", current_balance: 100, balance_date: Date.current)
+    rule = raw_rule(rule_type: :transfer, destination_account: destination)
+    rule.save!
+    Transaction.create!(
+      account: destination, recurring_rule: rule, description: rule.description,
+      amount: 10, date: Date.current, status: :estimated
+    )
+
+    ActiveRecord::Base.transaction do
+      assert_no_difference("Transaction.count") do
+        assert_raises(ActiveRecord::RecordNotUnique) do
+          ProjectionMaterializer.materialize(rule, through: Date.current)
+        end
+      end
+    end
+    assert_equal 0, rule.transactions.where(account: @account).count
+  end
+
   test "batch processing reports a bad rule after materializing later rules" do
     invalid = raw_rule(rule_type: :transfer, destination_account: @account)
     invalid.save!(validate: false)
