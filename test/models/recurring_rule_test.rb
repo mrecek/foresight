@@ -256,6 +256,55 @@ class RecurringRuleTest < ActiveSupport::TestCase
       "Transaction IDs should be different after regeneration"
   end
 
+  test "changing a recurring transfer source replaces its future pairs" do
+    third = Account.create!(name: "Third", current_balance: 100, balance_date: Date.current)
+    rule = create_recurring_rule!(
+      account: @checking_account,
+      destination_account: @savings_account,
+      description: "Monthly transfer",
+      amount: 25,
+      rule_type: :transfer,
+      frequency: :monthly,
+      anchor_date: Date.current
+    )
+    original_ids = rule.transactions.ids
+    occurrence_count = original_ids.size / 2
+
+    RecurringRuleCommand.update(rule, account_id: third.id)
+
+    assert_equal 0, Transaction.where(id: original_ids).count
+    assert_equal occurrence_count, rule.transactions.where(account: third).count
+    assert_equal occurrence_count, rule.transactions.where(account: @savings_account).count
+    assert rule.transactions.all? { |transaction| transaction.linked_transaction&.linked_transaction_id == transaction.id }
+    assert_empty TransferPairIntegrity.check
+  end
+
+  test "changing a recurring transfer source preserves manually adjusted pairs" do
+    third = Account.create!(name: "Third", current_balance: 100, balance_date: Date.current)
+    rule = create_recurring_rule!(
+      account: @checking_account,
+      destination_account: @savings_account,
+      description: "Monthly transfer",
+      amount: 25,
+      rule_type: :transfer,
+      frequency: :monthly,
+      anchor_date: Date.current
+    )
+    modified = rule.transactions.where(account: @checking_account).order(:date).first!
+    modified_date = modified.date
+    linked_id = modified.linked_transaction_id
+    TransferCommand.update(modified, user_modified: true, amount: -30)
+
+    RecurringRuleCommand.update(rule, account_id: third.id)
+
+    assert Transaction.exists?(modified.id)
+    assert Transaction.exists?(linked_id)
+    assert_equal(-30, modified.reload.amount)
+    assert_equal 0, rule.transactions.where(account: third, date: modified_date).count
+    assert_equal 0, rule.transactions.where(account: @checking_account).where.not(id: modified.id).count
+    assert rule.transactions.where(account: third).all? { |transaction| transaction.linked_transaction&.account_id == @savings_account.id }
+  end
+
   test "regenerate_transactions preserves user-modified transactions" do
     rule = create_recurring_rule!(
       account: @checking_account,

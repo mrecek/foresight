@@ -27,6 +27,18 @@ class TransferCommandTest < ActiveSupport::TestCase
     assert_difference("Transaction.count", -2) { TransferCommand.destroy(source) }
   end
 
+  test "changing the source to the previous destination updates both accounts" do
+    source = TransferCommand.create(@attributes)
+    third = Account.create!(name: "Third", current_balance: 100, balance_date: Date.current)
+
+    TransferCommand.update(source, account_id: @savings.id, destination_account_id: third.id)
+
+    assert_equal @savings, source.reload.account
+    assert_equal third, source.linked_transaction.account
+    assert_equal(-25, source.amount)
+    assert_equal 25, source.linked_transaction.amount
+  end
+
   test "invalid destination and audit failure roll back every row" do
     invalid = @attributes.merge(destination_account_id: 999_999)
     assert_no_difference("Transaction.count") do

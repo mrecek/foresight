@@ -5,7 +5,7 @@ class TransferCommand
   class << self
     def create(attributes, &audit)
       with_busy_retry do
-        Transaction.transaction do
+        Transaction.transaction(requires_new: true) do
           values, destination_id = split_destination(attributes)
           source = Transaction.new(values)
           source.destination_account_id = destination_id
