@@ -47,13 +47,9 @@ class Transaction < ApplicationRecord
   private
 
   def different_linked_account
-    # Check against linked transaction if it exists
-    if linked_transaction && account_id == linked_transaction.account_id
-      errors.add(:destination_account_id, "cannot be the same as the source account")
-    end
-
-    # Check against destination_account_id if provided (creation/update context)
-    if destination_account_id.present? && account_id == destination_account_id.to_i
+    # A submitted destination supersedes the linked transaction's current account.
+    destination_id = destination_account_id.nil? ? linked_transaction&.account_id : destination_account_id
+    if destination_id.present? && account_id == destination_id.to_i
       errors.add(:destination_account_id, "cannot be the same as the source account")
     end
   end

@@ -31,10 +31,16 @@ class TransactionsController < ApplicationController
   end
 
   def edit
+    @transaction = @transaction.linked_transaction if incoming_transfer?
     @return_url = transaction_return_url
   end
 
   def update
+    if incoming_transfer?
+      return redirect_to edit_transaction_path(@transaction.linked_transaction, return_url: transaction_return_url),
+        alert: "Review this transfer from its sending account before saving."
+    end
+
     ActiveRecord::Base.transaction do
       # Track user modifications for rule-linked transactions
       if @transaction.recurring_rule.present?
@@ -108,6 +114,10 @@ class TransactionsController < ApplicationController
     @transaction = Transaction.includes(linked_transaction: :account).find(params[:id])
   end
 
+  def incoming_transfer?
+    @transaction.linked_transaction.present? && @transaction.amount.positive?
+  end
+
   def transaction_params
     params.require(:transaction).permit(:account_id, :description, :amount, :date, :status, :category_id, :destination_account_id)
   end
@@ -134,6 +144,24 @@ class TransactionsController < ApplicationController
         changes_made = true
         handle_date_change(new_date)
       end
+    end
+
+    if params_hash[:account_id].present? && @transaction.account_id != params_hash[:account_id].to_i
+      changes_made = true
+    end
+
+    if params_hash.key?(:destination_account_id)
+      destination_id = params_hash[:destination_account_id].presence&.to_i
+      changes_made = true if @transaction.linked_transaction&.account_id != destination_id
+    end
+
+    if params_hash[:status].present? && @transaction.status != params_hash[:status]
+      changes_made = true
+    end
+
+    if params_hash.key?(:category_id)
+      category_id = params_hash[:category_id].presence&.to_i
+      changes_made = true if @transaction.category_id != category_id
     end
 
     @transaction.user_modified = true if changes_made

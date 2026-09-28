@@ -174,6 +174,28 @@ class CriticalJourneysTest < ApplicationSystemTestCase
     assert_equal savings, source.linked_transaction.account
   end
 
+  test "owner edits an incoming transfer without reversing its direction" do
+    checking, savings = create_accounts
+    source = TransferCommand.create(
+      account: savings, destination_account_id: checking.id,
+      description: "Savings transfer", amount: -80,
+      date: Date.current, status: :actual
+    )
+
+    visit edit_transaction_path(source.linked_transaction)
+    assert_selector "[data-smart-amount-ready='true']"
+    assert_select_value "transaction_account_id", savings.id.to_s
+    assert_select_value "transaction_destination_account_id", checking.id.to_s
+    click_button "Update Transaction"
+
+    assert_current_path transactions_path
+    assert_text "Transaction updated."
+    assert_equal savings, source.reload.account
+    assert_equal(-80, source.amount)
+    assert_equal checking, source.linked_transaction.account
+    assert_equal 80, source.linked_transaction.amount
+  end
+
   test "owner creates a recurring transfer and sees generated occurrences" do
     checking, savings = create_accounts
 

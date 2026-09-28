@@ -187,7 +187,7 @@
         <div class="bg-primary-subtle rounded-xl p-4 border border-accent-line">
           <%= f.label :destination_account_id, "Destination Account", class: "form-label text-accent-strong" %>
           <%= f.collection_select :destination_account_id, @accounts, :id, :name,
-              { include_blank: "Select destination account...", selected: (transaction.linked_transaction&.account_id) },
+              { include_blank: "Select destination account...", selected: (transaction.destination_account_id.nil? ? transaction.linked_transaction&.account_id : transaction.destination_account_id) },
               class: "form-select bg-surface", disabled: initial_type != "transfer",
               data: { transfer_validator_target: "destination", action: "change->transfer-validator#validate" } %>
           <p data-transfer-validator-target="error" class="text-sm text-negative mt-1.5 hidden"></p>

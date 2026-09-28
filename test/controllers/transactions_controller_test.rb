@@ -26,6 +26,117 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     ENV["TEST_MODE"] = @original_test_mode
   end
 
+  test "editing either side of a transfer uses the sending account" do
+    source = create_transfer
+
+    [ source, source.linked_transaction ].each do |side|
+      get edit_transaction_path(side)
+
+      assert_response :success
+      assert_select "form[action='#{transaction_path(source)}']"
+      assert_select "select#transaction_account_id option[value='#{@savings.id}'][selected]"
+      assert_select "select#transaction_destination_account_id option[value='#{@checking.id}'][selected]"
+    end
+  end
+
+  test "transfer account changes use the submitted destination" do
+    source = create_transfer
+    third = Account.create!(name: "Third", account_type: :checking, current_balance: 100,
+      balance_date: Date.current, warning_threshold: 10)
+
+    patch transaction_path(source), params: { transaction: {
+      account_id: @checking.id, destination_account_id: third.id,
+      description: source.description, amount: -75, date: source.date, status: source.status
+    } }
+
+    assert_redirected_to transactions_path
+    assert_equal @checking, source.reload.account
+    assert_equal third, source.linked_transaction.account
+    assert_equal(-75, source.amount)
+    assert_equal 75, source.linked_transaction.amount
+  end
+
+  test "invalid transfer account choice remains selected after validation" do
+    source = create_transfer
+
+    patch transaction_path(source), params: { transaction: {
+      account_id: @checking.id, destination_account_id: @checking.id,
+      description: source.description, amount: -75, date: source.date, status: source.status
+    } }
+
+    assert_response :unprocessable_entity
+    assert_select ".alert-danger", text: /cannot be the same as the source account/
+    assert_select "select#transaction_account_id option[value='#{@checking.id}'][selected]"
+    assert_select "select#transaction_destination_account_id option[value='#{@checking.id}'][selected]"
+    assert_equal @savings, source.reload.account
+    assert_equal @checking, source.linked_transaction.account
+  end
+
+  test "a stale incoming transfer form cannot reverse the transfer" do
+    source = create_transfer
+    incoming = source.linked_transaction
+
+    patch transaction_path(incoming), params: { transaction: {
+      account_id: @checking.id, destination_account_id: @savings.id,
+      description: source.description, amount: -75, date: source.date, status: source.status
+    } }
+
+    assert_redirected_to edit_transaction_path(source, return_url: transactions_path)
+    assert_equal(-75, source.reload.amount)
+    assert_equal 75, incoming.reload.amount
+  end
+
+  test "editing a recurring transfer account survives later rule regeneration" do
+    rule = create_recurring_transfer_rule
+    source = rule.transactions.where(account: @checking).where("date > ?", Date.current).first!
+    third = Account.create!(name: "Third", current_balance: 100, balance_date: Date.current)
+
+    patch transaction_path(source), params: { transaction: recurring_transfer_params(source).merge(account_id: third.id) }
+
+    assert_redirected_to transactions_path
+    assert_predicate source.reload, :user_modified?
+    assert_predicate source.linked_transaction, :user_modified?
+    assert_equal third, source.account
+
+    RecurringRuleCommand.update(rule, amount: 30)
+
+    assert Transaction.exists?(source.id)
+    assert_equal third, source.reload.account
+    assert_equal(-20, source.amount)
+    assert_equal @savings, source.linked_transaction.account
+  end
+
+  test "other recurring transaction field changes are protected" do
+    third = Account.create!(name: "Third", current_balance: 100, balance_date: Date.current)
+    category = Category.uncategorized
+
+    [
+      { destination_account_id: third.id },
+      { status: "actual" },
+      { category_id: category.id }
+    ].each do |change|
+      rule = create_recurring_transfer_rule
+      source = rule.transactions.where(account: @checking).where("date > ?", Date.current).first!
+
+      patch transaction_path(source), params: { transaction: recurring_transfer_params(source).merge(change) }
+
+      assert_redirected_to transactions_path
+      assert_predicate source.reload, :user_modified?
+      assert_predicate source.linked_transaction, :user_modified?
+    end
+  end
+
+  test "saving an unchanged recurring transfer keeps it automatic" do
+    rule = create_recurring_transfer_rule
+    source = rule.transactions.where(account: @checking).where("date > ?", Date.current).first!
+
+    patch transaction_path(source), params: { transaction: recurring_transfer_params(source) }
+
+    assert_redirected_to transactions_path
+    assert_not source.reload.user_modified?
+    assert_not source.linked_transaction.user_modified?
+  end
+
   test "destroy with valid return_url deletes linked transfer pair and redirects back" do
     txn = TransferCommand.create(
       account: @checking,
@@ -244,6 +355,34 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def create_transfer
+    TransferCommand.create(
+      account: @savings, destination_account_id: @checking.id,
+      description: "Savings to checking", amount: -75,
+      date: Date.current + 1.day, status: :estimated
+    )
+  end
+
+  def create_recurring_transfer_rule
+    RecurringRuleCommand.create(RecurringRule.new(
+      account: @checking, destination_account: @savings,
+      description: "Monthly transfer", amount: 20,
+      rule_type: :transfer, frequency: :monthly,
+      anchor_date: Date.current, active: true, is_estimated: true
+    ))
+  end
+
+  def recurring_transfer_params(transaction)
+    {
+      account_id: transaction.account_id,
+      destination_account_id: transaction.linked_transaction.account_id,
+      description: transaction.description,
+      amount: transaction.amount,
+      date: transaction.date,
+      status: transaction.status
+    }
+  end
 
   def estimated_transaction(amount: -45.0)
     Transaction.create!(
