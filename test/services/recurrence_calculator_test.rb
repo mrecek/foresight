@@ -193,6 +193,18 @@ class RecurrenceCalculatorTest < ActiveSupport::TestCase
     assert_equal expected, dates
   end
 
+  test "semimonthly frequency only schedules the 15th once" do
+    rule = create_rule(
+      frequency: :semimonthly,
+      anchor_date: Date.new(2025, 1, 1),
+      day_of_month: 15
+    )
+
+    dates = RecurrenceCalculator.new(rule).dates_between(Date.new(2025, 1, 1), Date.new(2025, 2, 28))
+
+    assert_equal [ Date.new(2025, 1, 15), Date.new(2025, 2, 15) ], dates
+  end
+
   # ============================================================================
   # Monthly Frequency Tests
   # ============================================================================
@@ -343,6 +355,17 @@ class RecurrenceCalculatorTest < ActiveSupport::TestCase
     assert_equal expected, dates
   end
 
+  test "quarterly frequency returns to the anchor day after a short month" do
+    rule = create_rule(frequency: :quarterly, anchor_date: Date.new(2025, 1, 31))
+
+    dates = RecurrenceCalculator.new(rule).dates_between(Date.new(2025, 1, 1), Date.new(2025, 12, 31))
+
+    assert_equal [
+      Date.new(2025, 1, 31), Date.new(2025, 4, 30),
+      Date.new(2025, 7, 31), Date.new(2025, 10, 31)
+    ], dates
+  end
+
   # ============================================================================
   # Biyearly Frequency Tests
   # ============================================================================
@@ -380,6 +403,14 @@ class RecurrenceCalculatorTest < ActiveSupport::TestCase
       Date.new(2026, 12, 1)
     ]
     assert_equal expected, dates
+  end
+
+  test "biyearly frequency returns to the anchor day after February" do
+    rule = create_rule(frequency: :biyearly, anchor_date: Date.new(2024, 8, 31))
+
+    dates = RecurrenceCalculator.new(rule).dates_between(Date.new(2024, 8, 1), Date.new(2025, 12, 31))
+
+    assert_equal [ Date.new(2024, 8, 31), Date.new(2025, 2, 28), Date.new(2025, 8, 31) ], dates
   end
 
   # ============================================================================
@@ -420,6 +451,17 @@ class RecurrenceCalculatorTest < ActiveSupport::TestCase
       Date.new(2027, 6, 1)
     ]
     assert_equal expected, dates
+  end
+
+  test "yearly frequency restores leap day in a leap year" do
+    rule = create_rule(frequency: :yearly, anchor_date: Date.new(2024, 2, 29))
+
+    dates = RecurrenceCalculator.new(rule).dates_between(Date.new(2024, 1, 1), Date.new(2028, 12, 31))
+
+    assert_equal [
+      Date.new(2024, 2, 29), Date.new(2025, 2, 28), Date.new(2026, 2, 28),
+      Date.new(2027, 2, 28), Date.new(2028, 2, 29)
+    ], dates
   end
 
   # ============================================================================
