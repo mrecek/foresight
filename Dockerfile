@@ -10,7 +10,7 @@
 # Keep this version in sync with .ruby-version. The digest pins the complete
 # multi-architecture Debian 13 base identity. Refresh builds invalidate the
 # named os-packages stage explicitly while normal source builds may reuse it.
-FROM docker.io/library/ruby:3.4.10-slim-trixie@sha256:9d50d98e61ccbe4f1ef436349911e09b53c42a00364bcd3bda6ac107abc29528 AS os-packages
+FROM docker.io/library/ruby:3.4.11-slim-trixie@sha256:5b53e16f47e05acae56897d0f96b9d03dcb4563276e71c96415bf7777c9ba207 AS os-packages
 
 ARG DEBIAN_FRONTEND=noninteractive
 
