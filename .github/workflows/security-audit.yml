@@ -66,6 +66,9 @@ jobs:
 
       - name: Install Trivy and scan released amd64 digest
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_IMAGE_SRC: remote
+          TRIVY_PLATFORM: linux/amd64
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.release.outputs.digest }}
           version: v0.74.0
@@ -79,7 +82,7 @@ jobs:
 
       - name: Scan released arm64 digest
         run: |
-          trivy image --platform linux/arm64 --format json --output trivy-arm64.json \
+          trivy image --image-src remote --platform linux/arm64 --format json --output trivy-arm64.json \
             --scanners vuln --vuln-type os,library --severity HIGH,CRITICAL --ignore-unfixed=false \
             "${REGISTRY}/${IMAGE_NAME}@${{ steps.release.outputs.digest }}"
 

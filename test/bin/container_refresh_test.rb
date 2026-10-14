@@ -78,6 +78,17 @@ class ContainerRefreshTest < ActiveSupport::TestCase
     assert_includes audit, "bin/container-gem-versions"
   end
 
+  test "registry scans select each platform independently of local Docker images" do
+    %w[docker security-audit].each do |workflow|
+      config = YAML.safe_load_file(ROOT.join(".github/workflows/#{workflow}.yml"), aliases: true)
+      steps = config.fetch("jobs").values.flat_map { |job| job.fetch("steps") }
+      scan = steps.find { |step| step.fetch("uses", "").start_with?("aquasecurity/trivy-action@") }
+      assert_equal "remote", scan.fetch("env").fetch("TRIVY_IMAGE_SRC")
+      assert_equal "linux/amd64", scan.fetch("env").fetch("TRIVY_PLATFORM")
+      assert steps.any? { |step| step.fetch("run", "").include?("trivy image --image-src remote --platform linux/arm64") }
+    end
+  end
+
   private
 
   def run_script(name, *arguments, env: {})

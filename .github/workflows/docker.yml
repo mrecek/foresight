@@ -172,6 +172,9 @@ jobs:
 
       - name: Scan amd64 candidate with Trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_IMAGE_SRC: remote
+          TRIVY_PLATFORM: linux/amd64
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
           version: v0.74.0
@@ -192,7 +195,7 @@ jobs:
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
         run: |
-          trivy image --platform linux/arm64 --format json --output refresh-evidence/trivy-arm64.json \
+          trivy image --image-src remote --platform linux/arm64 --format json --output refresh-evidence/trivy-arm64.json \
             --scanners vuln --vuln-type os,library --severity HIGH,CRITICAL --ignore-unfixed=false \
             "${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
           bin/container-gem-versions "${REGISTRY}/${IMAGE_NAME}@${DIGEST}" linux/arm64 refresh-evidence/gems-arm64.json
