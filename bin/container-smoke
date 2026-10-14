@@ -9,18 +9,45 @@ health_attempts="${CONTAINER_SMOKE_HEALTH_ATTEMPTS:-30}"
 }
 suffix="${GITHUB_RUN_ID:-local}-$$"
 container_name="foresight-validation-${suffix}"
+worker_name="${container_name}-worker"
 volume_name="foresight-validation-${suffix}"
 second_volume_name="foresight-validation-second-${suffix}"
+probe_directory=""
 
 cleanup() {
   if [ "${smoke_passed:-false}" != "true" ]; then
     docker logs "$container_name" 2>/dev/null || true
+    docker logs "$worker_name" 2>/dev/null || true
   fi
+  docker rm -f "$worker_name" >/dev/null 2>&1 || true
   docker rm -f "$container_name" >/dev/null 2>&1 || true
   docker volume rm "$volume_name" >/dev/null 2>&1 || true
   docker volume rm "$second_volume_name" >/dev/null 2>&1 || true
+  if [[ -n "$probe_directory" ]]; then
+    rm -f "$probe_directory/shutdown-probe.rb"
+    rmdir "$probe_directory"
+  fi
 }
 trap cleanup EXIT
+
+repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+probe_directory="$(mktemp -d "${repository_root}/tmp/container-smoke.XXXXXX")"
+cat > "$probe_directory/shutdown-probe.rb" <<'RUBY'
+# Test-only timing around a real maintenance job, mounted into the smoke worker.
+Rails.application.config.after_initialize do
+  MaintainProjectionsJob.prepend(Module.new do
+    def perform
+      request = Rails.root.join("storage/.shutdown-probe-requested")
+      if request.file? && request.read == job_id
+        request.delete
+        Rails.root.join("storage/.shutdown-probe-started").write(job_id)
+        sleep 10
+      end
+      super
+    end
+  end)
+end
+RUBY
 
 docker volume create "$volume_name" >/dev/null
 docker run --detach \
@@ -56,6 +83,20 @@ wait_for_internal_health() {
   exit 1
 }
 
+stop_cleanly() {
+  local target="$1" role="$2" check="$3" exit_code
+  docker stop --time 30 "$target" >/dev/null
+  exit_code="$(docker inspect --format '{{.State.ExitCode}}' "$target")"
+  [[ "$exit_code" == "0" ]] || {
+    echo "Packaged ${role} failed SIGTERM during ${check}: exit code ${exit_code}." >&2
+    exit 1
+  }
+}
+
+run_queued_maintenance() {
+  docker exec "$container_name" bin/docker-entrypoint bin/rails runner script/maintenance_smoke.rb
+}
+
 wait_for_health
 first_fingerprint="$(docker exec "$container_name" ruby -rdigest -e 'print Digest::SHA256.file("/rails/storage/.secret_key_base").hexdigest')"
 docker restart "$container_name" >/dev/null
@@ -76,31 +117,65 @@ second_fingerprint="$(docker run --rm \
   exit 1
 }
 
-raw_secret="$(docker exec "$container_name" ruby -e 'print File.read("/rails/storage/.secret_key_base").strip')"
-container_logs="$(docker logs "$container_name" 2>&1)"
-if [[ "$container_logs" == *"$raw_secret"* ]]; then
-  echo "Raw session key appeared in container logs." >&2
-  exit 1
-fi
-
 # `docker exec` does not inherit environment exported by PID 1. Run probes
 # through the entrypoint so they load the installation secret exactly like
 # every packaged process.
 docker exec "$container_name" bin/docker-entrypoint bin/jobs check
-docker exec "$container_name" bin/docker-entrypoint bin/rails runner script/maintenance_smoke.rb
-for shutdown_cycle in 1 2 3; do
-  docker stop --time 30 "$container_name" >/dev/null
-  exit_code="$(docker inspect --format '{{.State.ExitCode}}' "$container_name")"
-  [[ "$exit_code" == "0" ]] || {
-    echo "Packaged Puma server failed SIGTERM cycle ${shutdown_cycle}/3: exit code ${exit_code}." >&2
+
+# Start jobs only after the web process has prepared the shared databases.
+docker run --detach \
+  --name "$worker_name" \
+  --no-healthcheck \
+  --mount "type=bind,source=${probe_directory}/shutdown-probe.rb,target=/rails/config/initializers/container_shutdown_probe.rb,readonly" \
+  --volume "$volume_name:/rails/storage" \
+  "$image" bin/jobs >/dev/null
+
+# Terminate before readiness too. Ruby can exit 1 when TERM interrupts VM
+# initialization (also reproduced with plain `ruby -e 'sleep 5'`). Prove it was
+# running first, then require real queue execution after restart below.
+[[ "$(docker inspect --format '{{.State.Running}}' "$worker_name")" == "true" ]] || {
+  echo "Packaged worker exited before the startup SIGTERM test." >&2
+  exit 1
+}
+docker stop --time 30 "$worker_name" >/dev/null
+startup_exit_code="$(docker inspect --format '{{.State.ExitCode}}' "$worker_name")"
+docker inspect --format 'Worker startup TERM: exit={{.State.ExitCode}} started={{.State.StartedAt}} finished={{.State.FinishedAt}}' "$worker_name"
+docker logs "$worker_name"
+[[ "$startup_exit_code" == "0" || "$startup_exit_code" == "1" || "$startup_exit_code" == "143" ]] || {
+  echo "Packaged worker failed SIGTERM during startup: exit code ${startup_exit_code}." >&2
+  exit 1
+}
+docker start "$worker_name" >/dev/null
+run_queued_maintenance
+
+docker exec "$container_name" bin/docker-entrypoint bin/rails runner script/maintenance_smoke.rb claim_shutdown_probe
+stop_cleanly "$worker_name" "worker" "in-flight maintenance"
+docker exec "$container_name" bin/docker-entrypoint bin/rails runner script/maintenance_smoke.rb assert_released
+docker exec "$container_name" bin/docker-entrypoint bin/rails runner script/maintenance_smoke.rb assert_stopped
+docker start "$worker_name" >/dev/null
+docker exec "$container_name" bin/docker-entrypoint bin/rails runner script/maintenance_smoke.rb assert_recovered
+
+raw_secret="$(docker exec "$container_name" ruby -e 'print File.read("/rails/storage/.secret_key_base").strip')"
+for target in "$container_name" "$worker_name"; do
+  container_logs="$(docker logs "$target" 2>&1)"
+  if [[ "$container_logs" == *"$raw_secret"* ]]; then
+    echo "Raw session key appeared in ${target} logs." >&2
     exit 1
-  }
+  fi
+done
+
+for shutdown_cycle in 1 2 3; do
+  stop_cleanly "$worker_name" "worker" "cycle ${shutdown_cycle}/3"
+  docker exec "$container_name" bin/docker-entrypoint bin/rails runner script/maintenance_smoke.rb assert_stopped
+  stop_cleanly "$container_name" "Puma server" "cycle ${shutdown_cycle}/3"
   if [[ "$shutdown_cycle" -lt 3 ]]; then
     docker start "$container_name" >/dev/null
     wait_for_internal_health
+    docker start "$worker_name" >/dev/null
+    run_queued_maintenance
   fi
 done
 smoke_passed=true
 echo "Session-key fingerprints: install-a=${first_fingerprint} install-b=${second_fingerprint}"
-echo "Container smoke passed: production HTTP, secret persistence/uniqueness, Solid Queue, maintenance jobs, and three graceful SIGTERM cycles."
+echo "Container smoke passed: production HTTP, persistent secrets, separate queued worker, and three graceful SIGTERM cycles for both roles."
 exit 0

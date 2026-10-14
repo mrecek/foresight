@@ -17,12 +17,12 @@ ARG DEBIAN_FRONTEND=noninteractive
 # Rails app lives here
 WORKDIR /rails
 
-# Upgrade inherited packages and install the one additional runtime library.
+# Upgrade inherited packages and install the runtime library and process init.
 # apt metadata refresh, upgrade, install, and cleanup stay in one layer so a
 # targeted --no-cache-filter os-packages build observes the current archive.
 RUN apt-get update -qq && \
     apt-get upgrade --with-new-pkgs -y && \
-    apt-get install --no-install-recommends -y libjemalloc2 && \
+    apt-get install --no-install-recommends -y libjemalloc2 tini && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
@@ -34,7 +34,6 @@ ENV RAILS_ENV="production" \
     BUNDLE_PATH="/usr/local/bundle" \
     BUNDLE_WITHOUT="development:test" \
     LD_PRELOAD="/usr/local/lib/libjemalloc.so" \
-    SOLID_QUEUE_IN_PUMA="true" \
     PORT="8080"
 
 # Throw-away build stage to reduce size of final image
@@ -75,13 +74,13 @@ USER 1000:1000
 COPY --chown=rails:rails --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
 COPY --chown=rails:rails --from=build /rails /rails
 
-# Entrypoint prepares the database.
-ENTRYPOINT ["/rails/bin/docker-entrypoint"]
+# Tini forwards startup signals and reaps children; the entrypoint prepares web databases.
+ENTRYPOINT ["/usr/bin/tini", "--", "/rails/bin/docker-entrypoint"]
 
 # Health check for container orchestration (Docker, Kubernetes, etc.)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD ["bin/container-healthcheck"]
 
-# Start Puma directly so it receives container shutdown signals.
+# Start the web process; a second container runs bin/jobs against the same storage.
 EXPOSE 8080
 CMD ["bundle", "exec", "puma", "-C", "config/puma.rb"]
