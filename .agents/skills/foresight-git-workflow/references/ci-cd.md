@@ -30,7 +30,7 @@ Completion means every required check is present on the pull request and success
 
 Inspect Dependabot metadata and the eligibility script before changing an auto-merge boundary. Complete a change only when an ineligible ecosystem and major Bundler update still fail closed.
 
-The Ruby updater uses a stable automation branch and the pinned create-pull-request action to create or update its proposal. Closing an unmerged proposal does not permanently suppress future attempts: the next stale-version run recreates the proposal. To pause updates intentionally, disable the freshness workflow. The updater dispatches `ci.yml` explicitly on every open proposal head because `GITHUB_TOKEN` events do not start unattended pull-request CI. If one stalls, inspect the freshness run, dispatched CI at the current head, and required checks.
+The Ruby updater uses a stable automation branch and the pinned create-pull-request action to create or update its proposal. Closing an unmerged proposal does not permanently suppress future attempts: the next stale-version run recreates the proposal. To pause updates intentionally, disable the freshness workflow. The updater dispatches `ci.yml` explicitly on every open proposal head because `GITHUB_TOKEN` events do not start unattended pull-request CI. If one stalls, inspect the freshness run, dispatched CI at the current head, and required checks. An unsupported Ruby error from setup-ruby requires a reviewed action-pin update before retrying; the action embeds its supported runtime list.
 
 ## Container Publication
 
