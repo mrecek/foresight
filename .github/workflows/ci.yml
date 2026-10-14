@@ -20,7 +20,7 @@ jobs:
 
       - name: Scan for common Rails security vulnerabilities using static analysis
         run: bin/validate security-ruby
-      
+
   scan_js:
     name: CI/scan_js (pull_request)
     runs-on: ubuntu-24.04

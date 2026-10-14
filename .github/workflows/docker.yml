@@ -36,15 +36,21 @@ env:
 
 permissions:
   contents: read
-  packages: write
-  attestations: write
-  artifact-metadata: write
-  id-token: write
+  packages: read
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+      candidate: ${{ steps.release.outputs.candidate }}
+      release_id: ${{ steps.release.outputs.release_id }}
+      reason: ${{ steps.release.outputs.reason }}
+      promoted_digest: ${{ steps.promoted.outputs.digest }}
     steps:
       - name: Checkout release commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -65,6 +71,9 @@ jobs:
         uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
         with:
           bundler-cache: true
+
+      - name: Validate application at candidate source
+        run: bin/validate --ci
 
       - name: Log in to Container Registry
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
@@ -154,53 +163,6 @@ jobs:
       - name: Verify candidate provenance and SBOM
         run: bin/check-container-metadata "${REGISTRY}/${IMAGE_NAME}@${{ steps.push.outputs.digest }}"
 
-      - name: Validate application at candidate source
-        run: bin/validate --ci
-
-      - name: Smoke test candidate on amd64 and arm64
-        env:
-          DIGEST: ${{ steps.push.outputs.digest }}
-          CONTAINER_SMOKE_HEALTH_ATTEMPTS: 120
-        run: |
-          set -euo pipefail
-          reference="${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
-          for platform in linux/amd64 linux/arm64; do
-            docker image rm --force "$reference" >/dev/null 2>&1 || true
-            docker pull --platform "$platform" "$reference"
-            DOCKER_DEFAULT_PLATFORM="$platform" bin/container-smoke "$reference"
-          done
-
-      - name: Scan amd64 candidate with Trivy
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        env:
-          TRIVY_IMAGE_SRC: remote
-          TRIVY_PLATFORM: linux/amd64
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
-          version: v0.74.0
-          format: json
-          output: refresh-evidence/trivy-amd64.json
-          exit-code: "0"
-          ignore-unfixed: false
-          vuln-type: os,library
-          severity: HIGH,CRITICAL
-          scanners: vuln
-
-      - name: Enforce amd64 vulnerability policy
-        run: |
-          bin/container-gem-versions "${REGISTRY}/${IMAGE_NAME}@${{ steps.push.outputs.digest }}" linux/amd64 refresh-evidence/gems-amd64.json
-          bin/check-trivy-report refresh-evidence/trivy-amd64.json refresh-evidence/gems-amd64.json
-
-      - name: Scan and enforce arm64 vulnerability policy
-        env:
-          DIGEST: ${{ steps.push.outputs.digest }}
-        run: |
-          trivy image --image-src remote --platform linux/arm64 --format json --output refresh-evidence/trivy-arm64.json \
-            --scanners vuln --vuln-type os,library --severity HIGH,CRITICAL --ignore-unfixed=false \
-            "${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
-          bin/container-gem-versions "${REGISTRY}/${IMAGE_NAME}@${DIGEST}" linux/arm64 refresh-evidence/gems-arm64.json
-          bin/check-trivy-report refresh-evidence/trivy-arm64.json refresh-evidence/gems-arm64.json
-
       - name: Upload candidate evidence
         if: always() && steps.push.outputs.digest != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -210,18 +172,126 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  verify:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    env:
+      DIGEST: ${{ needs.build.outputs.digest }}
+    steps:
+      - name: Checkout release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Ruby for image policy tools
+        uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Smoke test exact candidate on its native architecture
+        env:
+          DOCKER_DEFAULT_PLATFORM: ${{ matrix.platform }}
+          CONTAINER_SMOKE_HEALTH_ATTEMPTS: 120
+        run: |
+          docker pull --platform "${DOCKER_DEFAULT_PLATFORM}" "${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+          bin/container-smoke "${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+
+      - name: Scan native candidate with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_IMAGE_SRC: remote
+          TRIVY_PLATFORM: ${{ matrix.platform }}
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ env.DIGEST }}
+          version: v0.74.0
+          format: json
+          output: trivy-${{ matrix.arch }}.json
+          exit-code: "0"
+          ignore-unfixed: false
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          scanners: vuln
+
+      - name: Verify candidate runtime and vulnerability policy
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          bin/container-gem-versions "${REGISTRY}/${IMAGE_NAME}@${DIGEST}" "$PLATFORM" "gems-$ARCH.json"
+          bin/check-trivy-report "trivy-$ARCH.json" "gems-$ARCH.json"
+
+      - name: Upload architecture verification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: container-verification-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            trivy-*.json
+            gems-*.json
+          if-no-files-found: error
+          retention-days: 30
+
+  promote:
+    needs: [build, verify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      artifact-metadata: write
+      id-token: write
+    steps:
+      - name: Checkout release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Ruby for image metadata tools
+        uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+        with:
+          version: ${{ env.BUILDX_VERSION }}
+          driver-opts: |
+            image=${{ env.BUILDKIT_IMAGE }}
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Generate provenance attestation
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          subject-digest: ${{ steps.push.outputs.digest }}
+          subject-digest: ${{ needs.build.outputs.digest }}
           push-to-registry: true
 
       - name: Promote verified candidate
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          EXPECTED_PROMOTED_DIGEST: ${{ steps.promoted.outputs.digest }}
-        run: bin/promote-container-release "${REGISTRY}/${IMAGE_NAME}" "${{ steps.push.outputs.digest }}" "${{ github.sha }}" "${{ steps.release.outputs.release_id }}" "${{ steps.release.outputs.reason }}"
+          EXPECTED_PROMOTED_DIGEST: ${{ needs.build.outputs.promoted_digest }}
+        run: bin/promote-container-release "${REGISTRY}/${IMAGE_NAME}" "${{ needs.build.outputs.digest }}" "${{ github.sha }}" "${{ needs.build.outputs.release_id }}" "${{ needs.build.outputs.reason }}"
 
       - name: Publish release summary
         if: always()
@@ -229,9 +299,9 @@ jobs:
           {
             echo "## Container candidate"
             echo
-            echo "- Trigger: \`${{ steps.release.outputs.reason }}\`"
-            echo "- Candidate: \`${REGISTRY}/${IMAGE_NAME}:${{ steps.release.outputs.candidate }}@${{ steps.push.outputs.digest }}\`"
-            echo "- Previous production digest: \`${{ steps.promoted.outputs.digest || 'none' }}\`"
+            echo "- Trigger: \`${{ needs.build.outputs.reason }}\`"
+            echo "- Candidate: \`${REGISTRY}/${IMAGE_NAME}:${{ needs.build.outputs.candidate }}@${{ needs.build.outputs.digest }}\`"
+            echo "- Previous production digest: \`${{ needs.build.outputs.promoted_digest || 'none' }}\`"
             echo "- Every candidate requires the complete verification contract, including scheduled refreshes."
             echo "- Release tags move only after manifest, smoke, vulnerability, and attestation gates pass."
           } >> "$GITHUB_STEP_SUMMARY"
