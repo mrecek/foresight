@@ -3,6 +3,11 @@
 
 require "securerandom"
 
+legacy_jobs = ENV["SOLID_QUEUE_IN_PUMA"]
+if legacy_jobs && ![ "", "false", "0", "off", "no" ].include?(legacy_jobs.downcase)
+  abort "Foresight startup error: SOLID_QUEUE_IN_PUMA is no longer supported. Run bin/jobs in a separate worker container using the same image and storage volume."
+end
+
 SECRET_KEY_BASE_MIN_BYTES = 30
 secret_path = ENV.fetch("SECRET_KEY_BASE_FILE", "/rails/storage/.secret_key_base")
 

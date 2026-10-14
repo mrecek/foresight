@@ -44,6 +44,18 @@ class DockerEntrypointTest < Minitest::Test
     refute_path_exists @secret_file
   end
 
+  def test_rejects_enabled_embedded_worker_configuration_with_migration_guidance
+    result = run_entrypoint("SOLID_QUEUE_IN_PUMA" => "true")
+
+    refute result[:status].success?
+    assert_includes result[:stderr], "Run bin/jobs in a separate worker container"
+    refute_path_exists @secret_file
+  end
+
+  def test_accepts_disabled_embedded_worker_configuration
+    assert_success run_entrypoint("SOLID_QUEUE_IN_PUMA" => "false")
+  end
+
   def test_blank_or_short_external_secret_fails_closed
     [ "", "too-short" ].each do |value|
       result = run_entrypoint("SECRET_KEY_BASE" => value)
@@ -131,7 +143,9 @@ class DockerEntrypointTest < Minitest::Test
     File.write(rails, "#!#{RbConfig.ruby}\nputs ARGV.join(' ')\n")
     bundle = File.join(@directory, "bin/bundle")
     File.write(bundle, "#!#{RbConfig.ruby}\nputs ARGV.join(' ')\n")
-    FileUtils.chmod(0o700, [ rails, bundle ])
+    jobs = File.join(@directory, "bin/jobs")
+    File.write(jobs, "#!#{RbConfig.ruby}\nputs 'worker'\n")
+    FileUtils.chmod(0o700, [ rails, bundle, jobs ])
     environment = {
       "SECRET_KEY_BASE" => "s" * 64,
       "PATH" => "#{@directory}/bin:#{ENV.fetch("PATH")}"
@@ -148,6 +162,12 @@ class DockerEntrypointTest < Minitest::Test
     )
     assert status.success?, stderr
     assert_equal [ "exec puma --help" ], stdout.lines.map(&:strip)
+
+    stdout, stderr, status = Open3.capture3(
+      environment, RbConfig.ruby, ENTRYPOINT, "bin/jobs", chdir: @directory
+    )
+    assert status.success?, stderr
+    assert_equal [ "worker" ], stdout.lines.map(&:strip)
   end
 
   private
@@ -155,6 +175,7 @@ class DockerEntrypointTest < Minitest::Test
   def run_entrypoint(environment = {})
     child_environment = {
       "SECRET_KEY_BASE" => nil,
+      "SOLID_QUEUE_IN_PUMA" => nil,
       "SECRET_KEY_BASE_FILE" => @secret_file
     }.merge(environment)
     stdout, stderr, status = Open3.capture3(child_environment, RbConfig.ruby, ENTRYPOINT, *HASH_COMMAND)

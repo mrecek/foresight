@@ -21,7 +21,7 @@ It is a focused personal-finance tool rather than an accounting platform: simple
 
 ## Quick start
 
-The included Compose configuration is the easiest supported deployment:
+The included Compose configuration is the easiest supported deployment. Existing single-container installations must follow the [upgrade instructions](#deployment-contract) before updating:
 
 ```bash
 git clone https://github.com/mrecek/foresight.git
@@ -29,7 +29,7 @@ cd foresight
 docker compose up -d
 ```
 
-Open `http://localhost:3000` and complete the initial setup. Compose stores the databases and installation-specific session key in the `foresight_data` volume.
+Open `http://localhost:3000` and complete the initial setup. Compose runs one web container and one background-jobs container. Both use the same image and store the databases and installation-specific session key in the `foresight_data` volume. Jobs start after the web container finishes database preparation and becomes healthy.
 
 To run the same image without Compose:
 
@@ -37,11 +37,27 @@ To run the same image without Compose:
 docker run -d \
   --name foresight \
   --restart unless-stopped \
+  --stop-timeout 30 \
   -p 3000:8080 \
   -v foresight_data:/rails/storage \
   -e APP_TIME_ZONE=UTC \
   ghcr.io/mrecek/foresight:latest
 ```
+
+After the web container reports healthy, start its jobs container:
+
+```bash
+docker run -d \
+  --name foresight-jobs \
+  --restart unless-stopped \
+  --stop-timeout 30 \
+  --no-healthcheck \
+  -v foresight_data:/rails/storage \
+  -e APP_TIME_ZONE=UTC \
+  ghcr.io/mrecek/foresight:latest bin/jobs
+```
+
+Keep both containers on the same image digest and provide the same application configuration and session-key settings to each. The jobs container has no HTTP listener; its process is supervised by the container runtime.
 
 The image supports `linux/amd64` and `linux/arm64`. `latest` follows the newest accepted release. Each accepted build also has an immutable `release-<UTC time>-<source SHA>-<run>-<attempt>` tag for pinning and rollback.
 
@@ -49,15 +65,29 @@ The image supports `linux/amd64` and `linux/arm64`. `latest` follows the newest 
 
 Foresight can run under Docker, Compose, Kubernetes, or another OCI-compatible platform. A deployment needs:
 
-- one running application replica;
+- one web container and one jobs container;
 - persistent, writable storage mounted at `/rails/storage`;
 - HTTP traffic sent to container port `8080`;
 - an HTTP health probe against `/up`; and
 - TLS terminated by a reverse proxy or ingress in front of the container.
 
-The single-replica requirement matters: the primary database, cache, and job queue are SQLite files and require single-writer storage. The container runs as non-root user and group `1000:1000`; bind-mounted storage must be writable by that identity.
+Run both containers on the same host against the same local volume. The primary database, cache, and job queue are SQLite files; SQLite coordinates their writes locally. Do not scale either service across hosts or use a network filesystem. Containers run as non-root user and group `1000:1000`; bind-mounted storage must be writable by that identity.
 
-Background maintenance runs inside the web process by default. Advanced deployments may set `SOLID_QUEUE_IN_PUMA=false` and run exactly one `bin/jobs` process against the same persistent storage.
+The default command starts Puma and prepares pending database migrations. The jobs container runs `bin/jobs` independently. A small init process forwards shutdown signals, including during startup, and reaps exited children. Give each container at least 30 seconds to shut down gracefully. Disable the image's HTTP health check for the jobs container, as shown above; `bin/jobs check` validates configuration and is not a worker liveness check.
+
+On Kubernetes, place both containers in one single-replica Pod sharing the same persistent volume. Use a StatefulSet or a Deployment with `Recreate` strategy so an upgrade never overlaps two application replicas. Run `bin/rails db:prepare` in an init container before either starts, and use the same pinned image digest, storage mount, and application environment for all three. Probe `/up` on the web container; the jobs container does not expose HTTP.
+
+When upgrading a single-container deployment, add the jobs container even if you never set `SOLID_QUEUE_IN_PUMA`. Remove any explicit `SOLID_QUEUE_IN_PUMA=true`; that legacy setting now fails startup with migration instructions. An explicit `false` remains accepted. The included Compose file already implements the new layout; set `FORESIGHT_IMAGE` to a release tag or digest to pin both services together.
+
+For upgrades, stop both services before pulling and starting the new image so old jobs cannot run while the database is being migrated:
+
+```bash
+docker compose down
+docker compose pull
+docker compose up -d
+```
+
+The named data volume is preserved by `docker compose down`. Back up the primary database before an upgrade.
 
 ## Configuration
 
@@ -83,7 +113,6 @@ Background maintenance runs inside the web process by default. Advanced deployme
 | `SECRET_KEY_BASE` | Externally managed session-encryption key of at least 30 bytes | Generated per installation |
 | `SECRET_KEY_BASE_FILE` | Path for the generated installation key | `/rails/storage/.secret_key_base` |
 | `RAILS_LOG_LEVEL` | Application logging verbosity | `info` |
-| `SOLID_QUEUE_IN_PUMA` | Run scheduled work in the web process | `true` |
 | `PORT` | Container listener port | `8080` |
 
 An unset `SECRET_KEY_BASE` is safe: first startup generates a cryptographically random key in persistent storage with private permissions. Supplying or changing an external key invalidates existing browser sessions. Startup fails when the configured key or generated-key file is unsafe, unreadable, or too short.
@@ -98,21 +127,26 @@ Foresight can delegate sign-in to one standards-compliant OpenID Connect provide
 https://foresight.example.com/auth/openid_connect/callback
 ```
 
-Then configure the container:
+Then configure both containers:
 
 ```yaml
+x-oidc: &oidc
+  environment:
+    AUTH_MODE: oidc
+    APP_URL: https://foresight.example.com
+    OIDC_ISSUER: https://identity.example.com/realms/foresight
+    OIDC_CLIENT_ID: foresight
+    OIDC_CLIENT_SECRET_FILE: /run/secrets/oidc_client_secret
+    OIDC_ALLOWED_SUBJECTS: exact-owner-subject,exact-backup-subject
+    OIDC_PROVIDER_NAME: My Identity Provider
+  secrets:
+    - oidc_client_secret
+
 services:
   foresight:
-    environment:
-      AUTH_MODE: oidc
-      APP_URL: https://foresight.example.com
-      OIDC_ISSUER: https://identity.example.com/realms/foresight
-      OIDC_CLIENT_ID: foresight
-      OIDC_CLIENT_SECRET_FILE: /run/secrets/oidc_client_secret
-      OIDC_ALLOWED_SUBJECTS: exact-owner-subject,exact-backup-subject
-      OIDC_PROVIDER_NAME: My Identity Provider
-    secrets:
-      - oidc_client_secret
+    <<: *oidc
+  jobs:
+    <<: *oidc
 
 secrets:
   oidc_client_secret:
@@ -190,13 +224,13 @@ SQLite provides three isolated stores under the same persistent directory:
 
 Financial mutations run through explicit command boundaries and database transactions. Linked transfers are treated as one two-sided financial operation; their invariants and conservative repair behavior are documented in [Transfer-pair invariants](docs/transfer-pair-invariants.md).
 
-The production image uses Puma directly behind your reverse proxy, runs without root privileges, prepares pending database migrations at startup, and includes a built-in health check.
+The production image runs Puma behind your reverse proxy and starts Solid Queue through `bin/jobs` in a second container. Both run without root privileges and share persistent storage. Web startup prepares pending database migrations and includes an HTTP health check.
 
 ## Maintenance and security
 
 Routine gem patch and minor updates are proposed by Dependabot and may merge only after the complete pull-request validation contract passes. Ruby patch releases update the local runtime declaration and digest-pinned container base together. GitHub Actions, Docker architecture changes, major dependency versions, and Ruby minor or major upgrades remain under human review.
 
-The release workflow rebuilds the production image daily against current Debian repositories. Every candidate passes application validation, smoke tests on native `linux/amd64` and `linux/arm64` runners, including three strict shutdown/restart cycles, fixable HIGH/CRITICAL vulnerability checks, manifest checks, and provenance/SBOM verification before publication. Scheduled builds publish even when package versions are unchanged. This also picks up dependency updates merged by automation whose GitHub token suppresses push-triggered releases; human pushes still release immediately. GitHub schedules are best effort, so daily publication is an expectation rather than a delivery guarantee.
+The release workflow rebuilds the production image daily against current Debian repositories. Every candidate passes application validation, smoke tests on native `linux/amd64` and `linux/arm64` runners, including real queued maintenance and three strict shutdown/restart cycles for web and jobs, fixable HIGH/CRITICAL vulnerability checks, manifest checks, and provenance/SBOM verification before publication. Scheduled builds publish even when package versions are unchanged. This also picks up dependency updates merged by automation whose GitHub token suppresses push-triggered releases; human pushes still release immediately. GitHub schedules are best effort, so daily publication is an expectation rather than a delivery guarantee.
 
 A separate daily audit scans the exact published digest and checks the effective runtime gems inside each platform image. Its narrowly scoped exception for an inactive bundled default gem requires the loaded replacement to satisfy the specific advisory's safe version. Unknown advisories fail closed. The audit reports unfixed HIGH/CRITICAL findings and blocks fixable findings; it also fails if the published build is older than seven days. Audit failures point to the affected dependency or release workflow without dispatching another rebuild.
 

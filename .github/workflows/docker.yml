@@ -205,12 +205,15 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Smoke test exact candidate on its native architecture
+        shell: bash
         env:
           DOCKER_DEFAULT_PLATFORM: ${{ matrix.platform }}
           CONTAINER_SMOKE_HEALTH_ATTEMPTS: 120
         run: |
-          docker pull --platform "${DOCKER_DEFAULT_PLATFORM}" "${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
-          bin/container-smoke "${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+          {
+            docker pull --platform "${DOCKER_DEFAULT_PLATFORM}" "${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+            bin/container-smoke "${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+          } 2>&1 | tee smoke-${{ matrix.arch }}.log
 
       - name: Scan native candidate with Trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -242,6 +245,7 @@ jobs:
         with:
           name: container-verification-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
+            smoke-*.log
             trivy-*.json
             gems-*.json
           if-no-files-found: error
