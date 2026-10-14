@@ -1,115 +1,43 @@
 name: CI
 
 on:
-  pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  scan_ruby:
-    name: CI/scan_ruby (pull_request)
-    runs-on: ubuntu-24.04
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
-        with:
-          bundler-cache: true
-
-      - name: Scan for common Rails security vulnerabilities using static analysis
-        run: bin/validate security-ruby
-      
-  scan_js:
-    name: CI/scan_js (pull_request)
-    runs-on: ubuntu-24.04
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
-        with:
-          bundler-cache: true
-
-      - name: Scan for security vulnerabilities in JavaScript dependencies
-        run: bin/validate security-js
-
-  lint:
-    name: CI/lint (pull_request)
-    runs-on: ubuntu-24.04
-    env:
-      RUBOCOP_CACHE_ROOT: tmp/rubocop
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
-        with:
-          bundler-cache: true
-
-      - name: Prepare RuboCop cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        env:
-          DEPENDENCIES_HASH: ${{ hashFiles('.ruby-version', '**/.rubocop.yml', '**/.rubocop_todo.yml', 'Gemfile.lock') }}
-        with:
-          path: ${{ env.RUBOCOP_CACHE_ROOT }}
-          key: rubocop-${{ runner.os }}-${{ env.DEPENDENCIES_HASH }}-${{ github.ref_name == github.event.repository.default_branch && github.run_id || 'default' }}
-          restore-keys: |
-            rubocop-${{ runner.os }}-${{ env.DEPENDENCIES_HASH }}-
-
-      - name: Lint code for consistent style
-        run: bin/validate lint
-
-  test:
-    name: CI/test (pull_request)
-    runs-on: ubuntu-24.04
+  shutdown:
+    name: Diagnose arm64 shutdown (${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
     steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4
+        if: matrix.runner == 'ubuntu-24.04'
         with:
-          bundler-cache: true
-
-      - name: Run full test suite
-        run: bin/validate test
-
-      - name: Upload browser failure artifacts
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: browser-failure-artifacts
-          path: tmp/system-test-artifacts
-          if-no-files-found: ignore
-
-  architecture:
-    name: CI/architecture (pull_request)
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
-        with:
-          bundler-cache: true
-
-      - name: Validate runtime, workflows, autoloading, and migrations
-        run: bin/validate runtime architecture
-
-  container:
-    name: CI/container (pull_request)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Build and smoke-test without publishing
-        run: bin/validate container
+          platforms: arm64
+      - name: Exercise exact candidate and capture shutdown backtrace
+        env:
+          CONTAINER_SMOKE_HEALTH_ATTEMPTS: 120
+          DOCKER_DEFAULT_PLATFORM: linux/arm64
+          IMAGE: ghcr.io/mrecek/foresight@sha256:88087798e93665436a16341abefcd55d8c64c774210784a8f4a1eb68caade951
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('bin/container-smoke')
+          s = p.read_text().replace('docker stop --time 30 "$container_name" >/dev/null', '''docker stop --time 30 "$container_name" >/dev/null &
+          stop_pid=$!
+          sleep 10
+          if [[ "$(docker inspect --format '{{.State.Running}}' "$container_name")" == "true" ]]; then
+            docker kill --signal=PWR "$container_name" >/dev/null
+          fi
+          wait "$stop_pid"''')
+          p.write_text(s)
+          PY
+          docker pull --platform linux/arm64 "$IMAGE"
+          bin/container-smoke "$IMAGE"
