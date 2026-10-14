@@ -78,7 +78,7 @@ end
 ENV["SECRET_KEY_BASE"] = secret
 
 # Create or migrate the database only for the packaged server command.
-if ARGV.last(2) == [ "./bin/rails", "server" ]
+if ARGV == [ "bundle", "exec", "puma", "-C", "config/puma.rb" ]
   exit 1 unless system("./bin/rails", "db:prepare")
 end
 

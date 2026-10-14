@@ -25,6 +25,8 @@ trap cleanup EXIT
 docker volume create "$volume_name" >/dev/null
 docker run --detach \
   --name "$container_name" \
+  --env AUTH_USERNAME=container-smoke \
+  --env AUTH_PASSWORD=container-smoke-password \
   --publish 127.0.0.1::8080 \
   --volume "$volume_name:/rails/storage" \
   "$image" >/dev/null
@@ -58,6 +60,7 @@ wait_for_health
 first_fingerprint="$(docker exec "$container_name" ruby -rdigest -e 'print Digest::SHA256.file("/rails/storage/.secret_key_base").hexdigest')"
 docker restart "$container_name" >/dev/null
 wait_for_internal_health
+docker exec "$container_name" ruby script/container_http_smoke.rb
 restart_fingerprint="$(docker exec "$container_name" ruby -rdigest -e 'print Digest::SHA256.file("/rails/storage/.secret_key_base").hexdigest')"
 [[ "$first_fingerprint" == "$restart_fingerprint" ]] || {
   echo "Session key changed across a persistent-volume restart." >&2
@@ -85,7 +88,12 @@ fi
 # every packaged process.
 docker exec "$container_name" bin/docker-entrypoint bin/jobs check
 docker exec "$container_name" bin/docker-entrypoint bin/rails runner script/maintenance_smoke.rb
+docker stop --time 30 "$container_name" >/dev/null
+[[ "$(docker inspect --format '{{.State.ExitCode}}' "$container_name")" == "0" ]] || {
+  echo "Packaged Puma server did not exit cleanly on SIGTERM." >&2
+  exit 1
+}
 smoke_passed=true
 echo "Session-key fingerprints: install-a=${first_fingerprint} install-b=${second_fingerprint}"
-echo "Container smoke passed: /up healthy, secret persistence/uniqueness verified, Solid Queue configured, and maintenance jobs executed."
+echo "Container smoke passed: production HTTP, secret persistence/uniqueness, Solid Queue, maintenance jobs, and graceful SIGTERM."
 exit 0

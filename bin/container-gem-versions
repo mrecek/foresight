@@ -1,0 +1,39 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "json"
+require "open3"
+
+image, platform, output = ARGV
+abort "Usage: bin/container-gem-versions IMAGE@sha256:DIGEST PLATFORM OUTPUT.json" unless output && ARGV.length == 3
+abort "Image must be pinned by digest" unless image.match?(/\A[^\s]+@sha256:[0-9a-f]{64}\z/)
+abort "Unsupported platform" unless %w[linux/amd64 linux/arm64].include?(platform)
+
+# Docker's classic image store cannot retain both platforms under the same
+# index digest. Select a fresh platform explicitly before running the probe.
+Open3.capture3("docker", "image", "rm", "--force", image)
+_pull_stdout, pull_stderr, pull_status = Open3.capture3("docker", "pull", "--platform", platform, image)
+abort "Could not pull image for #{platform}: #{pull_stderr}" unless pull_status.success?
+
+# Bypass the application entrypoint: collecting dependency identities requires
+# neither a database nor installation secrets. Bundler activates this image's
+# actual application dependencies rather than the checkout's lockfile.
+probe = <<~'CODE'
+  require "json"
+  require "resolv"
+  gems = %w[json resolv].to_h do |name|
+    spec = Gem.loaded_specs.fetch(name)
+    loaded = $LOADED_FEATURES.find { |path| path.end_with?("/#{name}.rb") }
+    abort "Could not locate loaded #{name}" unless loaded
+    [name, {version: spec.version.to_s, gem_path: spec.full_gem_path, loaded_path: loaded}]
+  end
+  puts JSON.generate(gems)
+CODE
+stdout, stderr, status = Open3.capture3(
+  "docker", "run", "--rm", "--platform", platform, "--network", "none",
+  "--entrypoint", "bundle", image, "exec", "ruby", "-e", probe
+)
+abort "Could not inspect image gem versions: #{stderr}" unless status.success?
+gems = JSON.parse(stdout)
+File.write(output, JSON.pretty_generate(image: image, platform: platform, gems: gems) << "\n")
+puts "Collected image gem versions for #{platform}: #{gems.map { |name, settings| "#{name}=#{settings.fetch('version')}" }.join(', ')}"

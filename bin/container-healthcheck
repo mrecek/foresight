@@ -4,8 +4,10 @@
 require "net/http"
 
 begin
-  port = ENV.fetch("THRUSTER_HTTP_PORT", "8080")
-  response = Net::HTTP.get_response(URI("http://127.0.0.1:#{port}/up"))
+  port = ENV.fetch("PORT", "8080")
+  response = Net::HTTP.start("127.0.0.1", port, open_timeout: 1, read_timeout: 1) do |http|
+    http.get("/up")
+  end
   exit(response.is_a?(Net::HTTPSuccess) ? 0 : 1)
 rescue StandardError
   exit 1

@@ -5,7 +5,7 @@ lockfile = true
 lockfile_platforms = ["linux-x64", "linux-arm64", "macos-arm64", "macos-x64"]
 
 [tools]
-ruby = "3.4.10"
+ruby = "3.4.11"
 
 [tasks.setup]
 description = "Install dependencies, hooks, and prepare the development database."

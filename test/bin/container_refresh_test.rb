@@ -5,16 +5,15 @@ require "fileutils"
 require "json"
 require "open3"
 require "tmpdir"
+require "yaml"
 
 class ContainerRefreshTest < ActiveSupport::TestCase
   ROOT = Rails.root
   DIGEST = "sha256:#{'a' * 64}"
-  OTHER_DIGEST = "sha256:#{'b' * 64}"
 
   setup do
     @directory = Dir.mktmpdir
     @bin = File.join(@directory, "bin")
-    @output = File.join(@directory, "output")
     FileUtils.mkdir_p(@bin)
     write_fake_docker
   end
@@ -38,62 +37,6 @@ class ContainerRefreshTest < ActiveSupport::TestCase
     assert_includes output, "Invalid digest"
   end
 
-  test "identical inventories classify as a no-op" do
-    result = classify
-
-    assert result[:status].success?, result[:output]
-    classification = JSON.parse(File.read(File.join(@output, "classification.json")))
-    assert_equal false, classification.fetch("material_change")
-    assert_equal 0, classification.fetch("change_count")
-  end
-
-  test "classifies additions removals upgrades and downgrades for both platforms" do
-    result = classify({ "FAKE_CANDIDATE_VARIANT" => "changed" })
-
-    assert result[:status].success?, result[:output]
-    classification = JSON.parse(File.read(File.join(@output, "classification.json")))
-    assert classification.fetch("material_change")
-    assert classification.fetch("has_removal")
-    assert classification.fetch("has_downgrade")
-    assert_equal 8, classification.fetch("change_count")
-    assert_equal %w[downgraded upgraded], classification.dig("platforms", "linux/amd64", "changed").pluck("change").sort
-  end
-
-  test "a missing promoted release classifies every candidate package as added" do
-    result = classify({}, promoted: "none")
-
-    assert result[:status].success?, result[:output]
-    classification = JSON.parse(File.read(File.join(@output, "classification.json")))
-    assert classification.fetch("material_change")
-    assert_equal 8, classification.fetch("change_count")
-  end
-
-  test "inventory fails closed when container output is malformed or empty" do
-    output, status = run_script(
-      "container-package-inventory", "example.test/app@#{DIGEST}", "linux/amd64",
-      env: { "FAKE_INVENTORY" => "empty" }
-    )
-
-    refute status.success?
-    assert_includes output, "inventory was empty"
-  end
-
-  test "refresh policy blocks package downgrades and removals while source releases record them" do
-    classify({ "FAKE_CANDIDATE_VARIANT" => "changed" })
-    path = File.join(@output, "classification.json")
-
-    output, status = run_script("enforce-package-change-policy", path, "weekly-refresh")
-    refute status.success?
-    assert_includes output, "may not downgrade"
-
-    output, status = run_script("enforce-package-change-policy", path, "validation")
-    refute status.success?
-    assert_includes output, "may not downgrade"
-
-    output, status = run_script("enforce-package-change-policy", path, "source")
-    assert status.success?, output
-  end
-
   test "candidate metadata requires both provenance and SBOM" do
     reference = "example.test/app@#{DIGEST}"
     output, status = run_script("check-container-metadata", reference)
@@ -104,19 +47,46 @@ class ContainerRefreshTest < ActiveSupport::TestCase
     assert_includes output, "has no SBOM metadata"
   end
 
-  test "operations use an off-minute weekly refresh and scan the released digest daily" do
+  test "every release candidate receives the complete verification contract" do
+    release = YAML.safe_load_file(ROOT.join(".github/workflows/docker.yml"), aliases: true)
+    steps = release.fetch("jobs").fetch("release").fetch("steps")
+    gates = [
+      "Verify candidate platforms", "Verify candidate provenance and SBOM",
+      "Validate application at candidate source", "Smoke test candidate on amd64 and arm64",
+      "Scan amd64 candidate with Trivy", "Enforce amd64 vulnerability policy",
+      "Scan and enforce arm64 vulnerability policy", "Generate provenance attestation",
+      "Promote verified candidate"
+    ]
+    gates.each do |name|
+      step = steps.find { |entry| entry["name"] == name }
+      assert step, "Missing release gate: #{name}"
+      assert_nil step["if"], "Release gate must not depend on package differences: #{name}"
+    end
+  end
+
+  test "daily rebuild and read-only audit do not depend on automated merge events" do
     release = ROOT.join(".github/workflows/docker.yml").read
     audit = ROOT.join(".github/workflows/security-audit.yml").read
 
-    assert_includes release, 'cron: "37 7 * * 0"'
-    assert_includes release, "options: [manual, security, validation]"
-    assert_includes audit, 'cron: "15 13 * * *"'
-    assert_match(/docker image rm --force "\$reference".*\n\s+docker pull --platform/, release)
+    assert_includes release, 'cron: "37 7 * * *"'
+    assert_includes release, "no-cache-filters: os-packages"
+    assert_includes release, "scheduled-refresh"
     assert_includes audit, 'bin/resolve-image-digest "${REGISTRY}/${IMAGE_NAME}:latest"'
-    refute_includes audit, "docker build --tag foresight-security-audit"
-    assert_includes audit, "gh workflow run docker.yml"
-    assert_includes audit, "critical_due_at"
-    assert_includes audit, "Seven-day freshness deadline"
+    refute_includes audit, "gh workflow run"
+    refute_includes audit, "actions: write"
+    refute_includes audit, "critical_due_at"
+    assert_includes audit, "bin/container-gem-versions"
+  end
+
+  test "registry scans select each platform independently of local Docker images" do
+    %w[docker security-audit].each do |workflow|
+      config = YAML.safe_load_file(ROOT.join(".github/workflows/#{workflow}.yml"), aliases: true)
+      steps = config.fetch("jobs").values.flat_map { |job| job.fetch("steps") }
+      scan = steps.find { |step| step.fetch("uses", "").start_with?("aquasecurity/trivy-action@") }
+      assert_equal "remote", scan.fetch("env").fetch("TRIVY_IMAGE_SRC")
+      assert_equal "linux/amd64", scan.fetch("env").fetch("TRIVY_PLATFORM")
+      assert steps.any? { |step| step.fetch("run", "").include?("trivy image --image-src remote --platform linux/arm64") }
+    end
   end
 
   private
@@ -129,22 +99,12 @@ class ContainerRefreshTest < ActiveSupport::TestCase
         "REGISTRY_RETRY_DELAY" => "0",
         "FAKE_DIGEST" => DIGEST,
         "FAKE_INSPECT_FAILURES" => "0",
-        "FAKE_CANDIDATE_VARIANT" => "same",
-        "FAKE_INVENTORY" => "valid",
         "FAKE_SBOM" => "present",
         "FAKE_STATE" => @directory
       }.merge(env),
       ROOT.join("bin", name).to_s, *arguments,
       chdir: ROOT
     )
-  end
-
-  def classify(overrides = {}, promoted: "example.test/app@#{OTHER_DIGEST}")
-    output, status = run_script(
-      "classify-container-refresh", promoted, "example.test/app@#{DIGEST}", @output,
-      env: overrides
-    )
-    { output: output, status: status }
   end
 
   def write_fake_docker
@@ -176,23 +136,6 @@ class ContainerRefreshTest < ActiveSupport::TestCase
           exit 1
         fi
         printf '"%s"\n' "$FAKE_DIGEST"
-      elif [[ "$1" == "run" && "$6" == "dpkg-query" ]]; then
-        [[ "$FAKE_INVENTORY" != "empty" ]] || exit 0
-        reference="$7"
-        if [[ "$reference" == *"#{DIGEST}" && "$FAKE_CANDIDATE_VARIANT" == "changed" ]]; then
-          printf 'alpha:amd64\tamd64\t2.0\nbeta\tall\t1.0\ndelta\tall\t1.0\nold\tall\t1.0\n'
-        else
-          printf 'alpha:amd64\tamd64\t1.0\nbeta\tall\t2.0\ngamma\tall\t1.0\nold\tall\t1.0\n'
-        fi
-      elif [[ "$1" == "run" && "$6" == "dpkg" ]]; then
-        new="$9"
-        relation="${10}"
-        old="${11}"
-        if [[ "$relation" == "gt" ]]; then
-          [[ "$new" > "$old" ]]
-        else
-          [[ "$new" < "$old" ]]
-        fi
       elif [[ "$1 $2" == "image rm" ]]; then
         exit 0
       else

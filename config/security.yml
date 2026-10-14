@@ -5,3 +5,14 @@ pinned_default_gems:
   resolv:
     minimum_safe_version: "0.7.2"
     reason: "Overrides Ruby 3.4.10's bundled resolv 0.7.1, which is affected by CVE-2026-80212."
+
+# An exception applies only to this exact inactive Ruby default-gem copy and
+# advisory. A changed advisory, fix, package location, or unsafe active version
+# fails closed; evidence must come from the image/platform actually scanned.
+inactive_default_gem_findings:
+  CVE-2026-80212:
+    package: resolv
+    installed_version: "0.7.1"
+    fixed_version: "~> 0.3.2, >= 0.7.2"
+    minimum_safe_version: "0.7.2"
+    package_path_pattern: '\A/?usr/local/lib/ruby/gems/[^/]+/specifications/default/resolv-0\.7\.1\.gemspec\z'

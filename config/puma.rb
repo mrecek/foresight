@@ -31,11 +31,14 @@ threads threads_count, threads_count
 # Specifies the `port` that Puma will listen on to receive requests; default is 3000.
 port ENV.fetch("PORT", 3000)
 
+# A normal container stop should drain requests and exit successfully.
+raise_exception_on_sigterm false
+
 # Allow puma to be restarted by `bin/rails restart` command.
 plugin :tmp_restart
 
 # Run the Solid Queue supervisor inside of Puma for single-server deployments.
-plugin :solid_queue if ActiveModel::Type::Boolean.new.cast(ENV["SOLID_QUEUE_IN_PUMA"])
+plugin :solid_queue if ENV["SOLID_QUEUE_IN_PUMA"] == "true"
 
 # Specify the PID file. Defaults to tmp/pids/server.pid in development.
 # In other environments, only set the PID file if requested.

@@ -6,14 +6,12 @@ on:
     - cron: "15 13 * * *"
 
 permissions:
-  actions: write
   contents: read
   packages: read
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
   BUILDX_VERSION: v0.37.1
   BUILDKIT_IMAGE: moby/buildkit:v0.33.0@sha256:6c2fa84a6b61ccd72899dde4239f8d5717f05f9a8ca6f3cad185fb1a95a94de3
 
@@ -22,41 +20,28 @@ jobs:
     name: Security/dependencies
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-
     steps:
       - name: Checkout default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1
+        uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
         with:
           bundler-cache: true
 
       - name: Audit Ruby, JavaScript, and application security
         run: bin/security-audit
 
-      - name: Report dependency audit scope
-        if: always()
-        run: |
-          {
-            echo "## Dependency security audit"
-            echo
-            echo "- Ruby lockfile: refreshed ruby-advisory-db via Bundler Audit"
-            echo "- Pinned default gems: resolved versions in Gemfile.lock, including JSON and resolv"
-            echo "- Browser imports: Importmap audit"
-            echo "- Rails application: Brakeman static analysis"
-            echo
-            echo "Remediation: update the affected lockfile dependency or pinned Ruby default gem, then rerun this workflow."
-          } >> "$GITHUB_STEP_SUMMARY"
-
   image:
     name: Security/image
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-
     steps:
       - name: Checkout default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
@@ -72,30 +57,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve released digest and freshness deadline
+      - name: Resolve released digest
         id: release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           digest="$(bin/resolve-image-digest "${REGISTRY}/${IMAGE_NAME}:latest")"
-          package="${IMAGE_NAME#*/}"
-          versions="$(gh api "/users/${GITHUB_REPOSITORY_OWNER}/packages/container/${package}/versions?per_page=100" 2>/dev/null || \
-            gh api "/orgs/${GITHUB_REPOSITORY_OWNER}/packages/container/${package}/versions?per_page=100")"
-          promoted_at="$(jq -r '[.[] | select(.metadata.container.tags | index("latest"))][0].updated_at // empty' <<<"$versions")"
-          [[ -n "$promoted_at" ]] || { echo "::error::Could not determine latest promotion time"; exit 1; }
-          due_at="$(date -u -d "$promoted_at + 7 days" +%Y-%m-%dT%H:%M:%SZ)"
-          now="$(date -u +%s)"
-          due_epoch="$(date -u -d "$due_at" +%s)"
-          {
-            echo "digest=$digest"
-            echo "promoted_at=$promoted_at"
-            echo "due_at=$due_at"
-            echo "stale=$([[ "$now" -gt "$due_epoch" ]] && echo true || echo false)"
-          } >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
-      - name: Scan released amd64 digest with Trivy
+      - name: Install Trivy and scan released amd64 digest
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_IMAGE_SRC: remote
+          TRIVY_PLATFORM: linux/amd64
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.release.outputs.digest }}
           version: v0.74.0
@@ -107,69 +80,59 @@ jobs:
           severity: HIGH,CRITICAL
           scanners: vuln
 
-      - name: Scan released arm64 digest with Trivy
+      - name: Scan released arm64 digest
         run: |
-          trivy image --platform linux/arm64 --format json --output trivy-arm64.json \
+          trivy image --image-src remote --platform linux/arm64 --format json --output trivy-arm64.json \
             --scanners vuln --vuln-type os,library --severity HIGH,CRITICAL --ignore-unfixed=false \
             "${REGISTRY}/${IMAGE_NAME}@${{ steps.release.outputs.digest }}"
 
-      - name: Evaluate released vulnerability policy
+      - name: Verify released runtime and vulnerability policy on both platforms
         id: policy
-        continue-on-error: true
-        run: |
-          bin/check-trivy-report trivy-amd64.json
-          bin/check-trivy-report trivy-arm64.json
-
-      - name: Dispatch one required refresh
-        id: remediation
-        if: steps.policy.outcome == 'failure' || steps.release.outputs.stale == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DIGEST: ${{ steps.release.outputs.digest }}
         run: |
           set -euo pipefail
-          critical="$(jq -s '[.[].Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL" and (.FixedVersion // "") != "")] | length' trivy-*.json)"
-          reason=$([[ "$critical" -gt 0 ]] && echo security || echo manual)
-          active="$(gh run list --workflow docker.yml --branch "$GITHUB_DEFAULT_BRANCH" --json status --jq '[.[] | select(.status == "queued" or .status == "in_progress")] | length')"
-          if [[ "$active" -eq 0 ]]; then
-            gh workflow run docker.yml --ref "$GITHUB_DEFAULT_BRANCH" -f reason="$reason"
-            echo "dispatched=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "dispatched=false" >> "$GITHUB_OUTPUT"
-          fi
-          if [[ "$critical" -gt 0 ]]; then
-            detected_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            due_at="$(date -u -d "$detected_at + 24 hours" +%Y-%m-%dT%H:%M:%SZ)"
-            echo "critical_due_at=$due_at" >> "$GITHUB_OUTPUT"
-          fi
+          failed=0
+          reference="${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+          for arch in amd64 arm64; do
+            bin/container-gem-versions "$reference" "linux/$arch" "gems-$arch.json"
+            bin/check-trivy-report "trivy-$arch.json" "gems-$arch.json" || failed=1
+          done
+          exit "$failed"
 
-      - name: Report scanner, freshness, and remediation state
-        if: always()
+      - name: Check released image age
+        if: always() && steps.release.outputs.digest != ''
+        env:
+          DIGEST: ${{ steps.release.outputs.digest }}
         run: |
-          trivy --version | tee -a "$GITHUB_STEP_SUMMARY"
+          set -euo pipefail
+          reference="${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+          docker image rm --force "$reference" >/dev/null 2>&1 || true
+          docker pull --platform linux/amd64 "$reference" >/dev/null
+          built_at="$(docker image inspect "$reference" --format '{{.Created}}')"
+          built_epoch="$(date -u -d "$built_at" +%s)"
+          now="$(date -u +%s)"
           {
+            echo "## Released container"
             echo
-            echo "## Released container SLO"
-            echo
-            echo "- Digest: \`${REGISTRY}/${IMAGE_NAME}@${{ steps.release.outputs.digest }}\`"
-            echo "- Promoted: \`${{ steps.release.outputs.promoted_at }}\`"
-            echo "- Seven-day freshness deadline: \`${{ steps.release.outputs.due_at }}\`"
-            echo "- Stale: \`${{ steps.release.outputs.stale }}\`"
-            echo "- Vulnerability policy: \`${{ steps.policy.outcome }}\`"
-            echo "- Refresh dispatched: \`${{ steps.remediation.outputs.dispatched || 'not-needed' }}\`"
-            echo "- Fixable-critical remediation deadline: \`${{ steps.remediation.outputs.critical_due_at || 'not-applicable' }}\`"
+            echo "- Digest: \`${reference}\`"
+            echo "- Built: \`${built_at}\`"
+            echo "- Daily release and audit schedules are best effort; a build older than seven days fails this fallback check."
+            echo "- Vulnerability policy result: \`${{ steps.policy.outcome }}\`"
+            echo "- Remediation: update affected source dependencies or inspect the daily release workflow. This audit does not dispatch rebuilds."
           } >> "$GITHUB_STEP_SUMMARY"
+          if (( now - built_epoch > 7 * 24 * 60 * 60 )); then
+            echo "::error::Released image is older than seven days; inspect the release workflow."
+            exit 1
+          fi
 
-      - name: Upload complete Trivy report
+      - name: Upload released image evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: trivy-image-report-${{ github.run_id }}
-          path: trivy-*.json
+          path: |
+            trivy-*.json
+            gems-*.json
           if-no-files-found: error
           retention-days: 30
-
-      - name: Fail when the released digest is outside policy
-        if: steps.policy.outcome == 'failure' || steps.release.outputs.stale == 'true'
-        run: |
-          echo "Released container is outside freshness or vulnerability policy; remediation was requested." >&2
-          exit 1

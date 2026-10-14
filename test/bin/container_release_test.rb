@@ -115,7 +115,7 @@ class ContainerReleaseTest < ActiveSupport::TestCase
     output, status = Open3.capture2e(
       base_env.merge(overrides),
       ROOT.join("bin/promote-container-release").to_s,
-      "ghcr.io/example/foresight", DIGEST, SHA, RELEASE_ID, "weekly-refresh",
+      "ghcr.io/example/foresight", DIGEST, SHA, RELEASE_ID, "scheduled-refresh",
       chdir: ROOT
     )
     { output: output, status: status }

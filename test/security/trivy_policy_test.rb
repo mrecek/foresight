@@ -43,42 +43,105 @@ class TrivyPolicyTest < ActiveSupport::TestCase
     assert status.success?
   end
 
-  test "a stale bundled default gem is covered only by an active secure lockfile pin" do
-    stdout, _stderr, status = run_policy([
-      vulnerability(
-        id: "CVE-2026-80212",
-        package: "resolv",
-        installed_version: "0.7.1",
-        severity: "HIGH",
-        fixed_version: "0.7.2"
-      )
-    ])
+  test "the exact inactive default gem advisory requires safe image runtime evidence" do
+    stdout, _stderr, status = run_policy([ resolv_finding ], evidence: image_evidence)
 
     assert status.success?
-    assert_includes stdout, "covered by verified lockfile pins: resolv"
+    assert_includes stdout, "covered by verified image runtime versions: resolv"
   end
 
-  test "an active pinned gem finding still blocks" do
-    _stdout, _stderr, status = run_policy([
-      vulnerability(
-        package: "resolv",
-        installed_version: "0.7.2",
-        severity: "HIGH",
-        fixed_version: "0.7.3"
-      )
-    ])
+  test "the lockfile cannot exempt a finding without image evidence" do
+    _stdout, _stderr, status = run_policy([ resolv_finding ])
 
     refute status.success?
   end
 
+  test "an unsafe or malformed active gem version blocks" do
+    [ "0.7.1", "invalid" ].each do |version|
+      evidence = image_evidence
+      evidence.fetch("gems").fetch("resolv")["version"] = version
+      _stdout, _stderr, status = run_policy([ resolv_finding ], evidence: evidence)
+      refute status.success?
+    end
+  end
+
+  test "future advisories and changed fixed versions fail closed" do
+    [ { "VulnerabilityID" => "CVE-FUTURE" }, { "FixedVersion" => ">= 0.7.3" } ].each do |change|
+      _stdout, _stderr, status = run_policy([ resolv_finding.merge(change) ], evidence: image_evidence)
+      refute status.success?
+    end
+  end
+
+  test "active copies and ambiguous package paths cannot be exempted" do
+    [ "usr/local/bundle/gems/resolv-0.7.1/resolv.gemspec", "", "elsewhere/resolv-0.7.1.gemspec" ].each do |path|
+      _stdout, _stderr, status = run_policy([ resolv_finding.merge("PkgPath" => path) ], evidence: image_evidence)
+      refute status.success?
+    end
+    _stdout, _stderr, status = run_policy([ resolv_finding ], evidence: image_evidence, result_type: "gobinary")
+    refute status.success?
+  end
+
+  test "a claimed safe gem must actually be the loaded Ruby source" do
+    evidence = image_evidence
+    evidence.fetch("gems").fetch("resolv")["loaded_path"] = "/usr/local/lib/ruby/3.4.0/resolv.rb"
+    _stdout, _stderr, status = run_policy([ resolv_finding ], evidence: evidence)
+
+    refute status.success?
+  end
+
+  test "evidence for a different image or platform is rejected" do
+    [ { "image" => "different" }, { "platform" => "linux/arm64" } ].each do |change|
+      _stdout, stderr, status = run_policy([ resolv_finding ], evidence: image_evidence.merge(change))
+      refute status.success?
+      assert_includes stderr, "does not match"
+    end
+  end
+
+  test "malformed or unrecognized reports fail closed" do
+    [ {}, { "SchemaVersion" => 3, "Results" => [] }, { "SchemaVersion" => 2, "Results" => "bad" },
+      { "SchemaVersion" => 2, "Results" => [ { "Target" => "Ruby", "Vulnerabilities" => [ {} ] } ] } ].each do |document|
+      _stdout, stderr, status = run_policy([], document: document)
+      refute status.success?
+      assert_includes stderr, "Invalid Trivy report"
+    end
+  end
+
   private
 
-  def run_policy(vulnerabilities)
-    Tempfile.create([ "trivy", ".json" ]) do |report|
-      report.write(JSON.generate("Results" => [ { "Vulnerabilities" => vulnerabilities } ]))
-      report.flush
+  IMAGE = "ghcr.io/mrecek/foresight@sha256:#{'a' * 64}"
 
-      return Open3.capture3(RbConfig.ruby, POLICY.to_s, report.path)
+  def image_evidence
+    {
+      "image" => IMAGE, "platform" => "linux/amd64",
+      "gems" => { "resolv" => {
+        "version" => "0.7.2", "gem_path" => "/usr/local/bundle/gems/resolv-0.7.2",
+        "loaded_path" => "/usr/local/bundle/gems/resolv-0.7.2/lib/resolv.rb"
+      } }
+    }
+  end
+
+  def resolv_finding
+    vulnerability(id: "CVE-2026-80212", package: "resolv", installed_version: "0.7.1",
+      severity: "HIGH", fixed_version: "~> 0.3.2, >= 0.7.2").merge(
+        "PkgPath" => "usr/local/lib/ruby/gems/3.4.0/specifications/default/resolv-0.7.1.gemspec")
+  end
+
+  def run_policy(vulnerabilities, evidence: nil, result_type: "gemspec", document: nil)
+    Tempfile.create([ "trivy", ".json" ]) do |report|
+      report.write(JSON.generate(document || {
+        "SchemaVersion" => 2, "ArtifactName" => IMAGE,
+        "Metadata" => { "ImageConfig" => { "architecture" => "amd64" } },
+        "Results" => [ { "Target" => "Ruby", "Class" => "lang-pkgs", "Type" => result_type,
+                         "Vulnerabilities" => vulnerabilities } ]
+      }))
+      report.flush
+      Tempfile.create([ "image-gems", ".json" ]) do |versions|
+        versions.write(JSON.generate(evidence))
+        versions.flush
+        args = [ RbConfig.ruby, POLICY.to_s, report.path ]
+        args << versions.path if evidence
+        return Open3.capture3(*args)
+      end
     end
   end
 
