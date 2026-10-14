@@ -47,21 +47,36 @@ class ContainerRefreshTest < ActiveSupport::TestCase
     assert_includes output, "has no SBOM metadata"
   end
 
-  test "every release candidate receives the complete verification contract" do
-    release = YAML.safe_load_file(ROOT.join(".github/workflows/docker.yml"), aliases: true)
-    steps = release.fetch("jobs").fetch("release").fetch("steps")
-    gates = [
-      "Verify candidate platforms", "Verify candidate provenance and SBOM",
-      "Validate application at candidate source", "Smoke test candidate on amd64 and arm64",
-      "Scan amd64 candidate with Trivy", "Enforce amd64 vulnerability policy",
-      "Scan and enforce arm64 vulnerability policy", "Generate provenance attestation",
-      "Promote verified candidate"
-    ]
-    gates.each do |name|
-      step = steps.find { |entry| entry["name"] == name }
-      assert step, "Missing release gate: #{name}"
-      assert_nil step["if"], "Release gate must not depend on package differences: #{name}"
+  test "promotion requires source validation and both native verification jobs" do
+    config = workflow_config("docker")
+    jobs = config.fetch("jobs")
+    build = jobs.fetch("build")
+    verify = jobs.fetch("verify")
+    promote = jobs.fetch("promote")
+
+    assert_equal "foresight-container-production", config.dig("concurrency", "group")
+    assert_equal "build", verify.fetch("needs")
+    assert_equal %w[build verify], promote.fetch("needs")
+    assert_nil promote["if"], "Promotion must require successful build and every verifier"
+    assert_equal false, verify.dig("strategy", "fail-fast")
+    assert_native_matrix(verify)
+    assert_equal "${{ needs.build.outputs.digest }}", verify.dig("env", "DIGEST")
+
+    {
+      build => [ "Verify candidate platforms", "Verify candidate provenance and SBOM", "Validate application at candidate source" ],
+      verify => [ "Smoke test exact candidate on its native architecture", "Scan native candidate with Trivy", "Verify candidate runtime and vulnerability policy" ],
+      promote => [ "Generate provenance attestation", "Promote verified candidate" ]
+    }.each do |job, names|
+      names.each do |name|
+        step = job.fetch("steps").find { |entry| entry["name"] == name }
+        assert step, "Missing release gate: #{name}"
+        assert_nil step["if"], "Release gate must be unconditional: #{name}"
+        refute step["continue-on-error"], "Release failure must block promotion: #{name}"
+      end
     end
+    refute verify.fetch("steps").any? { |step| step.fetch("uses", "").include?("setup-qemu") }
+    promotion = promote.fetch("steps").find { |step| step["name"] == "Promote verified candidate" }
+    assert_includes promotion.fetch("run"), "${{ needs.build.outputs.digest }}"
   end
 
   test "daily rebuild and read-only audit do not depend on automated merge events" do
@@ -78,18 +93,33 @@ class ContainerRefreshTest < ActiveSupport::TestCase
     assert_includes audit, "bin/container-gem-versions"
   end
 
-  test "registry scans select each platform independently of local Docker images" do
-    %w[docker security-audit].each do |workflow|
-      config = YAML.safe_load_file(ROOT.join(".github/workflows/#{workflow}.yml"), aliases: true)
-      steps = config.fetch("jobs").values.flat_map { |job| job.fetch("steps") }
-      scan = steps.find { |step| step.fetch("uses", "").start_with?("aquasecurity/trivy-action@") }
+  test "registry scans select each native platform independently of local Docker images" do
+    { "docker" => "verify", "security-audit" => "image" }.each do |workflow, job_name|
+      job = workflow_config(workflow).fetch("jobs").fetch(job_name)
+      assert_native_matrix(job)
+      scan = job.fetch("steps").find { |step| step.fetch("uses", "").start_with?("aquasecurity/trivy-action@") }
       assert_equal "remote", scan.fetch("env").fetch("TRIVY_IMAGE_SRC")
-      assert_equal "linux/amd64", scan.fetch("env").fetch("TRIVY_PLATFORM")
-      assert steps.any? { |step| step.fetch("run", "").include?("trivy image --image-src remote --platform linux/arm64") }
+      assert_equal "${{ matrix.platform }}", scan.fetch("env").fetch("TRIVY_PLATFORM")
     end
+    audit = workflow_config("security-audit").fetch("jobs")
+    assert_equal "resolve", audit.fetch("image").fetch("needs")
+    assert_equal "${{ needs.resolve.outputs.digest }}", audit.dig("image", "env", "DIGEST")
+    refute audit.fetch("image").fetch("steps").any? { |step| step.fetch("run", "").include?("resolve-image-digest") }
   end
 
   private
+
+  def workflow_config(name)
+    YAML.safe_load_file(ROOT.join(".github/workflows/#{name}.yml"), aliases: true)
+  end
+
+  def assert_native_matrix(job)
+    assert_equal [
+      { "runner" => "ubuntu-24.04", "platform" => "linux/amd64", "arch" => "amd64" },
+      { "runner" => "ubuntu-24.04-arm", "platform" => "linux/arm64", "arch" => "arm64" }
+    ], job.dig("strategy", "matrix", "include")
+    assert_equal "${{ matrix.runner }}", job.fetch("runs-on")
+  end
 
   def run_script(name, *arguments, env: {})
     Open3.capture2e(

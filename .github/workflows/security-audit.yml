@@ -32,16 +32,18 @@ jobs:
       - name: Audit Ruby, JavaScript, and application security
         run: bin/security-audit
 
-  image:
-    name: Security/image
+  resolve:
+    name: Resolve released image
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 10
+    outputs:
+      digest: ${{ steps.release.outputs.digest }}
     steps:
       - name: Checkout default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
@@ -57,63 +59,84 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve released digest
+      - name: Resolve released digest once for both platforms
         id: release
         run: |
           set -euo pipefail
           digest="$(bin/resolve-image-digest "${REGISTRY}/${IMAGE_NAME}:latest")"
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
-      - name: Install Trivy and scan released amd64 digest
+  image:
+    name: Security/image (${{ matrix.platform }})
+    env:
+      DIGEST: ${{ needs.resolve.outputs.digest }}
+    needs: resolve
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Ruby for image evidence checks
+        uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Trivy and scan the released platform
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         env:
           TRIVY_IMAGE_SRC: remote
-          TRIVY_PLATFORM: linux/amd64
+          TRIVY_PLATFORM: ${{ matrix.platform }}
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.release.outputs.digest }}
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ env.DIGEST }}
           version: v0.74.0
           format: json
-          output: trivy-amd64.json
+          output: trivy-${{ matrix.arch }}.json
           exit-code: "0"
           ignore-unfixed: false
           vuln-type: os,library
           severity: HIGH,CRITICAL
           scanners: vuln
 
-      - name: Scan released arm64 digest
-        run: |
-          trivy image --image-src remote --platform linux/arm64 --format json --output trivy-arm64.json \
-            --scanners vuln --vuln-type os,library --severity HIGH,CRITICAL --ignore-unfixed=false \
-            "${REGISTRY}/${IMAGE_NAME}@${{ steps.release.outputs.digest }}"
-
-      - name: Verify released runtime and vulnerability policy on both platforms
+      - name: Verify released runtime and vulnerability policy
         id: policy
         env:
-          DIGEST: ${{ steps.release.outputs.digest }}
+          PLATFORM: ${{ matrix.platform }}
+          ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
-          failed=0
           reference="${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
-          for arch in amd64 arm64; do
-            bin/container-gem-versions "$reference" "linux/$arch" "gems-$arch.json"
-            bin/check-trivy-report "trivy-$arch.json" "gems-$arch.json" || failed=1
-          done
-          exit "$failed"
+          bin/container-gem-versions "$reference" "$PLATFORM" "gems-$ARCH.json"
+          bin/check-trivy-report "trivy-$ARCH.json" "gems-$ARCH.json"
 
-      - name: Check released image age
-        if: always() && steps.release.outputs.digest != ''
+      - name: Check released platform image age
+        if: always() && needs.resolve.outputs.digest != ''
         env:
-          DIGEST: ${{ steps.release.outputs.digest }}
+          PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
           reference="${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
-          docker image rm --force "$reference" >/dev/null 2>&1 || true
-          docker pull --platform linux/amd64 "$reference" >/dev/null
+          docker pull --platform "$PLATFORM" "$reference" >/dev/null
           built_at="$(docker image inspect "$reference" --format '{{.Created}}')"
           built_epoch="$(date -u -d "$built_at" +%s)"
           now="$(date -u +%s)"
           {
-            echo "## Released container"
+            echo "## Released container: ${PLATFORM}"
             echo
             echo "- Digest: \`${reference}\`"
             echo "- Built: \`${built_at}\`"
@@ -122,17 +145,17 @@ jobs:
             echo "- Remediation: update affected source dependencies or inspect the daily release workflow. This audit does not dispatch rebuilds."
           } >> "$GITHUB_STEP_SUMMARY"
           if (( now - built_epoch > 7 * 24 * 60 * 60 )); then
-            echo "::error::Released image is older than seven days; inspect the release workflow."
+            echo "::error::Released image for ${PLATFORM} is older than seven days; inspect the release workflow."
             exit 1
           fi
 
-      - name: Upload released image evidence
+      - name: Upload released platform evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: trivy-image-report-${{ github.run_id }}
+          name: trivy-image-report-${{ matrix.arch }}-${{ github.run_id }}
           path: |
-            trivy-*.json
-            gems-*.json
+            trivy-${{ matrix.arch }}.json
+            gems-${{ matrix.arch }}.json
           if-no-files-found: error
           retention-days: 30

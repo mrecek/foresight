@@ -88,12 +88,19 @@ fi
 # every packaged process.
 docker exec "$container_name" bin/docker-entrypoint bin/jobs check
 docker exec "$container_name" bin/docker-entrypoint bin/rails runner script/maintenance_smoke.rb
-docker stop --time 30 "$container_name" >/dev/null
-[[ "$(docker inspect --format '{{.State.ExitCode}}' "$container_name")" == "0" ]] || {
-  echo "Packaged Puma server did not exit cleanly on SIGTERM." >&2
-  exit 1
-}
+for shutdown_cycle in 1 2 3; do
+  docker stop --time 30 "$container_name" >/dev/null
+  exit_code="$(docker inspect --format '{{.State.ExitCode}}' "$container_name")"
+  [[ "$exit_code" == "0" ]] || {
+    echo "Packaged Puma server failed SIGTERM cycle ${shutdown_cycle}/3: exit code ${exit_code}." >&2
+    exit 1
+  }
+  if [[ "$shutdown_cycle" -lt 3 ]]; then
+    docker start "$container_name" >/dev/null
+    wait_for_internal_health
+  fi
+done
 smoke_passed=true
 echo "Session-key fingerprints: install-a=${first_fingerprint} install-b=${second_fingerprint}"
-echo "Container smoke passed: production HTTP, secret persistence/uniqueness, Solid Queue, maintenance jobs, and graceful SIGTERM."
+echo "Container smoke passed: production HTTP, secret persistence/uniqueness, Solid Queue, maintenance jobs, and three graceful SIGTERM cycles."
 exit 0
