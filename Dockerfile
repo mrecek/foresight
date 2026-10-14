@@ -8,9 +8,9 @@
 # For a containerized dev environment, see Dev Containers: https://guides.rubyonrails.org/getting_started_with_devcontainer.html
 
 # Keep this version in sync with .ruby-version. The digest pins the complete
-# multi-architecture Debian 13 base identity. Refresh builds invalidate the
-# named os-packages stage explicitly while normal source builds may reuse it.
-FROM docker.io/library/ruby:3.4.10-slim-trixie@sha256:9d50d98e61ccbe4f1ef436349911e09b53c42a00364bcd3bda6ac107abc29528 AS os-packages
+# multi-architecture Debian 13 base identity. Release builds invalidate the
+# os-packages stage so package refreshes are independent of source changes.
+FROM docker.io/library/ruby:3.4.11-slim-trixie@sha256:c12225b6a73743f943530d9e610f4ae78e0dbcffdcf797b01522a55f7d25acb3 AS os-packages
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -27,7 +27,7 @@ RUN apt-get update -qq && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
 # Set production environment variables and enable jemalloc for reduced memory usage and latency.
-# Thruster listens on an unprivileged port so the image runs cleanly as a non-root user
+# Puma listens on an unprivileged port so the image runs cleanly as a non-root user
 # in Docker, Kubernetes, and other container runtimes.
 ENV RAILS_ENV="production" \
     BUNDLE_DEPLOYMENT="1" \
@@ -35,7 +35,7 @@ ENV RAILS_ENV="production" \
     BUNDLE_WITHOUT="development:test" \
     LD_PRELOAD="/usr/local/lib/libjemalloc.so" \
     SOLID_QUEUE_IN_PUMA="true" \
-    THRUSTER_HTTP_PORT="8080"
+    PORT="8080"
 
 # Throw-away build stage to reduce size of final image
 FROM os-packages AS build
@@ -82,6 +82,6 @@ ENTRYPOINT ["/rails/bin/docker-entrypoint"]
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD ["bin/container-healthcheck"]
 
-# Start server via Thruster by default, this can be overwritten at runtime
+# Start Puma directly so it receives container shutdown signals.
 EXPOSE 8080
-CMD ["./bin/thrust", "./bin/rails", "server"]
+CMD ["bundle", "exec", "puma", "-C", "config/puma.rb"]

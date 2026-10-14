@@ -84,7 +84,7 @@ Background maintenance runs inside the web process by default. Advanced deployme
 | `SECRET_KEY_BASE_FILE` | Path for the generated installation key | `/rails/storage/.secret_key_base` |
 | `RAILS_LOG_LEVEL` | Application logging verbosity | `info` |
 | `SOLID_QUEUE_IN_PUMA` | Run scheduled work in the web process | `true` |
-| `THRUSTER_HTTP_PORT` | Container listener port | `8080` |
+| `PORT` | Container listener port | `8080` |
 
 An unset `SECRET_KEY_BASE` is safe: first startup generates a cryptographically random key in persistent storage with private permissions. Supplying or changing an external key invalidates existing browser sessions. Startup fails when the configured key or generated-key file is unsafe, unreadable, or too short.
 
@@ -190,15 +190,15 @@ SQLite provides three isolated stores under the same persistent directory:
 
 Financial mutations run through explicit command boundaries and database transactions. Linked transfers are treated as one two-sided financial operation; their invariants and conservative repair behavior are documented in [Transfer-pair invariants](docs/transfer-pair-invariants.md).
 
-The production image uses Thruster in front of Puma, runs without root privileges, prepares pending database migrations at startup, and includes a built-in health check.
+The production image uses Puma directly behind your reverse proxy, runs without root privileges, prepares pending database migrations at startup, and includes a built-in health check.
 
 ## Maintenance and security
 
 Routine gem patch and minor updates are proposed by Dependabot and may merge only after the complete pull-request validation contract passes. Ruby patch releases update the local runtime declaration and digest-pinned container base together. GitHub Actions, Docker architecture changes, major dependency versions, and Ruby minor or major upgrades remain under human review.
 
-Container freshness is an artifact operation rather than a source-code change. Every Sunday at an off-minute schedule, the release workflow rebuilds the named OS-package stage against current Debian repositories without changing Git. It compares canonical package inventories for `linux/amd64` and `linux/arm64`; an unchanged rebuild stops successfully without moving `latest`.
+The release workflow rebuilds the production image daily against current Debian repositories. Every candidate passes application validation, smoke tests on `linux/amd64` and `linux/arm64`, fixable HIGH/CRITICAL vulnerability checks, manifest checks, and provenance/SBOM verification before publication. Scheduled builds publish even when package versions are unchanged. This also picks up dependency updates merged by automation whose GitHub token suppresses push-triggered releases; human pushes still release immediately. GitHub schedules are best effort, so daily publication is an expectation rather than a delivery guarantee.
 
-A changed candidate must pass application validation, both platform smoke tests, package downgrade/removal policy, fixable HIGH/CRITICAL vulnerability policy, manifest checks, and provenance/SBOM verification before its digest is promoted automatically. A daily audit scans the released digest itself, reports its seven-day freshness deadline, and dispatches one security refresh when remediation is available. Fixable CRITICAL findings expose a 24-hour remediation deadline.
+A separate daily audit scans the exact published digest and checks the effective runtime gems inside each platform image. Its narrowly scoped exception for an inactive bundled default gem requires the loaded replacement to satisfy the specific advisory's safe version. Unknown advisories fail closed. The audit reports unfixed HIGH/CRITICAL findings and blocks fixable findings; it also fails if the published build is older than seven days. Audit failures point to the affected dependency or release workflow without dispatching another rebuild.
 
 Source releases, refreshes, retention, and rollback share one serialized production lane. Manual rollback selects a retained immutable release tag and supplies the expected current digest, preventing an operator from overwriting a newer release accidentally. Manual retention runs are dry-run by default; scheduled cleanup keeps the latest five promoted digests, preserves the current release and attestation metadata, and expires candidate-only artifacts after 14 days.
 

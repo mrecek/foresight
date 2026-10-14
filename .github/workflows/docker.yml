@@ -10,7 +10,7 @@ on:
         type: choice
         options: [manual, security, validation]
   schedule:
-    - cron: "37 7 * * 0"
+    - cron: "37 7 * * *"
   push:
     branches: [main]
     paths-ignore:
@@ -81,7 +81,7 @@ jobs:
           set -euo pipefail
           case "${GITHUB_EVENT_NAME}" in
             push) reason=source ;;
-            schedule) reason=weekly-refresh ;;
+            schedule) reason=scheduled-refresh ;;
             workflow_dispatch) reason="${REQUESTED_REASON}" ;;
             *) echo "::error::Unsupported trigger ${GITHUB_EVENT_NAME}"; exit 1 ;;
           esac
@@ -92,14 +92,14 @@ jobs:
             echo "built_at=$built_at"
             echo "candidate=candidate-$identity"
             echo "release_id=$identity"
-            echo "refresh=$([[ "$reason" =~ ^(weekly-refresh|security|manual)$ ]] && echo true || echo false)"
           } >> "$GITHUB_OUTPUT"
 
       - name: Ensure run-specific candidate tag is unused
         env:
           CANDIDATE: ${{ steps.release.outputs.candidate }}
         run: |
-          if bin/resolve-image-digest "${REGISTRY}/${IMAGE_NAME}:${CANDIDATE}" --allow-missing | grep -q .; then
+          existing="$(bin/resolve-image-digest "${REGISTRY}/${IMAGE_NAME}:${CANDIDATE}" --allow-missing)"
+          if [[ -n "$existing" ]]; then
             echo "::error::Run-specific candidate tag already exists"
             exit 1
           fi
@@ -114,30 +114,19 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.release.outputs.candidate }}
           cache-from: type=gha,scope=foresight
           cache-to: type=gha,mode=max,scope=foresight
-          no-cache-filters: ${{ steps.release.outputs.refresh == 'true' && 'os-packages' || '' }}
+          no-cache-filters: os-packages
           provenance: mode=max
           sbom: true
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ steps.release.outputs.built_at }}
 
       - name: Resolve promoted digest
         id: promoted
         run: |
           digest="$(bin/resolve-image-digest "${REGISTRY}/${IMAGE_NAME}:latest" --allow-missing)"
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
-          echo "reference=$([[ -n "$digest" ]] && echo "${REGISTRY}/${IMAGE_NAME}@${digest}" || echo none)" >> "$GITHUB_OUTPUT"
-
-      - name: Classify package changes
-        id: classification
-        env:
-          CANDIDATE_DIGEST: ${{ steps.push.outputs.digest }}
-          PROMOTED_REFERENCE: ${{ steps.promoted.outputs.reference }}
-        run: |
-          candidate="${REGISTRY}/${IMAGE_NAME}@${CANDIDATE_DIGEST}"
-          bin/classify-container-refresh "$PROMOTED_REFERENCE" "$candidate" refresh-evidence >/dev/null
-          {
-            echo "material=$(jq -r .material_change refresh-evidence/classification.json)"
-            echo "downgrade=$(jq -r .has_downgrade refresh-evidence/classification.json)"
-            echo "removal=$(jq -r .has_removal refresh-evidence/classification.json)"
-          } >> "$GITHUB_OUTPUT"
 
       - name: Record candidate metadata
         env:
@@ -147,6 +136,7 @@ jobs:
           RELEASE_REASON: ${{ steps.release.outputs.reason }}
           BUILT_AT: ${{ steps.release.outputs.built_at }}
         run: |
+          mkdir -p refresh-evidence
           jq -n \
             --arg source_commit "$GITHUB_SHA" \
             --arg built_at "$BUILT_AT" \
@@ -154,37 +144,20 @@ jobs:
             --arg candidate_tag "$CANDIDATE" \
             --arg candidate_digest "$CANDIDATE_DIGEST" \
             --arg promoted_digest "$PROMOTED_DIGEST" \
-            --argjson material_change "${{ steps.classification.outputs.material }}" \
-            --argjson has_downgrade "${{ steps.classification.outputs.downgrade }}" \
-            --argjson has_removal "${{ steps.classification.outputs.removal }}" \
             '{source_commit: $source_commit, built_at: $built_at, trigger_reason: $trigger_reason,
               candidate_tag: $candidate_tag, candidate_digest: $candidate_digest,
-              promoted_digest: (if $promoted_digest == "" then null else $promoted_digest end),
-              material_change: $material_change, has_downgrade: $has_downgrade,
-              has_removal: $has_removal}' > refresh-evidence/candidate.json
-
-      - name: Stop an unchanged refresh successfully
-        if: steps.release.outputs.refresh == 'true' && steps.classification.outputs.material == 'false'
-        run: echo "No package changes detected; production tags remain unchanged." >> "$GITHUB_STEP_SUMMARY"
+              promoted_digest: (if $promoted_digest == "" then null else $promoted_digest end)}' > refresh-evidence/candidate.json
 
       - name: Verify candidate platforms
-        if: steps.release.outputs.refresh != 'true' || steps.classification.outputs.material == 'true'
         run: bin/check-container-manifest "${REGISTRY}/${IMAGE_NAME}@${{ steps.push.outputs.digest }}"
 
       - name: Verify candidate provenance and SBOM
-        if: steps.release.outputs.refresh != 'true' || steps.classification.outputs.material == 'true'
         run: bin/check-container-metadata "${REGISTRY}/${IMAGE_NAME}@${{ steps.push.outputs.digest }}"
 
-      - name: Enforce package change policy
-        if: steps.release.outputs.refresh != 'true' || steps.classification.outputs.material == 'true'
-        run: bin/enforce-package-change-policy refresh-evidence/classification.json "${{ steps.release.outputs.reason }}"
-
       - name: Validate application at candidate source
-        if: steps.release.outputs.refresh != 'true' || steps.classification.outputs.material == 'true'
         run: bin/validate --ci
 
       - name: Smoke test candidate on amd64 and arm64
-        if: steps.release.outputs.refresh != 'true' || steps.classification.outputs.material == 'true'
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
           CONTAINER_SMOKE_HEALTH_ATTEMPTS: 120
@@ -198,7 +171,6 @@ jobs:
           done
 
       - name: Scan amd64 candidate with Trivy
-        if: steps.release.outputs.refresh != 'true' || steps.classification.outputs.material == 'true'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
@@ -212,18 +184,19 @@ jobs:
           scanners: vuln
 
       - name: Enforce amd64 vulnerability policy
-        if: steps.release.outputs.refresh != 'true' || steps.classification.outputs.material == 'true'
-        run: bin/check-trivy-report refresh-evidence/trivy-amd64.json
+        run: |
+          bin/container-gem-versions "${REGISTRY}/${IMAGE_NAME}@${{ steps.push.outputs.digest }}" linux/amd64 refresh-evidence/gems-amd64.json
+          bin/check-trivy-report refresh-evidence/trivy-amd64.json refresh-evidence/gems-amd64.json
 
       - name: Scan and enforce arm64 vulnerability policy
-        if: steps.release.outputs.refresh != 'true' || steps.classification.outputs.material == 'true'
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
         run: |
           trivy image --platform linux/arm64 --format json --output refresh-evidence/trivy-arm64.json \
             --scanners vuln --vuln-type os,library --severity HIGH,CRITICAL --ignore-unfixed=false \
             "${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
-          bin/check-trivy-report refresh-evidence/trivy-arm64.json
+          bin/container-gem-versions "${REGISTRY}/${IMAGE_NAME}@${DIGEST}" linux/arm64 refresh-evidence/gems-arm64.json
+          bin/check-trivy-report refresh-evidence/trivy-arm64.json refresh-evidence/gems-arm64.json
 
       - name: Upload candidate evidence
         if: always() && steps.push.outputs.digest != ''
@@ -235,7 +208,6 @@ jobs:
           retention-days: 30
 
       - name: Generate provenance attestation
-        if: steps.release.outputs.refresh != 'true' || steps.classification.outputs.material == 'true'
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
@@ -243,7 +215,6 @@ jobs:
           push-to-registry: true
 
       - name: Promote verified candidate
-        if: steps.release.outputs.refresh != 'true' || steps.classification.outputs.material == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           EXPECTED_PROMOTED_DIGEST: ${{ steps.promoted.outputs.digest }}
@@ -258,6 +229,6 @@ jobs:
             echo "- Trigger: \`${{ steps.release.outputs.reason }}\`"
             echo "- Candidate: \`${REGISTRY}/${IMAGE_NAME}:${{ steps.release.outputs.candidate }}@${{ steps.push.outputs.digest }}\`"
             echo "- Previous production digest: \`${{ steps.promoted.outputs.digest || 'none' }}\`"
-            echo "- Material package change: \`${{ steps.classification.outputs.material || 'unknown' }}\`"
+            echo "- Every candidate requires the complete verification contract, including scheduled refreshes."
             echo "- Release tags move only after manifest, smoke, vulnerability, and attestation gates pass."
           } >> "$GITHUB_STEP_SUMMARY"

@@ -50,12 +50,21 @@ class DependabotAutomationTest < ActiveSupport::TestCase
 
     assert_includes workflow, 'cron: "15 15 * * 1"'
     assert_includes workflow, "bin/check-ruby-freshness"
-    assert_includes workflow, "gh pr list --state all"
+    refute_includes workflow, "gh pr list --state all"
+    assert_includes workflow, "branch: automation/ruby-patch"
+    assert_includes workflow, "steps.pull-request.outputs.pull-request-number"
+    refute_includes workflow, "pull-request-operation == 'created'"
     assert_includes workflow, "mise lock ruby"
     assert_includes workflow, "bin/validate --ci"
-    assert_includes workflow, "gh pr create"
     assert_includes workflow, "gh workflow run ci.yml"
     assert_includes workflow, "gh pr merge --auto --squash"
+
+    steps = YAML.safe_load(workflow).fetch("jobs").fetch("check").fetch("steps")
+    proposal = steps.find { |step| step["id"] == "pull-request" }
+    assert_match %r{\Apeter-evans/create-pull-request@[0-9a-f]{40}\z}, proposal.fetch("uses")
+    assert_equal %w[.ruby-version .mise.toml mise.lock Dockerfile], proposal.fetch("with").fetch("add-paths").split
+    dispatch = steps.find { |step| step.fetch("run", "").include?("gh workflow run ci.yml") }
+    assert_equal "steps.pull-request.outputs.pull-request-number && steps.pull-request.outputs.pull-request-operation != 'closed'", dispatch.fetch("if")
   end
 
   test "workflow-only and test-only changes do not publish an application image" do
@@ -68,7 +77,7 @@ class DependabotAutomationTest < ActiveSupport::TestCase
   test "Docker base is pinned by version and multi-architecture digest" do
     dockerfile = Rails.root.join("Dockerfile").read
 
-    assert_match %r{^FROM docker\.io/library/ruby:3\.4\.10-slim-trixie@sha256:[0-9a-f]{64} AS os-packages$}, dockerfile
+    assert_match %r{^FROM docker\.io/library/ruby:#{Regexp.escape(Rails.root.join(".ruby-version").read.strip)}-slim-trixie@sha256:[0-9a-f]{64} AS os-packages$}, dockerfile
     refute_includes dockerfile, "OS_PATCH_EPOCH"
     assert_includes dockerfile, "FROM os-packages AS build"
     assert_includes dockerfile, "FROM os-packages AS runtime"

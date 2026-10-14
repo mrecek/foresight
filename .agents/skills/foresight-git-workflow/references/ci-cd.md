@@ -24,17 +24,17 @@ Completion means every required check is present on the pull request and success
 - Dependabot owns Bundler, GitHub Actions, and Docker base-digest proposals.
 - Only Bundler patch and minor changes are eligible for auto-merge.
 - The Ruby freshness workflow owns patch updates across `.ruby-version`, `.mise.toml`, `mise.lock`, and the digest-pinned Docker base.
-- The container release workflow owns weekly OS-package refreshes. It rebuilds the named `os-packages` stage without changing source, classifies package inventories, and promotes a changed digest only after the common release gates pass.
+- The container release workflow owns daily OS-package refreshes. It rebuilds the named `os-packages` stage and publishes every verified scheduled candidate, including unchanged package inventories. The schedule also catches updates merged with `GITHUB_TOKEN`, which suppresses downstream push events.
 - Ruby minor and major upgrades, GitHub Actions, and Docker changes stay under human review.
-- The scheduled security workflow audits dependencies and scans the released digest daily. A stale or vulnerable released artifact dispatches one refresh through the common production lane; source dependency remediation still travels through a pull request.
+- The scheduled security workflow audits dependencies and scans the released digest daily with read-only permissions. Vulnerable images and builds older than seven days fail with actionable evidence; remediation travels through source updates and the independent release lane.
 
 Inspect Dependabot metadata and the eligibility script before changing an auto-merge boundary. Complete a change only when an ineligible ecosystem and major Bundler update still fail closed.
 
-Automation pull requests created with `GITHUB_TOKEN` do not emit a new `pull_request` workflow run. The Ruby freshness workflow therefore dispatches `ci.yml` explicitly on its automation branch. If one stalls, inspect the freshness run, dispatched CI run at the pull-request head, and repository auto-merge settings before changing code.
+The Ruby updater uses a stable automation branch and the pinned create-pull-request action to create or update its proposal. Closing an unmerged proposal does not permanently suppress future attempts: the next stale-version run recreates the proposal. To pause updates intentionally, disable the freshness workflow. The updater dispatches `ci.yml` explicitly on every open proposal head because `GITHUB_TOKEN` events do not start unattended pull-request CI. If one stalls, inspect the freshness run, dispatched CI at the current head, and required checks.
 
 ## Container Publication
 
-`docker.yml` is the common entry point for source, weekly, security, and manual releases. It builds a run-specific candidate, records both platform package inventories, stops unchanged refreshes without moving production, and gates changed candidates on application validation, package policy, vulnerability policy, manifest portability, smoke tests, provenance, and SBOM evidence.
+`docker.yml` is the common entry point for source, scheduled, security, and manual releases. It builds a run-specific candidate and gates every candidate on application validation, vulnerability policy, manifest portability, both-platform smoke tests, provenance, and SBOM evidence. Security policy exceptions use effective gem versions collected from the exact image under audit; repository lockfiles are not evidence of the released runtime. Scheduled builds refresh the OS stage even when Git has not changed.
 
 Every accepted digest receives an immutable `release-<UTC time>-<source SHA>-<run>-<attempt>` recovery tag before `latest` moves. `rollback-container-release.yml` restores one retained verified release with an expected-current-digest guard. `container-retention.yml` defaults manual runs to dry-run, keeps the latest five promoted digests, and expires candidate-only artifacts after 14 days. All production tag mutation and cleanup uses the `foresight-container-production` concurrency group.
 

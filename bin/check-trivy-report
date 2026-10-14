@@ -2,38 +2,72 @@
 # frozen_string_literal: true
 
 require "json"
-require "bundler"
 require "yaml"
+require "rubygems"
 
-report_path = ARGV.fetch(0) { abort "Usage: bin/check-trivy-report REPORT.json" }
-report = JSON.parse(File.read(report_path))
-vulnerabilities = report.fetch("Results", []).flat_map { |result| result.fetch("Vulnerabilities", []) }
+report_path = ARGV.fetch(0) { abort "Usage: bin/check-trivy-report REPORT.json [IMAGE_GEM_VERSIONS.json]" }
+begin
+  report = JSON.parse(File.read(report_path))
+  raise ArgumentError, "expected Trivy schema version 2 and Results array" unless report.is_a?(Hash) && report["SchemaVersion"] == 2 && report["Results"].is_a?(Array)
+
+  findings = report.fetch("Results").flat_map do |result|
+    raise ArgumentError, "invalid result" unless result.is_a?(Hash) && result["Target"].is_a?(String)
+    vulnerabilities = result.fetch("Vulnerabilities", [])
+    raise ArgumentError, "invalid vulnerabilities" unless vulnerabilities.is_a?(Array)
+
+    vulnerabilities.map do |vulnerability|
+      fields = %w[VulnerabilityID PkgName InstalledVersion Severity]
+      unless vulnerability.is_a?(Hash) && fields.all? { |field| vulnerability[field].is_a?(String) && !vulnerability[field].empty? } &&
+          %w[UNKNOWN LOW MEDIUM HIGH CRITICAL].include?(vulnerability["Severity"]) &&
+          (!vulnerability.key?("FixedVersion") || vulnerability["FixedVersion"].is_a?(String))
+        raise ArgumentError, "invalid vulnerability"
+      end
+      [ result, vulnerability ]
+    end
+  end
+
+  evidence = ARGV[1] && JSON.parse(File.read(ARGV[1]))
+  if evidence
+    architecture = report.dig("Metadata", "ImageConfig", "architecture")
+    unless evidence.is_a?(Hash) && evidence["image"] == report["ArtifactName"] &&
+        %w[amd64 arm64].include?(architecture) && evidence["platform"] == "linux/#{architecture}" && evidence["gems"].is_a?(Hash)
+      raise ArgumentError, "gem evidence does not match the scanned image and platform"
+    end
+  end
+rescue JSON::ParserError, ArgumentError, TypeError, Errno::ENOENT => error
+  abort "Invalid Trivy report or image evidence: #{error.message}"
+end
+
 root = File.expand_path("..", __dir__)
-security_policy = YAML.safe_load_file(File.join(root, "config/security.yml")).fetch("pinned_default_gems")
-locked_versions = Bundler::LockfileParser.new(Bundler.read_file(File.join(root, "Gemfile.lock")))
-  .specs.to_h { |spec| [ spec.name, spec.version ] }
+exceptions = YAML.safe_load_file(File.join(root, "config/security.yml")).fetch("inactive_default_gem_findings")
 
-actionable = vulnerabilities.select do |vulnerability|
-  %w[HIGH CRITICAL].include?(vulnerability["Severity"]) && vulnerability["FixedVersion"].to_s.strip != ""
-end
-unfixed = vulnerabilities.select do |vulnerability|
-  %w[HIGH CRITICAL].include?(vulnerability["Severity"]) && vulnerability["FixedVersion"].to_s.strip == ""
-end
-covered_default_gems, blocking = actionable.partition do |vulnerability|
-  gem_policy = security_policy[vulnerability["PkgName"]]
-  locked = locked_versions[vulnerability["PkgName"]]
-  next false unless gem_policy && locked
+actionable, unfixed = findings.select { |_result, finding| %w[HIGH CRITICAL].include?(finding["Severity"]) }
+  .partition { |_result, finding| !finding["FixedVersion"].to_s.strip.empty? }
+covered_default_gems, blocking = actionable.partition do |result, vulnerability|
+  exception = exceptions[vulnerability["VulnerabilityID"]]
+  next false unless exception && evidence && result["Class"] == "lang-pkgs" && result["Type"] == "gemspec"
+  next false unless vulnerability["PkgName"] == exception.fetch("package") &&
+    vulnerability["InstalledVersion"] == exception.fetch("installed_version") &&
+    vulnerability["FixedVersion"] == exception.fetch("fixed_version") &&
+    vulnerability["PkgPath"].to_s.match?(Regexp.new(exception.fetch("package_path_pattern")))
 
-  minimum = Gem::Version.new(gem_policy.fetch("minimum_safe_version"))
-  installed = Gem::Version.new(vulnerability.fetch("InstalledVersion"))
-  locked >= minimum && installed < locked
+  loaded = evidence.fetch("gems")[vulnerability["PkgName"]]
+  next false unless loaded.is_a?(Hash) && loaded["version"].is_a?(String) && Gem::Version.correct?(loaded["version"]) &&
+    loaded["gem_path"].is_a?(String) && !loaded["gem_path"].empty? && loaded["loaded_path"].is_a?(String)
+  next false unless loaded["loaded_path"].start_with?("#{loaded['gem_path']}/") &&
+    File.basename(loaded["loaded_path"]) == "#{vulnerability['PkgName']}.rb"
+
+  Gem::Version.new(loaded["version"]) >= Gem::Version.new(exception.fetch("minimum_safe_version"))
 end
+covered_default_gems = covered_default_gems.map(&:last)
+blocking = blocking.map(&:last)
+unfixed = unfixed.map(&:last)
 
 summary = if blocking.empty?
   message = "Trivy policy passed: no active fixable HIGH or CRITICAL OS/library vulnerabilities."
   if covered_default_gems.any?
     names = covered_default_gems.map { |finding| finding.fetch("PkgName") }.uniq.sort.join(", ")
-    message += " Stale bundled default-gem copies covered by verified lockfile pins: #{names}."
+    message += " Stale bundled default-gem copies covered by verified image runtime versions: #{names}."
   end
   message
 else

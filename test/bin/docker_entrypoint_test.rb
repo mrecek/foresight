@@ -125,6 +125,31 @@ class DockerEntrypointTest < Minitest::Test
     refute_match(%r{COPY .*\.secret_key_base}, dockerfile)
   end
 
+  def test_only_the_packaged_puma_command_prepares_the_database
+    FileUtils.mkdir_p(File.join(@directory, "bin"))
+    rails = File.join(@directory, "bin/rails")
+    File.write(rails, "#!#{RbConfig.ruby}\nputs ARGV.join(' ')\n")
+    bundle = File.join(@directory, "bin/bundle")
+    File.write(bundle, "#!#{RbConfig.ruby}\nputs ARGV.join(' ')\n")
+    FileUtils.chmod(0o700, [ rails, bundle ])
+    environment = {
+      "SECRET_KEY_BASE" => "s" * 64,
+      "PATH" => "#{@directory}/bin:#{ENV.fetch("PATH")}"
+    }
+
+    stdout, stderr, status = Open3.capture3(
+      environment, RbConfig.ruby, ENTRYPOINT, "bundle", "exec", "puma", "-C", "config/puma.rb", chdir: @directory
+    )
+    assert status.success?, stderr
+    assert_equal [ "db:prepare", "exec puma -C config/puma.rb" ], stdout.lines.map(&:strip)
+
+    stdout, stderr, status = Open3.capture3(
+      environment, RbConfig.ruby, ENTRYPOINT, "bundle", "exec", "puma", "--help", chdir: @directory
+    )
+    assert status.success?, stderr
+    assert_equal [ "exec puma --help" ], stdout.lines.map(&:strip)
+  end
+
   private
 
   def run_entrypoint(environment = {})

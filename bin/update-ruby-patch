@@ -12,6 +12,7 @@ current = File.read(".ruby-version").strip
 version = options.fetch(:version) { abort "--version is required" }
 digest = options.fetch(:digest) { abort "--digest is required" }
 
+abort "Invalid .ruby-version: #{current.inspect}" unless current.match?(/\A\d+\.\d+\.\d+\z/)
 current_parts = current.split(".").map(&:to_i)
 version_parts = version.match(/\A\d+\.\d+\.\d+\z/) && version.split(".").map(&:to_i)
 abort "Invalid Ruby version: #{version.inspect}" unless version_parts
@@ -20,12 +21,14 @@ abort "Ruby update must move forward from #{current}" unless (version_parts <=> 
 abort "Invalid image digest: #{digest.inspect}" unless digest.match?(/\Asha256:[0-9a-f]{64}\z/)
 
 dockerfile = File.read("Dockerfile")
-replacement = "FROM docker.io/library/ruby:#{version}-slim-trixie@#{digest} AS base"
-updated = dockerfile.sub(%r{^FROM docker\.io/library/ruby:\d+\.\d+\.\d+-slim-trixie@sha256:[0-9a-f]{64} AS base$}, replacement)
-abort "Dockerfile Ruby base declaration was not found" if updated == dockerfile
+declaration = %r{^FROM docker\.io/library/ruby:#{Regexp.escape(current)}-slim-trixie@sha256:[0-9a-f]{64}( AS [a-zA-Z0-9_-]+)$}
+abort "Dockerfile must contain exactly one matching Ruby base declaration" unless dockerfile.scan(declaration).length == 1
+updated = dockerfile.sub(declaration) do
+  "FROM docker.io/library/ruby:#{version}-slim-trixie@#{digest}#{Regexp.last_match(1)}"
+end
 
 mise_config = File.read(".mise.toml")
-updated_mise = mise_config.sub(/^ruby\s*=\s*"#{Regexp.escape(current)}"\s*$/, %(ruby = "#{version}"))
+updated_mise = mise_config.sub(/^ruby[ \t]*=[ \t]*"#{Regexp.escape(current)}"[ \t]*$/, %(ruby = "#{version}"))
 abort ".mise.toml Ruby declaration was not found" if updated_mise == mise_config
 
 File.write(".ruby-version", "#{version}\n")
