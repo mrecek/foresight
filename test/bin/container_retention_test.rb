@@ -9,28 +9,28 @@ class ContainerRetentionTest < ActiveSupport::TestCase
   POLICY = Rails.root.join("bin/plan-container-retention")
   NOW = "2026-09-26T12:00:00Z"
 
-  test "keeps five promoted digests and current latest while expiring old releases and candidates" do
-    versions = (1..7).map do |number|
-      tags = [ "release-2026090#{number}T120000Z-aaaaaaaaaaaa-#{number}-1" ]
+  test "keeps thirty promoted digests and current latest while expiring old releases and candidates" do
+    versions = (1..32).map do |number|
+      created_at = Time.iso8601("2026-08-01T12:00:00Z") + number.days
+      tags = [ "release-#{created_at.strftime('%Y%m%dT%H%M%SZ')}-aaaaaaaaaaaa-#{number}-1" ]
       tags << "candidate-old-#{number}"
       tags << "latest" if number == 1
-      version(number, "2026-09-0#{number}T12:00:00Z", tags)
+      version(number, created_at.iso8601, tags)
     end
     versions.concat([
-      version(20, "2026-09-01T12:00:00Z", [ "candidate-expired" ]),
-      version(21, "2026-09-20T12:00:00Z", [ "candidate-fresh" ]),
-      version(22, "2026-08-01T12:00:00Z", [])
+      version(100, "2026-09-01T12:00:00Z", [ "candidate-expired" ]),
+      version(101, "2026-09-20T12:00:00Z", [ "candidate-fresh" ]),
+      version(102, "2026-08-01T12:00:00Z", [])
     ])
 
     result = plan(versions)
     assert result[:status].success?, result[:output]
     document = JSON.parse(result[:output])
-    assert_equal [ 2, 20 ], document.fetch("delete").pluck("id").sort
-    assert_includes document.fetch("protected").pluck("id"), 1
-    assert_includes document.fetch("protected").pluck("id"), 22
+    assert_equal [ 2, 100 ], document.fetch("delete").pluck("id").sort
+    assert_equal [ 1, *(3..32), 101, 102 ], document.fetch("protected").pluck("id").sort
   end
 
-  test "keeps all releases when fewer than five exist and produces a stable repeated plan" do
+  test "keeps all releases when fewer than thirty exist and produces a stable repeated plan" do
     versions = (1..3).map do |number|
       version(number, "2026-09-0#{number}T12:00:00Z", [ "release-2026090#{number}T120000Z-aaaaaaaaaaaa-#{number}-1" ])
     end

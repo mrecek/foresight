@@ -234,7 +234,7 @@ The release workflow rebuilds the production image daily against current Debian 
 
 A separate daily audit scans the exact published digest and checks the effective runtime gems inside each platform image. Its narrowly scoped exception for an inactive bundled default gem requires the loaded replacement to satisfy the specific advisory's safe version. Unknown advisories fail closed. The audit reports unfixed HIGH/CRITICAL findings and blocks fixable findings; it also fails if the published build is older than seven days. Audit failures point to the affected dependency or release workflow without dispatching another rebuild.
 
-Source releases, refreshes, retention, and rollback share one serialized production lane. Manual rollback selects a retained immutable release tag and supplies the expected current digest, preventing an operator from overwriting a newer release accidentally. Manual retention runs are dry-run by default; scheduled cleanup keeps the latest five promoted digests, preserves the current release and attestation metadata, and expires candidate-only artifacts after 14 days.
+Source releases, refreshes, retention, and rollback share one serialized production lane. Manual rollback selects a retained immutable release tag and supplies the expected current digest, preventing an operator from overwriting a newer release accidentally. Manual retention runs are dry-run by default; scheduled cleanup keeps the latest 30 promoted digests, preserves the current release and attestation metadata, and expires candidate-only artifacts after 14 days.
 
 Foresight is maintained primarily for the author's own use and shared in the hope that it is useful to other self-hosters. Bug reports are welcome; feature work is intentionally kept focused.
 

@@ -4,6 +4,8 @@
 require "json"
 require "time"
 
+PROMOTED_RELEASES_TO_KEEP = 30
+
 path = ARGV.fetch(0) { abort "Usage: bin/plan-container-retention VERSIONS.json [NOW]" }
 now = Time.iso8601(ARGV.fetch(1, Time.now.utc.iso8601))
 versions = JSON.parse(File.read(path))
@@ -22,7 +24,7 @@ end
 
 promoted = records.select { |record| record.fetch("tags").any? { |tag| tag.start_with?("release-") } }
   .sort_by { |record| record.fetch("created_at") }.reverse
-protected_promoted = promoted.first(5).map { |record| record.fetch("id") }
+protected_promoted = promoted.first(PROMOTED_RELEASES_TO_KEEP).map { |record| record.fetch("id") }
 latest = records.select { |record| record.fetch("tags").include?("latest") }.map { |record| record.fetch("id") }
 protected_ids = (protected_promoted + latest).uniq
 candidate_cutoff = now - (14 * 24 * 60 * 60)
@@ -32,7 +34,7 @@ delete = records.filter_map do |record|
 
   tags = record.fetch("tags")
   if tags.any? { |tag| tag.start_with?("release-") }
-    record.merge("reason" => "promoted digest exceeds latest-five rollback window")
+    record.merge("reason" => "promoted digest exceeds latest-#{PROMOTED_RELEASES_TO_KEEP} rollback window")
   elsif tags.any? && tags.all? { |tag| tag.start_with?("candidate-") } && record.fetch("created_at") < candidate_cutoff
     record.merge("reason" => "candidate-only artifact is older than 14 days")
   end
@@ -42,7 +44,7 @@ protected = records.filter_map do |record|
   reason = if latest.include?(record.fetch("id"))
     "current latest target"
   elsif protected_promoted.include?(record.fetch("id"))
-    "latest-five promoted rollback set"
+    "latest-#{PROMOTED_RELEASES_TO_KEEP} promoted rollback set"
   elsif record.fetch("tags").empty?
     "untagged metadata or attestation; never selected by cleanup"
   elsif record.fetch("tags").any? { |tag| tag.start_with?("candidate-") }
