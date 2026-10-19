@@ -5,7 +5,7 @@ gem "rails", "~> 8.1.4"
 # The modern asset pipeline for Rails [https://github.com/rails/propshaft]
 gem "propshaft"
 # Use sqlite3 as the database for Active Record
-gem "sqlite3", "~> 2.9", ">= 2.9.6"
+gem "sqlite3", "~> 2.10"
 # Security-fixed 2.x release; JSON 3 intentionally changes parsing behavior.
 gem "json", "~> 2.21", ">= 2.21.2"
 # Ruby 3.4 bundles an affected resolv. Pin the upstream 0.7.2 tag commit while
