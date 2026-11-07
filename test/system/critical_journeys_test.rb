@@ -264,8 +264,13 @@ class CriticalJourneysTest < ApplicationSystemTestCase
     rule = RecurringRule.find_by!(description: "Weekly savings")
     assert_not_empty rule.transactions
     assert rule.transactions.all? { |transaction| transaction.linked_transaction.present? }
+  rescue Minitest::Assertion => error
+    errors = page.all(".alert-danger", wait: 0).map(&:text)
+    fields = page.all("[name^='recurring_rule[']", visible: :all, wait: 0).to_h do |field|
+      [ field[:name], { value: field.value, disabled: field.disabled? } ]
+    end
+    flunk "#{error.message}\nValidation: #{errors.inspect}\nRule fields: #{fields.inspect}"
   end
-
 
   def assert_select_value(id, value)
     assert_equal value, find("##{id}", visible: :all).value
