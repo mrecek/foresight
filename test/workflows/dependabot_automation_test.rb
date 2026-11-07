@@ -25,6 +25,7 @@ class DependabotAutomationTest < ActiveSupport::TestCase
 
   test "Dependabot groups Bundler version and security updates separately" do
     bundler = dependabot_updates.fetch("bundler")
+    assert_equal [ { "dependency-type" => "all" } ], bundler.fetch("allow")
     groups = bundler.fetch("groups")
 
     assert_equal "version-updates", groups.fetch("minor-and-patch-gems").fetch("applies-to")
@@ -40,7 +41,7 @@ class DependabotAutomationTest < ActiveSupport::TestCase
     assert_equal "monthly", actions.dig("schedule", "interval")
     assert actions.fetch("groups").key?("actions")
     assert_equal "weekly", docker.dig("schedule", "interval")
-    ruby_ignore = docker.fetch("ignore").find { |entry| entry.fetch("dependency-name") == "ruby" }
+    ruby_ignore = docker.fetch("ignore").find { |entry| entry.fetch("dependency-name") == "library/ruby" }
     assert_equal %w[version-update:semver-patch version-update:semver-minor version-update:semver-major],
       ruby_ignore.fetch("update-types")
   end
@@ -55,7 +56,8 @@ class DependabotAutomationTest < ActiveSupport::TestCase
     assert_includes workflow, "steps.pull-request.outputs.pull-request-number"
     refute_includes workflow, "pull-request-operation == 'created'"
     assert_includes workflow, "mise lock ruby"
-    assert_includes workflow, "bin/validate --ci"
+    refute_includes workflow, "bin/validate --ci"
+    refute_includes workflow, "ruby/setup-ruby@"
     assert_includes workflow, "gh workflow run ci.yml"
     assert_includes workflow, "gh pr merge --auto --squash"
 
