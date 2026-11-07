@@ -31,7 +31,7 @@ gem "bcrypt", "~> 3.1.22"
 gem "rack-attack"
 
 # Provider-neutral OpenID Connect authentication with Rails request-phase CSRF protection
-gem "omniauth", "~> 2.1", ">= 2.1.4"
+gem "omniauth", "~> 2.3"
 gem "omniauth_openid_connect", "~> 0.8.0"
 gem "omniauth-rails_csrf_protection", "~> 2.0", ">= 2.0.1"
 
