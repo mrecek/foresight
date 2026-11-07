@@ -7,7 +7,7 @@
 
 # For a containerized dev environment, see Dev Containers: https://guides.rubyonrails.org/getting_started_with_devcontainer.html
 
-# Keep this version in sync with .ruby-version. The digest pins the complete
+# This pinned base also declares the Ruby version used by local mise and CI. The digest pins the complete
 # multi-architecture Debian 13 base identity. Release builds invalidate the
 # os-packages stage so package refreshes are independent of source changes.
 FROM docker.io/library/ruby:3.4.11-slim-trixie@sha256:c12225b6a73743f943530d9e610f4ae78e0dbcffdcf797b01522a55f7d25acb3 AS os-packages

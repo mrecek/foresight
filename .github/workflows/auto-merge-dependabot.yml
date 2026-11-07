@@ -28,12 +28,13 @@ jobs:
         id: eligibility
         env:
           PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+          DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}
           UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
         run: >-
           bash .github/scripts/dependabot-auto-merge-eligibility
-          "$PACKAGE_ECOSYSTEM" "$UPDATE_TYPE"
+          "$PACKAGE_ECOSYSTEM" "$UPDATE_TYPE" "$DEPENDENCY_NAMES"
 
-      - name: Enable auto-merge for low-risk Bundler updates
+      - name: Enable auto-merge for eligible maintenance
         id: enable
         if: steps.eligibility.outputs.eligible == 'true'
         run: gh pr merge --auto --squash "$PR_URL"

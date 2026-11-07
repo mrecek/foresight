@@ -228,7 +228,7 @@ The production image runs Puma behind your reverse proxy and starts Solid Queue 
 
 ## Maintenance and security
 
-Routine gem patch and minor updates are proposed by Dependabot and may merge only after the complete pull-request validation contract passes. Ruby patch releases update the local runtime declaration and digest-pinned container base together. GitHub Actions, Docker architecture changes, major dependency versions, and Ruby minor or major upgrades remain under human review.
+Dependabot proposes direct and indirect gem updates and the pinned Ruby container base. Gem patch/minor and Ruby base patch proposals may merge only after every required check passes. The Dockerfile is the sole Ruby version declaration: local mise and CI derive their version with `bin/ruby-version`. GitHub Actions, major dependency versions, and Ruby minor or major upgrades remain under human review.
 
 The release workflow rebuilds the production image daily against current Debian repositories. Every candidate passes application validation, smoke tests on native `linux/amd64` and `linux/arm64` runners, including real queued maintenance and three strict shutdown/restart cycles for web and jobs, fixable HIGH/CRITICAL vulnerability checks, manifest checks, and provenance/SBOM verification before publication. Scheduled builds publish even when package versions are unchanged. This also picks up dependency updates merged by automation whose GitHub token suppresses push-triggered releases; human pushes still release immediately. GitHub schedules are best effort, so daily publication is an expectation rather than a delivery guarantee.
 
@@ -251,11 +251,11 @@ A stale-image alert can be a consequence of a blocked release; retain both piece
 of evidence in the same incident rather than treating each daily run as a new
 outage. Never dismiss a vulnerability or bypass a required check to clear alerts.
 
-Ruby patch maintenance creates or refreshes one proposal before required CI runs.
-That CI owns validation, including whether the pinned installer supports the
-proposed Ruby. Unsupported proposals remain visible and blocked for a reviewed
-installer update. Dependabot owns digest-only base refreshes; the Ruby updater
-owns version changes across all runtime declarations.
+An unsupported Ruby installer leaves the Dependabot proposal visible with failing
+required CI. Update the pinned installer in the shared setup action through review
+before retrying. Runtime patch updates use ordinary Dependabot pull-request checks;
+there is no second updater, workflow-dispatch bridge or long-lived bot credential.
+
 
 ## Development
 

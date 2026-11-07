@@ -6,3 +6,7 @@ inherit_gem: { rubocop-rails-omakase: rubocop.yml }
 # # Use `[a, [b, c]]` not `[ a, [ b, c ] ]`
 # Layout/SpaceInsideArrayLiteralBrackets:
 #   Enabled: false
+
+# Parse the Ruby selected from the container declaration by CI and mise.
+AllCops:
+  TargetRubyVersion: <%= RUBY_VERSION[/\A\d+\.\d+/] %>

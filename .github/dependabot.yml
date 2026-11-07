@@ -46,12 +46,10 @@ updates:
       timezone: America/Denver
     labels:
       - "dependencies"
-    # Ruby patch releases are updated by ruby-freshness.yml so .ruby-version
-    # and the pinned Docker image move atomically. Dependabot owns digest-only
-    # rebuilds of the current tag, which surface base OS fixes.
+    # Dockerfile is the runtime declaration for containers, local mise and CI.
+    # Patch updates are tested and eligible for auto-merge; series changes are reviewed.
     ignore:
       - dependency-name: "library/ruby"
         update-types:
-          - "version-update:semver-patch"
           - "version-update:semver-minor"
           - "version-update:semver-major"

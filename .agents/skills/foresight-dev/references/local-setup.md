@@ -5,7 +5,7 @@ Use this reference when you need to bootstrap or run Foresight locally.
 ## Platform
 
 - macOS, Linux, or WSL
-- the exact Ruby in `.ruby-version`
+- the exact Ruby printed by `bin/ruby-version`
 - SQLite 3
 
 Rails owns the JavaScript and Tailwind toolchain; Node.js is not a project requirement.
@@ -22,7 +22,7 @@ mise is a convenience layer. Its tasks delegate to repository commands.
 
 ## Setup Without mise
 
-Install the Ruby version named by `.ruby-version`, then run:
+Install the Ruby version printed by `bin/ruby-version`, then run:
 
 ```bash
 bin/setup --skip-server
@@ -35,4 +35,4 @@ Visit `http://localhost:3000`. `bin/setup` is idempotent and installs the tracke
 
 Setup is complete when `bin/check-runtime-parity` passes, dependencies are installed, the development database is prepared, and `bin/dev` reaches a healthy application at `http://localhost:3000/up`.
 
-Use `bin/validate container` for the supported production-image build and smoke test.
+Use `bin/validate container` for the supported production-image build and smoke test. The smoke test bind-mounts a probe from the checkout, so that checkout must be visible to the Docker daemon.

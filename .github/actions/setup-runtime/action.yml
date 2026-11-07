@@ -1,0 +1,16 @@
+name: Set up the container Ruby runtime
+description: Derive the development and CI version from the pinned container base.
+inputs:
+  bundler-cache:
+    description: Install and cache the application bundle
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - id: runtime
+      shell: bash
+      run: echo "version=$(bin/ruby-version)" >> "$GITHUB_OUTPUT"
+    - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+      with:
+        ruby-version: ${{ steps.runtime.outputs.version }}
+        bundler-cache: ${{ inputs.bundler-cache }}
