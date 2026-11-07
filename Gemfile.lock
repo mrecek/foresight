@@ -443,7 +443,7 @@ DEPENDENCIES
   selenium-webdriver
   solid_cache
   solid_queue
-  sqlite3 (~> 2.9, >= 2.9.6)
+  sqlite3 (~> 2.10)
   stimulus-rails
   tailwindcss-rails
   turbo-rails
