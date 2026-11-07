@@ -7,6 +7,9 @@ updates:
       day: monday
       time: "06:00"
       timezone: America/Denver
+    # Include indirect gems even when the advisory is absent from GitHub alerts.
+    allow:
+      - dependency-type: all
     open-pull-requests-limit: 5
     groups:
       minor-and-patch-gems:
@@ -47,7 +50,7 @@ updates:
     # and the pinned Docker image move atomically. Dependabot owns digest-only
     # rebuilds of the current tag, which surface base OS fixes.
     ignore:
-      - dependency-name: "ruby"
+      - dependency-name: "library/ruby"
         update-types:
           - "version-update:semver-patch"
           - "version-update:semver-minor"

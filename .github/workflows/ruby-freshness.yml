@@ -59,16 +59,6 @@ jobs:
           bin/update-ruby-patch --version "$VERSION" --digest "$digest"
           mise lock ruby
 
-      - name: Set up updated Ruby
-        if: steps.ruby.outputs.status == 'stale'
-        uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
-        with:
-          bundler-cache: true
-
-      - name: Validate the update candidate
-        if: steps.ruby.outputs.status == 'stale'
-        run: bin/validate --ci
-
       - name: Create or update the patch pull request
         if: steps.ruby.outputs.status == 'stale'
         id: pull-request
@@ -87,7 +77,8 @@ jobs:
           body: |
             Updates the supported Ruby patch, all runtime declarations, and the multi-architecture base-image digest together.
 
-            Full non-container validation passed in [the freshness run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+            Required CI validates this proposal, including installer support, before auto-merge.
+            Proposal generated in [the freshness run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
             Major and minor Ruby upgrades remain manual.
 
       - name: Validate the pull request head and enable patch auto-merge

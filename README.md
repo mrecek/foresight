@@ -238,6 +238,25 @@ Source releases, refreshes, retention, and rollback share one serialized product
 
 Foresight is maintained primarily for the author's own use and shared in the hope that it is useful to other self-hosters. Bug reports are welcome; feature work is intentionally kept focused.
 
+### Maintenance failures
+
+Bundler maintenance includes direct and indirect gems. If a grouped proposal fails
+security validation, inspect the complete audit output and update every affected
+dependency in that proposal; rebuilding the unchanged lockfile cannot repair it.
+Keep one tracked incident for an unresolved cause, with its failing run, affected
+source or digest, next action and owner. Add repeat failures to that record.
+Escalate when a new cause appears or a fixable security blocker remains unresolved
+for 24 hours. Record recovery only after the required checks and release pass.
+A stale-image alert can be a consequence of a blocked release; retain both pieces
+of evidence in the same incident rather than treating each daily run as a new
+outage. Never dismiss a vulnerability or bypass a required check to clear alerts.
+
+Ruby patch maintenance creates or refreshes one proposal before required CI runs.
+That CI owns validation, including whether the pinned installer supports the
+proposed Ruby. Unsupported proposals remain visible and blocked for a reviewed
+installer update. Dependabot owns digest-only base refreshes; the Ruby updater
+owns version changes across all runtime declarations.
+
 ## Development
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for supported development environments, setup, validation, and contribution expectations.
