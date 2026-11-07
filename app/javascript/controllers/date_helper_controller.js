@@ -6,9 +6,9 @@ export default class extends Controller {
   static targets = ["input", "shortcuts"]
 
   connect() {
-    // Show shortcuts on focus
+    // Reserve shortcut space so focusing a date never moves submit controls.
     if (this.hasShortcutsTarget) {
-      this.shortcutsTarget.classList.add('opacity-0', 'max-h-0', 'overflow-hidden')
+      this.shortcutsTarget.classList.add('invisible')
     }
 
     // Auto-set to today if empty (avoids server-side UTC timezone issues)
@@ -19,8 +19,7 @@ export default class extends Controller {
 
   showShortcuts() {
     if (this.hasShortcutsTarget) {
-      this.shortcutsTarget.classList.remove('opacity-0', 'max-h-0', 'overflow-hidden')
-      this.shortcutsTarget.classList.add('opacity-100', 'max-h-20')
+      this.shortcutsTarget.classList.remove('invisible')
     }
   }
 
@@ -28,8 +27,7 @@ export default class extends Controller {
     // Delay hiding to allow clicking shortcuts
     setTimeout(() => {
       if (this.hasShortcutsTarget && !this.element.contains(document.activeElement)) {
-        this.shortcutsTarget.classList.add('opacity-0', 'max-h-0', 'overflow-hidden')
-        this.shortcutsTarget.classList.remove('opacity-100', 'max-h-20')
+        this.shortcutsTarget.classList.add('invisible')
       }
     }, 150)
   }
