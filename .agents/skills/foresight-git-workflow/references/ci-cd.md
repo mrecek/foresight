@@ -21,7 +21,7 @@ Completion means every required check is present on the pull request and success
 
 ## Dependency Ownership
 
-- Dependabot owns direct/indirect Bundler, GitHub Actions, and pinned Ruby base proposals.
+- Dependabot owns direct/indirect Bundler patch/minor proposals, separate security proposals, GitHub Actions, and pinned Ruby base proposals. Major modernization is reviewed manually.
 - Bundler patch/minor and the declared Ruby base patch updates are eligible for auto-merge after required checks; unknown metadata stays under review.
 - The Dockerfile is the sole Ruby version declaration. `bin/ruby-version` supplies local mise and the shared CI setup action.
 - The container release workflow owns daily OS-package refreshes. It rebuilds the named `os-packages` stage and publishes every verified scheduled candidate, including unchanged package inventories. The schedule also catches updates merged with `GITHUB_TOKEN`, which suppresses downstream push events.

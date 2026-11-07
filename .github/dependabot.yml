@@ -10,6 +10,9 @@ updates:
     # Include indirect gems even when the advisory is absent from GitHub alerts.
     allow:
       - dependency-type: all
+        update-types:
+          - "version-update:semver-patch"
+          - "version-update:semver-minor"
     open-pull-requests-limit: 5
     groups:
       minor-and-patch-gems:

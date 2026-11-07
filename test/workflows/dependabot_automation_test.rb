@@ -25,7 +25,7 @@ class DependabotAutomationTest < ActiveSupport::TestCase
 
   test "Dependabot groups Bundler version and security updates separately" do
     bundler = dependabot_updates.fetch("bundler")
-    assert_equal [ { "dependency-type" => "all" } ], bundler.fetch("allow")
+    assert_equal [ { "dependency-type" => "all", "update-types" => %w[version-update:semver-patch version-update:semver-minor] } ], bundler.fetch("allow")
     groups = bundler.fetch("groups")
 
     assert_equal "version-updates", groups.fetch("minor-and-patch-gems").fetch("applies-to")
@@ -64,11 +64,12 @@ class DependabotAutomationTest < ActiveSupport::TestCase
     assert_not Rails.root.join(".github/workflows/ruby-freshness.yml").exist?
   end
 
-  test "workflow-only and test-only changes do not publish an application image" do
-    workflow = Rails.root.join(".github/workflows/docker.yml").read
-
-    assert_includes workflow, '- ".github/**"'
-    assert_includes workflow, '- "test/**"'
+  test "every accepted main revision enters the same release lane" do
+    workflow = YAML.safe_load_file(Rails.root.join(".github/workflows/docker.yml"))
+    triggers = workflow.fetch("on", workflow[true])
+    assert_equal [ "main" ], triggers.fetch("push").fetch("branches")
+    assert_not triggers.fetch("push").key?("paths-ignore")
+    assert_not triggers.fetch("push").key?("paths")
   end
 
   test "Docker base is pinned by version and multi-architecture digest" do

@@ -13,15 +13,6 @@ on:
     - cron: "37 7 * * *"
   push:
     branches: [main]
-    paths-ignore:
-      - "*.md"
-      - "AGENTS.md"
-      - "CLAUDE.md"
-      - "docs/**"
-      - ".agents/**"
-      - ".claude/**"
-      - ".github/**"
-      - "test/**"
 
 concurrency:
   group: foresight-container-production
