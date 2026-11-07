@@ -10,7 +10,7 @@
 # This pinned base also declares the Ruby version used by local mise and CI. The digest pins the complete
 # multi-architecture Debian 13 base identity. Release builds invalidate the
 # os-packages stage so package refreshes are independent of source changes.
-FROM docker.io/library/ruby:3.4.11-slim-trixie@sha256:c12225b6a73743f943530d9e610f4ae78e0dbcffdcf797b01522a55f7d25acb3 AS os-packages
+FROM docker.io/library/ruby:3.4.11-slim-trixie@sha256:71363b823df5bdec8330f98578a2d16b6a43f6ca2aafe4321e478ba2362521c8 AS os-packages
 
 ARG DEBIAN_FRONTEND=noninteractive
 
