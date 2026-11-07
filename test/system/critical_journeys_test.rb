@@ -197,27 +197,15 @@ class CriticalJourneysTest < ApplicationSystemTestCase
   end
 
   test "owner creates a recurring transfer and sees generated occurrences" do
-    checking, savings = create_accounts
+    create_recurring_transfer { click_button "Create Rule" }
+  end
 
-    visit new_recurring_rule_path
-    assert_selector "[data-type-selector-ready='true']"
-    click_button "Transfer"
-    assert_selector "[data-field='destination_account']", visible: true
-    fill_in "recurring_rule_description", with: "Weekly savings"
-    select checking.name, from: "recurring_rule_account_id"
-    select savings.name, from: "recurring_rule_destination_account_id"
-    fill_in "recurring_rule_amount", with: "25.00"
-    select "Weekly", from: "recurring_rule_frequency"
-    assert_selector "[data-frequency-fields-target='dayOfWeek']", visible: true
-    assert_selector "[data-frequency-fields-target='dayOfMonth']", visible: false
-    fill_in "recurring_rule_anchor_date", with: Date.current
-    click_button "Create Rule"
-
-    assert_current_path recurring_rules_path
-    assert_text "Recurring rule created"
-    rule = RecurringRule.find_by!(description: "Weekly savings")
-    assert_not_empty rule.transactions
-    assert rule.transactions.all? { |transaction| transaction.linked_transaction.present? }
+  test "recurring transfer submission stays under a slower mouse click" do
+    create_recurring_transfer do
+      button = find_button("Create Rule")
+      button.scroll_to(:center)
+      page.driver.browser.action.click_and_hold(button.native).pause(duration: 0.25).release.perform
+    end
   end
 
   test "owner reviews and confirms reconciliation including today's transaction" do
@@ -254,6 +242,30 @@ class CriticalJourneysTest < ApplicationSystemTestCase
   end
 
   private
+  def create_recurring_transfer
+    checking, savings = create_accounts
+
+    visit new_recurring_rule_path
+    assert_selector "[data-type-selector-ready='true']"
+    click_button "Transfer"
+    assert_selector "[data-field='destination_account']", visible: true
+    fill_in "recurring_rule_description", with: "Weekly savings"
+    select checking.name, from: "recurring_rule_account_id"
+    select savings.name, from: "recurring_rule_destination_account_id"
+    fill_in "recurring_rule_amount", with: "25.00"
+    select "Weekly", from: "recurring_rule_frequency"
+    assert_selector "[data-frequency-fields-target='dayOfWeek']", visible: true
+    assert_selector "[data-frequency-fields-target='dayOfMonth']", visible: false
+    fill_in "recurring_rule_anchor_date", with: Date.current
+    yield
+
+    assert_current_path recurring_rules_path
+    assert_text "Recurring rule created"
+    rule = RecurringRule.find_by!(description: "Weekly savings")
+    assert_not_empty rule.transactions
+    assert rule.transactions.all? { |transaction| transaction.linked_transaction.present? }
+  end
+
 
   def assert_select_value(id, value)
     assert_equal value, find("##{id}", visible: :all).value
