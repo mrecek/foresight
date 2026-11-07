@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-image="foresight-validation:local"
-docker build --tag "$image" .
-bin/container-smoke "$image"
+image_id_file="$(mktemp)"
+trap 'rm -f "$image_id_file"' EXIT
+docker build --iidfile "$image_id_file" .
+bin/container-smoke "$(cat "$image_id_file")"

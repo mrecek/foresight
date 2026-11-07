@@ -1,11 +1,13 @@
-Yes# See https://docs.docker.com/engine/reference/builder/#dockerignore-file for more about ignoring files.
+# See https://docs.docker.com/engine/reference/builder/#dockerignore-file for more about ignoring files.
 
 # Ignore git directory.
 /.git/
 /.gitignore
 
-# Ignore bundler config.
+# Keep host/CI gem installations out of the production build context.
 /.bundle
+/bundle/
+/vendor/bundle/
 
 # Ignore all environment files.
 /.env*

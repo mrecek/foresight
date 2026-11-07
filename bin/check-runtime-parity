@@ -4,15 +4,10 @@
 require "open3"
 
 root = File.expand_path("..", __dir__)
-expected_ruby = File.read(File.join(root, ".ruby-version")).strip
-mise_config = File.read(File.join(root, ".mise.toml"))
-mise_ruby = mise_config[/^ruby\s*=\s*"(\d+\.\d+\.\d+)"\s*$/, 1]
-abort ".mise.toml must pin Ruby to an exact version" unless mise_ruby
-abort "Ruby source/mise mismatch: #{expected_ruby} != #{mise_ruby}" unless expected_ruby == mise_ruby
+expected_ruby, version_status = Open3.capture2e(File.join(root, "bin/ruby-version"))
+abort expected_ruby unless version_status.success?
+expected_ruby = expected_ruby.strip
 dockerfile = File.read(File.join(root, "Dockerfile"))
-docker_ruby = dockerfile[%r{^FROM docker\.io/library/ruby:(\d+\.\d+\.\d+)-slim-trixie@sha256:[0-9a-f]{64} AS os-packages$}, 1]
-abort "Dockerfile must pin the Ruby slim-trixie image by version and digest" unless docker_ruby
-abort "Ruby source/Docker mismatch: #{expected_ruby} != #{docker_ruby}" unless expected_ruby == docker_ruby
 abort "Dockerfile must not encode an OS package refresh epoch" if dockerfile.include?("OS_PATCH_EPOCH")
 abort "Dockerfile must combine apt update and upgrade in the os-packages stage" unless
   dockerfile.match?(/AS os-packages.*?RUN apt-get update -qq && \\\n\s+apt-get upgrade --with-new-pkgs -y/m)
@@ -28,4 +23,4 @@ abort "Could not determine the running Bundler version" unless status.success?
 running_bundler = bundler_output[/Bundler version ([\d.]+)/, 1]
 abort "Running Bundler mismatch: lockfile #{locked_bundler}, got #{running_bundler}" unless locked_bundler == running_bundler
 
-puts "Runtime parity passed: Ruby #{expected_ruby}, mise #{mise_ruby}, Bundler #{locked_bundler}, Docker image #{docker_ruby}."
+puts "Runtime parity passed: Ruby #{expected_ruby}, Bundler #{locked_bundler}, Docker image #{expected_ruby}."

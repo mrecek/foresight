@@ -42,31 +42,26 @@ class DependabotAutomationTest < ActiveSupport::TestCase
     assert actions.fetch("groups").key?("actions")
     assert_equal "weekly", docker.dig("schedule", "interval")
     ruby_ignore = docker.fetch("ignore").find { |entry| entry.fetch("dependency-name") == "library/ruby" }
-    assert_equal %w[version-update:semver-patch version-update:semver-minor version-update:semver-major],
+    assert_equal %w[version-update:semver-minor version-update:semver-major],
       ruby_ignore.fetch("update-types")
   end
 
-  test "Ruby patch automation validates candidates and avoids duplicate pull requests" do
-    workflow = Rails.root.join(".github/workflows/ruby-freshness.yml").read
+  test "Ruby base patch updates use the same required-check gate" do
+    assert_equal "true", eligibility_for("docker", "version-update:semver-patch", "library/ruby").fetch("eligible")
+    %w[version-update:semver-minor version-update:semver-major].each do |update_type|
+      assert_equal "false", eligibility_for("docker", update_type, "library/ruby").fetch("eligible")
+    end
+    assert_equal "false", eligibility_for("docker", "version-update:semver-patch", "other/image").fetch("eligible")
+    assert_equal "false", eligibility_for("docker", "", "library/ruby").fetch("eligible")
+    assert_equal "false", eligibility_for("docker", "version-update:semver-patch", "library/ruby, other/image").fetch("eligible")
+  end
 
-    assert_includes workflow, 'cron: "15 15 * * 1"'
-    assert_includes workflow, "bin/check-ruby-freshness"
-    refute_includes workflow, "gh pr list --state all"
-    assert_includes workflow, "branch: automation/ruby-patch"
-    assert_includes workflow, "steps.pull-request.outputs.pull-request-number"
-    refute_includes workflow, "pull-request-operation == 'created'"
-    assert_includes workflow, "mise lock ruby"
-    refute_includes workflow, "bin/validate --ci"
-    refute_includes workflow, "ruby/setup-ruby@"
-    assert_includes workflow, "gh workflow run ci.yml"
-    assert_includes workflow, "gh pr merge --auto --squash"
-
-    steps = YAML.safe_load(workflow).fetch("jobs").fetch("check").fetch("steps")
-    proposal = steps.find { |step| step["id"] == "pull-request" }
-    assert_match %r{\Apeter-evans/create-pull-request@[0-9a-f]{40}\z}, proposal.fetch("uses")
-    assert_equal %w[.ruby-version .mise.toml mise.lock Dockerfile], proposal.fetch("with").fetch("add-paths").split
-    dispatch = steps.find { |step| step.fetch("run", "").include?("gh workflow run ci.yml") }
-    assert_equal "steps.pull-request.outputs.pull-request-number && steps.pull-request.outputs.pull-request-operation != 'closed'", dispatch.fetch("if")
+  test "CI derives its runtime from the container declaration" do
+    action = YAML.safe_load_file(Rails.root.join(".github/actions/setup-runtime/action.yml"))
+    steps = action.fetch("runs").fetch("steps")
+    assert_includes steps.first.fetch("run"), "bin/ruby-version"
+    assert_equal "${{ steps.runtime.outputs.version }}", steps.last.fetch("with").fetch("ruby-version")
+    assert_not Rails.root.join(".github/workflows/ruby-freshness.yml").exist?
   end
 
   test "workflow-only and test-only changes do not publish an application image" do
@@ -79,7 +74,7 @@ class DependabotAutomationTest < ActiveSupport::TestCase
   test "Docker base is pinned by version and multi-architecture digest" do
     dockerfile = Rails.root.join("Dockerfile").read
 
-    assert_match %r{^FROM docker\.io/library/ruby:#{Regexp.escape(Rails.root.join(".ruby-version").read.strip)}-slim-trixie@sha256:[0-9a-f]{64} AS os-packages$}, dockerfile
+    assert_match %r{^FROM docker\.io/library/ruby:#{Regexp.escape(Open3.capture2(Rails.root.join("bin/ruby-version").to_s).first.strip)}-slim-trixie@sha256:[0-9a-f]{64} AS os-packages$}, dockerfile
     refute_includes dockerfile, "OS_PATCH_EPOCH"
     assert_includes dockerfile, "FROM os-packages AS build"
     assert_includes dockerfile, "FROM os-packages AS runtime"
@@ -101,11 +96,11 @@ class DependabotAutomationTest < ActiveSupport::TestCase
 
   private
 
-  def eligibility_for(ecosystem, update_type)
+  def eligibility_for(ecosystem, update_type, dependency_names = "")
     Tempfile.create("dependabot-output") do |output|
       stdout, stderr, status = Open3.capture3(
         { "GITHUB_OUTPUT" => output.path },
-        "bash", ELIGIBILITY_SCRIPT.to_s, ecosystem, update_type
+        "bash", ELIGIBILITY_SCRIPT.to_s, ecosystem, update_type, dependency_names
       )
       assert status.success?, [ stdout, stderr ].join("\n")
 

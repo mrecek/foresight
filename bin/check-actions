@@ -4,7 +4,8 @@
 require "yaml"
 
 root = File.expand_path("..", __dir__)
-workflow_paths = Dir.glob(File.join(root, ".github/workflows/*.{yml,yaml}"))
+workflow_paths = Dir.glob(File.join(root, ".github/workflows/*.{yml,yaml}")) +
+  Dir.glob(File.join(root, ".github/actions/*/action.{yml,yaml}"))
 errors = []
 
 workflow_paths.each do |path|
@@ -44,4 +45,4 @@ rescue Psych::SyntaxError => error
 end
 
 abort errors.join("\n") if errors.any?
-puts "Action contract passed: #{workflow_paths.size} workflows pin actions, hosted runners, Buildx, and BuildKit."
+puts "Action contract passed: #{workflow_paths.size} workflow/action files pin actions, hosted runners, Buildx, and BuildKit."

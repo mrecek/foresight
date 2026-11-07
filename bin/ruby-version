@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+version="$(sed -nE 's|^FROM docker\.io/library/ruby:([0-9]+\.[0-9]+\.[0-9]+)-slim-trixie@sha256:[0-9a-f]{64} AS os-packages$|\1|p' "${1:-$root/Dockerfile}")"
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "Dockerfile must declare exactly one version-and-digest-pinned Ruby base in os-packages" >&2
+  exit 1
+fi
+printf '%s\n' "$version"

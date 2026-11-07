@@ -21,16 +21,16 @@ Completion means every required check is present on the pull request and success
 
 ## Dependency Ownership
 
-- Dependabot owns Bundler, GitHub Actions, and Docker base-digest proposals.
-- Only Bundler patch and minor changes are eligible for auto-merge.
-- The Ruby freshness workflow owns patch updates across `.ruby-version`, `.mise.toml`, `mise.lock`, and the digest-pinned Docker base.
+- Dependabot owns direct/indirect Bundler, GitHub Actions, and pinned Ruby base proposals.
+- Bundler patch/minor and the declared Ruby base patch updates are eligible for auto-merge after required checks; unknown metadata stays under review.
+- The Dockerfile is the sole Ruby version declaration. `bin/ruby-version` supplies local mise and the shared CI setup action.
 - The container release workflow owns daily OS-package refreshes. It rebuilds the named `os-packages` stage and publishes every verified scheduled candidate, including unchanged package inventories. The schedule also catches updates merged with `GITHUB_TOKEN`, which suppresses downstream push events.
-- Ruby minor and major upgrades, GitHub Actions, and Docker changes stay under human review.
+- Ruby minor and major upgrades, GitHub Actions, and unrelated Docker image changes stay under human review.
 - The scheduled security workflow audits dependencies and scans the released digest daily with read-only permissions. Vulnerable images and builds older than seven days fail with actionable evidence; remediation travels through source updates and the independent release lane.
 
-Inspect Dependabot metadata and the eligibility script before changing an auto-merge boundary. Complete a change only when an ineligible ecosystem and major Bundler update still fail closed.
+Inspect Dependabot metadata and the eligibility script before changing an auto-merge boundary. Complete a change only when an unrelated Docker image, Ruby series change, ineligible ecosystem and major Bundler update still fail closed.
 
-The Ruby updater uses a stable automation branch and the pinned create-pull-request action to create or update its proposal. Closing an unmerged proposal does not permanently suppress future attempts: the next stale-version run recreates the proposal. To pause updates intentionally, disable the freshness workflow. The updater dispatches `ci.yml` explicitly on every open proposal head because `GITHUB_TOKEN` events do not start unattended pull-request CI. If one stalls, inspect the freshness run, dispatched CI at the current head, and required checks. An unsupported Ruby error from setup-ruby requires a reviewed action-pin update before retrying; the action embeds its supported runtime list.
+For a stalled runtime update, inspect the ordinary Dependabot PR at its current head and its required checks. An unsupported Ruby installer requires a reviewed pin update in `.github/actions/setup-runtime/action.yml` before retrying. Version changes use the same Dependabot validation path as digest refreshes; no custom Ruby publisher or credential is needed.
 
 ## Container Publication
 

@@ -16,7 +16,7 @@ mise run setup
 mise run dev
 ```
 
-Without mise, install the exact Ruby version in `.ruby-version`, then run:
+Without mise, install the exact Ruby version printed by `bin/ruby-version`, then run:
 
 ```bash
 bin/setup --skip-server

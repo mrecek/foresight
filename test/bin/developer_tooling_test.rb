@@ -12,12 +12,13 @@ class DeveloperToolingTest < ActiveSupport::TestCase
   test "mise stays a thin wrapper around canonical repository commands" do
     config = ROOT.join(".mise.toml").read
 
-    assert_includes config, %(ruby = "#{ROOT.join(".ruby-version").read.strip}")
+    assert_includes config, "exec(command='bin/ruby-version')"
     assert_includes config, 'run = "bin/setup --skip-server"'
     assert_includes config, 'run = "bin/dev"'
     assert_includes config, 'run = "bin/test"'
     assert_includes config, 'run = "bin/validate"'
-    refute_includes ROOT.join("mise.lock").read, "windows"
+    assert_not ROOT.join(".ruby-version").exist?
+    assert_not ROOT.join("mise.lock").exist?
   end
 
   test "commit message hook accepts conventional subjects" do
