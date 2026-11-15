@@ -14,7 +14,7 @@ module Foresight
         [ "bin/transfers" ]
       ],
       "test" => [ [ "bin/test" ] ],
-      "container" => [ [ "bin/container-check" ] ]
+      "container" => [ [ "bin/check-container-cache" ], [ "bin/container-check" ] ]
     }.freeze
 
     CI_STAGES = %w[runtime lint security-ruby security-js architecture test].freeze

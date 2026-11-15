@@ -19,7 +19,8 @@ WORKDIR /rails
 
 # Upgrade inherited packages and install the runtime library and process init.
 # apt metadata refresh, upgrade, install, and cleanup stay in one layer so a
-# targeted --no-cache-filter os-packages build observes the current archive.
+# release cache filters rebuild this stage and the final runtime, preventing
+# imported runtime layers from restoring a previous refresh.
 RUN apt-get update --error-on=any -qq && \
     apt-get upgrade --with-new-pkgs -y && \
     apt-get install --no-install-recommends -y libjemalloc2 tini && \

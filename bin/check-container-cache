@@ -1,0 +1,68 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "open3"
+require "securerandom"
+require "tmpdir"
+require "yaml"
+
+root = File.expand_path("..", __dir__)
+workflow = YAML.safe_load_file(File.join(root, ".github/workflows/docker.yml"), aliases: true)
+buildkit = workflow.fetch("env").fetch("BUILDKIT_IMAGE")
+build = workflow.fetch("jobs").fetch("build").fetch("steps").find { |step| step["id"] == "push" }
+filters = build.fetch("with").fetch("no-cache-filters")
+base = File.read(File.join(root, "Dockerfile")).match(/^FROM (\S+) AS os-packages$/)[1]
+identity = "foresight-cache-#{SecureRandom.hex(6)}"
+markers = []
+
+Dir.mktmpdir("foresight-container-cache-") do |directory|
+  # The payload stays unchanged. Only the ancestor's refresh evidence changes.
+  # A new builder imports the prior cache, matching separate hosted release runs.
+  File.write(File.join(directory, "Dockerfile"), <<~DOCKERFILE)
+    FROM #{base} AS os-packages
+    RUN date -u +%s%N > /refreshed
+    FROM os-packages AS build
+    RUN echo payload > /artifact
+    FROM os-packages AS runtime
+    RUN mkdir /output
+    COPY --from=build /artifact /output/artifact
+  DOCKERFILE
+
+  2.times do |attempt|
+    builder = "#{identity}-#{attempt}"
+    image = "#{identity}:#{attempt}"
+    log_path = File.join(directory, "build-#{attempt}.log")
+    begin
+      File.open(log_path, "w") do |log|
+        run = lambda do |*arguments|
+          unless system(*arguments, out: log, err: [ :child, :out ])
+            log.flush
+            abort "Imported-cache verification failed:\n#{File.readlines(log_path).last(60).join}"
+          end
+        end
+        run.call("docker", "buildx", "create", "--name", builder,
+          "--driver", "docker-container", "--driver-opt", "image=#{buildkit}")
+        arguments = [ "docker", "buildx", "build", "--builder", builder,
+          "--progress", "plain", "--load", "--tag", image,
+          "--no-cache-filter", filters ]
+        if attempt.zero?
+          arguments += [ "--cache-to", "type=local,dest=#{directory}/cache,mode=max" ]
+        else
+          arguments += [ "--cache-from", "type=local,src=#{directory}/cache" ]
+        end
+        run.call(*arguments, directory)
+      end
+      output, error, status = Open3.capture3("docker", "run", "--rm", "--entrypoint", "cat", image, "/refreshed")
+      abort "Could not read imported-cache refresh evidence: #{error}" unless status.success?
+      marker = output.strip
+      abort "Invalid imported-cache refresh evidence: #{marker.inspect}" unless marker.match?(/\A\d+\z/)
+      markers << marker
+    ensure
+      Open3.capture3("docker", "buildx", "rm", builder)
+      Open3.capture3("docker", "image", "rm", "--force", image)
+    end
+  end
+end
+
+abort "Imported runtime cache retained old OS refresh evidence; invalidate the final runtime stage" unless markers.last.to_i > markers.first.to_i
+puts "Imported-cache verification passed: final runtime refresh advanced with #{filters}."

@@ -113,7 +113,8 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.release.outputs.candidate }}
           cache-from: type=gha,scope=foresight
           cache-to: type=gha,mode=max,scope=foresight
-          no-cache-filters: os-packages
+          # Imported cache can otherwise restore an old runtime base through COPY.
+          no-cache-filters: os-packages,runtime
           provenance: mode=max
           sbom: true
           labels: |
