@@ -64,7 +64,7 @@ class ContainerRefreshTest < ActiveSupport::TestCase
 
     {
       build => [ "Verify candidate platforms", "Verify candidate provenance and SBOM", "Validate application at candidate source" ],
-      verify => [ "Smoke test exact candidate on its native architecture", "Scan native candidate with Trivy", "Verify candidate runtime and vulnerability policy" ],
+      verify => [ "Verify candidate OS refresh", "Smoke test exact candidate on its native architecture", "Scan native candidate with Trivy", "Verify candidate runtime and vulnerability policy" ],
       promote => [ "Generate provenance attestation", "Promote verified candidate" ]
     }.each do |job, names|
       names.each do |name|

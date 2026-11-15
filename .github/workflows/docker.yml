@@ -42,6 +42,7 @@ jobs:
       release_id: ${{ steps.release.outputs.release_id }}
       reason: ${{ steps.release.outputs.reason }}
       promoted_digest: ${{ steps.promoted.outputs.digest }}
+      build_started_at: ${{ steps.release.outputs.built_at }}
     steps:
       - name: Checkout release commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -194,6 +195,12 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify candidate OS refresh
+        env:
+          BUILD_STARTED_AT: ${{ needs.build.outputs.build_started_at }}
+          PLATFORM: ${{ matrix.platform }}
+        run: bin/check-container-freshness "${REGISTRY}/${IMAGE_NAME}@${DIGEST}" "$PLATFORM" "$BUILD_STARTED_AT"
 
       - name: Smoke test exact candidate on its native architecture
         shell: bash

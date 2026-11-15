@@ -1,0 +1,74 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "json"
+require "open3"
+
+module MaintenanceFailure
+  TITLE = "Foresight maintenance needs attention"
+
+  def self.body(previous, run, jobs)
+    lane = run.fetch("workflow_id").to_s
+    pattern = /<!-- maintenance-workflow:#{Regexp.escape(lane)} -->.*?<!-- \/maintenance-workflow:#{Regexp.escape(lane)} -->\n?/m
+    current = previous.to_s[pattern]
+    prior = current.to_s.match(/<!-- maintenance-run:(\d+):(\d+) -->/)
+    identity = [ run.fetch("id"), run.fetch("run_attempt", 1) ]
+    return previous if prior && ([ prior[1].to_i, prior[2].to_i ] <=> identity) == 1
+
+    stages = jobs.select { |job| job["conclusion"] == "failure" }.map { |job| job.fetch("name") }
+    section = <<~TEXT
+      <!-- maintenance-workflow:#{lane} -->
+      <!-- maintenance-run:#{identity.join(':')} -->
+      ### #{run.fetch('name')}
+      - Latest failed run: #{run.fetch('html_url')}
+      - Source: `#{run.fetch('head_sha')}`
+      - Failed stages: #{stages.empty? ? 'Unavailable; inspect run logs' : stages.join(', ')}
+      - Released/candidate digest: inspect linked run evidence; not inferred from source SHA.
+      <!-- /maintenance-workflow:#{lane} -->
+    TEXT
+    header = <<~TEXT
+      First observed failure: #{run.fetch('html_url')} (#{run.fetch('created_at')})
+
+      Owner: @mrecek
+      Next action: inspect the failed stages and record the cause, affected digest and remediation below.
+      Review new advisories and escalate fixable security blockers unresolved after 24 hours.
+      Close explicitly after affected checks and the exact released-image audit recover.
+      Successful or cancelled runs do not automatically close this issue.
+
+      ## Operator notes
+
+      Record diagnosis and next action here. Automated updates preserve these notes.
+
+    TEXT
+    previous = header if previous.to_s.empty?
+    previous.match?(pattern) ? previous.sub(pattern) { section } : previous + "\n" + section
+  end
+
+  def self.gh(*arguments, input: nil)
+    output, error, status = Open3.capture3("gh", *arguments, stdin_data: input.to_s)
+    abort "GitHub maintenance reporting failed: #{error}" unless status.success?
+    JSON.parse(output)
+  end
+
+  def self.report
+    repo = ENV.fetch("GITHUB_REPOSITORY")
+    run_id = ENV.fetch("MAINTENANCE_RUN_ID")
+    run = gh("api", "repos/#{repo}/actions/runs/#{run_id}")
+    return unless run["status"] == "completed" && run["conclusion"] == "failure"
+
+    pages = gh("api", "--paginate", "--slurp", "repos/#{repo}/actions/runs/#{run_id}/jobs?per_page=100")
+    jobs = pages.flat_map { |page| page.fetch("jobs") }
+    issues = gh("issue", "list", "--repo", repo, "--state", "open", "--limit", "1000", "--json", "number,title,body")
+    matches = issues.select { |issue| issue["title"] == TITLE }
+    abort "Multiple active maintenance issues; consolidate explicitly" if matches.length > 1
+    existing = matches.first
+    payload = { body: body(existing && existing["body"], run, jobs), assignees: [ "mrecek" ] }
+    if existing
+      gh("api", "--method", "PATCH", "repos/#{repo}/issues/#{existing.fetch('number')}", "--input", "-", input: JSON.generate(payload))
+    else
+      gh("api", "--method", "POST", "repos/#{repo}/issues", "--input", "-", input: JSON.generate(payload.merge(title: TITLE)))
+    end
+  end
+end
+
+MaintenanceFailure.report if $PROGRAM_NAME == __FILE__

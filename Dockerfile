@@ -20,11 +20,12 @@ WORKDIR /rails
 # Upgrade inherited packages and install the runtime library and process init.
 # apt metadata refresh, upgrade, install, and cleanup stay in one layer so a
 # targeted --no-cache-filter os-packages build observes the current archive.
-RUN apt-get update -qq && \
+RUN apt-get update --error-on=any -qq && \
     apt-get upgrade --with-new-pkgs -y && \
     apt-get install --no-install-recommends -y libjemalloc2 tini && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
-    rm -rf /var/lib/apt/lists /var/cache/apt/archives
+    rm -rf /var/lib/apt/lists /var/cache/apt/archives && \
+    date -u +%Y-%m-%dT%H:%M:%SZ > /usr/local/share/foresight-os-refreshed-at
 
 # Set production environment variables and enable jemalloc for reduced memory usage and latency.
 # Puma listens on an unprivileged port so the image runs cleanly as a non-root user
@@ -40,7 +41,7 @@ ENV RAILS_ENV="production" \
 FROM os-packages AS build
 
 # Install packages needed to build gems
-RUN apt-get update -qq && \
+RUN apt-get update --error-on=any -qq && \
     apt-get install --no-install-recommends -y build-essential git libyaml-dev pkg-config && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 

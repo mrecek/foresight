@@ -126,30 +126,13 @@ jobs:
           bin/container-gem-versions "$reference" "$PLATFORM" "gems-$ARCH.json"
           bin/check-trivy-report "trivy-$ARCH.json" "gems-$ARCH.json"
 
-      - name: Check released platform image age
+      - name: Check released platform OS refresh age
         if: always() && needs.resolve.outputs.digest != ''
         env:
           PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
-          reference="${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
-          docker pull --platform "$PLATFORM" "$reference" >/dev/null
-          built_at="$(docker image inspect "$reference" --format '{{.Created}}')"
-          built_epoch="$(date -u -d "$built_at" +%s)"
-          now="$(date -u +%s)"
-          {
-            echo "## Released container: ${PLATFORM}"
-            echo
-            echo "- Digest: \`${reference}\`"
-            echo "- Built: \`${built_at}\`"
-            echo "- Daily release and audit schedules are best effort; a build older than seven days fails this fallback check."
-            echo "- Vulnerability policy result: \`${{ steps.policy.outcome }}\`"
-            echo "- Remediation: update affected source dependencies or inspect the daily release workflow. This audit does not dispatch rebuilds."
-          } >> "$GITHUB_STEP_SUMMARY"
-          if (( now - built_epoch > 7 * 24 * 60 * 60 )); then
-            echo "::error::Released image for ${PLATFORM} is older than seven days; inspect the release workflow."
-            exit 1
-          fi
+          bin/check-container-freshness "${REGISTRY}/${IMAGE_NAME}@${DIGEST}" "$PLATFORM" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload released platform evidence
         if: always()

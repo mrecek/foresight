@@ -10,7 +10,7 @@ expected_ruby = expected_ruby.strip
 dockerfile = File.read(File.join(root, "Dockerfile"))
 abort "Dockerfile must not encode an OS package refresh epoch" if dockerfile.include?("OS_PATCH_EPOCH")
 abort "Dockerfile must combine apt update and upgrade in the os-packages stage" unless
-  dockerfile.match?(/AS os-packages.*?RUN apt-get update -qq && \\\n\s+apt-get upgrade --with-new-pkgs -y/m)
+  dockerfile.match?(/AS os-packages.*?RUN apt-get update --error-on=any -qq && \\\n\s+apt-get upgrade --with-new-pkgs -y/m)
 abort "Dockerfile build stage must inherit the refreshed OS packages" unless dockerfile.include?("FROM os-packages AS build")
 abort "Dockerfile runtime stage must inherit the refreshed OS packages" unless dockerfile.include?("FROM os-packages AS runtime")
 abort "Running Ruby mismatch: expected #{expected_ruby}, got #{RUBY_VERSION}" unless expected_ruby == RUBY_VERSION
