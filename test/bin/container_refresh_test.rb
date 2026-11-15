@@ -84,7 +84,7 @@ class ContainerRefreshTest < ActiveSupport::TestCase
     audit = ROOT.join(".github/workflows/security-audit.yml").read
 
     assert_includes release, 'cron: "37 7 * * *"'
-    assert_includes release, "no-cache-filters: os-packages"
+    assert_includes release, "no-cache-filters: os-packages,runtime"
     assert_includes release, "scheduled-refresh"
     assert_includes audit, 'bin/resolve-image-digest "${REGISTRY}/${IMAGE_NAME}:latest"'
     refute_includes audit, "gh workflow run"

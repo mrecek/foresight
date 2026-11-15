@@ -46,7 +46,7 @@ Use focused checks while working and run the complete contract before opening a 
 bin/validate
 ```
 
-This checks runtime and workflow parity, style, dependency and application security, Rails autoloading, database migrations, financial transfer invariants, the complete automated test suite, and a production-container build and smoke test.
+This checks runtime and workflow parity, style, dependency and application security, Rails autoloading, database migrations, financial transfer invariants, the complete automated test suite, imported container-cache freshness, and a production-container build and smoke test.
 
 Useful focused commands include:
 
