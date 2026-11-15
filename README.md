@@ -232,7 +232,7 @@ Dependabot proposes direct and indirect gem patch/minor updates and the pinned R
 
 The release workflow rebuilds the production image daily against current Debian repositories. Every candidate passes application validation, smoke tests on native `linux/amd64` and `linux/arm64` runners, including real queued maintenance and three strict shutdown/restart cycles for web and jobs, fixable HIGH/CRITICAL vulnerability checks, manifest checks, and provenance/SBOM verification before publication. Scheduled builds publish even when package versions are unchanged. This also picks up dependency updates merged by automation whose GitHub token suppresses push-triggered releases; every accepted human main-branch change, including maintenance policy changes, enters the release lane immediately. GitHub schedules are best effort, so daily publication is an expectation rather than a delivery guarantee.
 
-A separate daily audit scans the exact published digest and checks the effective runtime gems inside each platform image. Its narrowly scoped exception for an inactive bundled default gem requires the loaded replacement to satisfy the specific advisory's safe version. Unknown advisories fail closed. The audit reports unfixed HIGH/CRITICAL findings and blocks fixable findings; it also fails if the published build is older than seven days. Audit failures point to the affected dependency or release workflow without dispatching another rebuild.
+A separate daily audit scans the exact published digest and checks the effective runtime gems inside each platform image. Its narrowly scoped exception for an inactive bundled default gem requires the loaded replacement to satisfy the specific advisory's safe version. Unknown advisories fail closed. The audit reports unfixed HIGH/CRITICAL findings and blocks fixable findings; it also fails if the completed OS refresh is older than seven days. A timestamp written only after a successful strict package refresh is checked in both native release verification and the published-image audit; Docker creation timestamps and publication labels are not refresh evidence. Audit failures point to the affected dependency or release workflow without dispatching another rebuild.
 
 Source releases, refreshes, retention, and rollback share one serialized production lane. Manual rollback selects a retained immutable release tag and supplies the expected current digest, preventing an operator from overwriting a newer release accidentally. Manual retention runs are dry-run by default; scheduled cleanup keeps the latest 30 promoted digests, preserves the current release and attestation metadata, and expires candidate-only artifacts after 14 days.
 
@@ -243,13 +243,19 @@ Foresight is maintained primarily for the author's own use and shared in the hop
 Bundler maintenance includes direct and indirect gems. If a grouped proposal fails
 security validation, inspect the complete audit output and update every affected
 dependency in that proposal; rebuilding the unchanged lockfile cannot repair it.
-Keep one tracked incident for an unresolved cause, with its failing run, affected
-source or digest, next action and owner. Add repeat failures to that record.
-Escalate when a new cause appears or a fixable security blocker remains unresolved
-for 24 hours. Record recovery only after the required checks and release pass.
-A stale-image alert can be a consequence of a blocked release; retain both pieces
-of evidence in the same incident rather than treating each daily run as a new
-outage. Never dismiss a vulnerability or bypass a required check to clear alerts.
+A failure reporter opens or updates one active GitHub maintenance issue assigned to
+`mrecek`, preserving the first failure, latest failed run per workflow, and operator
+notes. The owner records the affected digest, diagnosis and next action, reviews
+new advisories, and escalates fixable security blockers unresolved after 24 hours.
+Repeat failures update the issue body without daily comments. GitHub's individual
+workflow emails remain controlled by personal notification settings.
+
+Recovery is explicit: close the issue only after affected checks and the exact
+released-image audit recover. Successful or cancelled runs never close it
+automatically. Portfolio records implementation and qualification, while the GitHub
+issue is the active incident record. The reporter cannot rebuild, merge, publish
+or deploy. A stale refresh can be a consequence of a blocked release; retain both
+pieces of evidence in the same issue.
 
 An unsupported Ruby installer leaves the Dependabot proposal visible with failing
 required CI. Update the pinned installer in the shared setup action through review
