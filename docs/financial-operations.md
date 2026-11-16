@@ -36,3 +36,23 @@ account and deleted count. Removing one transfer side for reconciliation retains
 the other account's financial history as an unlinked record. Explicit transfer
 deletion removes both sides. Repeating a reconciliation does not repeat deletions
 of rows that are already absent.
+
+## Recurring occurrence removals
+
+Explicit transaction deletion and reconciliation persist `OccurrenceExclusion`
+records for both the removed date and any original date of a moved occurrence.
+Exclusions belong to the recurring rule and suppress regeneration of the entire
+occurrence, including a transfer pair. Reconciliation retains the other account's
+unlinked history; automatic rule updates preserve excluded dates as well.
+Deleting a rule removes its exclusions. Automatic projection rebuilding does
+not create exclusions, so ordinary rule changes can regenerate future entries.
+
+`TransferCommand.destroy(..., exclude_occurrence: true)` records intentional
+removals atomically with row deletion and audit. Internal rebuild and account/rule
+cleanup use the default `false`. `TransferCommand.create_occurrence` checks for
+exclusions inside its persistence transaction, including busy retries.
+
+Moving an occurrence onto an occupied rule/account/date returns a validation
+error and leaves the stored rows unchanged. A uniqueness conflict during the save
+is translated to the same validation outcome; the database constraint remains
+the final concurrency guard.

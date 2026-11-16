@@ -24,6 +24,29 @@ class CriticalJourneysTest < ApplicationSystemTestCase
     @original_auth_environment.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
   end
 
+  test "owner adds an account from the dashboard" do
+    create_accounts
+    page.current_window.resize_to(390, 844)
+    visit root_path
+    click_link "Add Account"
+    assert_current_path new_account_path
+    assert_selector "h1", text: "New Account"
+    fill_in "Name", with: "Holiday savings"
+    fill_in "Current balance", with: "250.00"
+    click_button "Create Account"
+    assert_current_path accounts_path
+    assert_text "Holiday savings"
+  end
+
+  test "owner opens account creation from the empty dashboard" do
+    visit root_path
+    click_link "Create Account"
+    assert_current_path new_account_path
+    assert_selector "h1", text: "New Account"
+    click_link "Cancel"
+    assert_current_path accounts_path
+  end
+
   test "owner signs in after a rejected attempt and signs out" do
     ENV.delete("TEST_MODE")
     Setting.instance.update!(auth_username: "owner", auth_password: "password-123")
@@ -41,6 +64,39 @@ class CriticalJourneysTest < ApplicationSystemTestCase
     click_button "Logout"
     assert_current_path login_path
     assert_text "You've been signed out."
+  end
+
+  test "expired dashboard frame navigation opens the full login page" do
+    ENV.delete("TEST_MODE")
+    create_accounts
+    Setting.instance.update!(auth_username: "owner", auth_password: "password-123")
+    visit login_path
+    fill_in "Username", with: "owner"
+    fill_in "Password", with: "password-123"
+    click_button "Sign In"
+    assert_current_path root_path
+
+    travel 31.minutes do
+      find("a[href*='months=6']", match: :first).click
+      assert_current_path login_path
+      assert_field "Username"
+      assert_text "Your session has expired"
+      assert_no_text "Content missing"
+    end
+  end
+
+  test "recurring date collision preserves the edit form" do
+    checking, = create_accounts
+    rule = create_recurring_rule!(account: checking, description: "Daily expense", amount: 10,
+      rule_type: :expense, frequency: :daily, anchor_date: Date.current)
+    occurrence = rule.transactions.find_by!(date: Date.current)
+    visit edit_transaction_path(occurrence)
+    assert_selector "[data-smart-amount-ready='true']"
+    fill_in "transaction_date", with: Date.tomorrow
+    click_button "Update Transaction"
+    assert_text "already has an occurrence"
+    assert_equal Date.tomorrow.iso8601, find("#transaction_date").value
+    assert_equal Date.current, occurrence.reload.date
   end
 
   test "authorized owner signs in through OIDC without a password fallback" do

@@ -124,6 +124,41 @@ class TransactionChangeTest < ActiveSupport::TestCase
     singleton.define_method(:log_update, original) if original
   end
 
+  test "recurring date collisions are validation errors with unchanged financial state" do
+    rule = create_recurring_rule!(account: @checking, destination_account: @savings,
+      description: "Daily", amount: 10, rule_type: :transfer, frequency: :daily, anchor_date: Date.current)
+    @transaction = rule.transactions.find_by!(account: @checking, date: Date.current)
+    before = rule.transactions.order(:id).map(&:attributes)
+    assert_no_difference "AuditLog.count" do
+      error = assert_raises(ActiveRecord::RecordInvalid) { edit(date: Date.tomorrow.iso8601) }
+      assert_includes error.record.errors[:date], "already has an occurrence for this recurring rule and account"
+      assert_equal Date.tomorrow, error.record.date
+    end
+    assert_equal before, rule.transactions.order(:id).map(&:attributes)
+  end
+
+  test "an occurrence inserted after the collision precheck becomes a validation error" do
+    rule = create_recurring_rule!(account: @checking, description: "Weekly", amount: 10,
+      rule_type: :expense, frequency: :weekly, anchor_date: Date.current)
+    @transaction = rule.transactions.find_by!(date: Date.current)
+    singleton = TransferCommand.singleton_class
+    original = singleton.instance_method(:update)
+    singleton.define_method(:update) do |transaction, attributes, &audit|
+      Transaction.create!(account: transaction.account, recurring_rule: transaction.recurring_rule,
+        date: Date.tomorrow, amount: -10, description: "Concurrent occurrence", status: :estimated)
+      original.bind_call(self, transaction, attributes, &audit)
+    end
+
+    assert_no_difference "AuditLog.count" do
+      error = assert_raises(ActiveRecord::RecordInvalid) { edit(date: Date.tomorrow.iso8601) }
+      assert_includes error.record.errors[:date], "already has an occurrence for this recurring rule and account"
+    end
+    assert_equal Date.current, @transaction.reload.date
+    assert_equal 1, rule.transactions.where(date: Date.tomorrow).count
+  ensure
+    singleton.define_method(:update, original) if original
+  end
+
   private
 
   def edit(**attributes)

@@ -23,7 +23,14 @@ class TransactionChange
         end
       end
 
+      validate_occurrence_collision!(transaction, values)
       TransferCommand.update(transaction, values) { |record| AuditLog.log_update(record, audit_context) }
+    rescue ActiveRecord::RecordNotUnique => error
+      # A concurrent edit/materialization can win after the collision precheck.
+      raise unless transaction.recurring_rule_id &&
+        error.message.include?("transactions.recurring_rule_id, transactions.account_id, transactions.date")
+
+      occurrence_collision!(transaction)
     end
 
     def confirm_actual(transaction, amount:, audit_context:)
@@ -36,6 +43,21 @@ class TransactionChange
     end
 
     private
+
+    def validate_occurrence_collision!(transaction, values)
+      return unless transaction.recurring_rule_id
+
+      counterpart = transaction.linked_transaction
+      destination = values.fetch("destination_account_id", counterpart&.account_id)
+      account_ids = [ transaction.account_id, destination ].compact
+      collisions = Transaction.where(recurring_rule_id: transaction.recurring_rule_id,
+        account_id: account_ids, date: transaction.date).where.not(id: [ transaction.id, counterpart&.id ].compact)
+      occurrence_collision!(transaction) if collisions.exists?
+    end
+
+    def occurrence_collision!(transaction)
+      invalid!(transaction, :date, "already has an occurrence for this recurring rule and account")
+    end
 
     def normalize!(transaction, values)
       values["amount"] = parse_amount!(transaction, values["amount"]) if values.key?("amount")

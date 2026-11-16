@@ -8,7 +8,7 @@ end
 
 puts "Seeding demo data..."
 
-# Set up demo credentials for easy testing (demo / demo1234)
+# Create demo credentials only when password setup is incomplete; preserve configured credentials.
 settings = Setting.instance
 unless settings.setup_complete?
   settings.update!(
@@ -18,7 +18,7 @@ unless settings.setup_complete?
   puts "Created demo credentials (username: demo, password: demo1234)"
 end
 
-# Clear existing data for demo seeding
+# Destructive reset of financial data in the selected database. Use a disposable database.
 Transaction.update_all(linked_transaction_id: nil)
 Transaction.destroy_all
 RecurringRule.destroy_all

@@ -4,17 +4,11 @@ class TransferCommand
 
   class << self
     def create(attributes, &audit)
-      with_busy_retry do
-        Transaction.transaction(requires_new: true) do
-          values, destination_id = split_destination(attributes)
-          source = Transaction.new(values)
-          source.destination_account_id = destination_id
-          source.save!
-          link_pair!(source, destination_id) if destination_id.present?
-          audit&.call(source)
-          source
-        end
-      end
+      persist(attributes, &audit)
+    end
+
+    def create_occurrence(attributes)
+      persist(attributes, respect_exclusions: true)
     end
 
     def update(transaction, attributes, &audit)
@@ -36,10 +30,14 @@ class TransferCommand
       end
     end
 
-    def destroy(transaction, pair: true, &audit)
+    def destroy(transaction, pair: true, exclude_occurrence: false, &audit)
       with_busy_retry do
         Transaction.transaction do
           counterpart = transaction.linked_transaction
+          if exclude_occurrence
+            OccurrenceExclusion.record!(transaction)
+            OccurrenceExclusion.record!(counterpart) if pair && counterpart
+          end
           audit&.call(transaction)
           transaction.update_column(:linked_transaction_id, nil) if counterpart
           counterpart&.update_column(:linked_transaction_id, nil)
@@ -50,6 +48,26 @@ class TransferCommand
     end
 
     private
+
+    def persist(attributes, respect_exclusions: false, &audit)
+      with_busy_retry do
+        Transaction.transaction(requires_new: true) do
+          values, destination_id = split_destination(attributes)
+          # Recheck inside the write transaction/retry boundary so concurrent
+          # reconciliation cannot be followed by a stale projection insert.
+          if respect_exclusions && OccurrenceExclusion.exists?(
+            recurring_rule_id: values[:recurring_rule]&.id, date: values[:date])
+            next
+          end
+          source = Transaction.new(values)
+          source.destination_account_id = destination_id
+          source.save!
+          link_pair!(source, destination_id) if destination_id.present?
+          audit&.call(source)
+          source
+        end
+      end
+    end
 
     def split_destination(attributes)
       values = attributes.to_h.with_indifferent_access

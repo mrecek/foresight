@@ -247,7 +247,7 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "destroy failure redirects to safe return_url" do
-    fake_transaction = Object.new
+    fake_transaction = Transaction.new
     fake_transaction.define_singleton_method(:linked_transaction) { nil }
     fake_transaction.define_singleton_method(:destroy!) do
       raise ActiveRecord::RecordNotDestroyed.new("Could not destroy transaction", Transaction.new)

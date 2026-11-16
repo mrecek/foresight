@@ -50,7 +50,7 @@ class TransactionsController < ApplicationController
   end
 
   def destroy
-    TransferCommand.destroy(@transaction) { |transaction| AuditLog.log_delete(transaction, request) }
+    TransferCommand.destroy(@transaction, exclude_occurrence: true) { |transaction| AuditLog.log_delete(transaction, request) }
     redirect_to transaction_return_url, notice: "Transaction deleted."
   rescue ActiveRecord::RecordNotDestroyed => e
     redirect_to transaction_return_url, alert: "Failed to delete transaction: #{e.message}"

@@ -1,11 +1,8 @@
 # syntax=docker/dockerfile:1
 # check=error=true
 
-# This Dockerfile is designed for production, not development. Build and run it with any OCI-compatible platform:
-# docker build -t foresight .
-# docker run -d -p 3000:8080 -v foresight_data:/rails/storage --name foresight foresight
-
-# For a containerized dev environment, see Dev Containers: https://guides.rubyonrails.org/getting_started_with_devcontainer.html
+# Production OCI image. See README.md for the web/jobs container contract,
+# shared local SQLite storage, preparation, and shutdown requirements.
 
 # This pinned base also declares the Ruby version used by local mise and CI. The digest pins the complete
 # multi-architecture Debian 13 base identity. Release builds invalidate the

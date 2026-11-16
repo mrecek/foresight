@@ -101,6 +101,61 @@ class ProjectionMaterializerTest < ActiveSupport::TestCase
     end
   end
 
+  test "explicit deletion persists across regeneration and rule changes" do
+    rule = RecurringRuleCommand.create(raw_rule(frequency: :weekly))
+    occurrence = rule.transactions.order(:date).first!
+    date = occurrence.date
+    TransferCommand.destroy(occurrence, exclude_occurrence: true)
+
+    ProjectionMaterializer.materialize(rule)
+    RecurringRuleCommand.update(rule, amount: 15)
+
+    assert_empty rule.transactions.where(date: date)
+    assert_not_empty rule.transactions.where("date > ?", date)
+  end
+
+  test "deleting a moved occurrence also preserves its original exclusion" do
+    rule = RecurringRuleCommand.create(raw_rule(frequency: :weekly))
+    occurrence = rule.transactions.order(:date).first!
+    original = occurrence.date
+    TransactionChange.update(occurrence, attributes: { date: (original + 1.day).iso8601 },
+      audit_context: AuditContext.new(remote_ip: nil, user_agent: nil))
+    TransferCommand.destroy(occurrence, exclude_occurrence: true)
+
+    ProjectionMaterializer.materialize(rule)
+
+    assert_empty rule.transactions.where(date: [ original, original + 1.day ])
+  end
+
+  test "failed explicit deletion rolls back occurrence exclusions" do
+    rule = RecurringRuleCommand.create(raw_rule)
+    occurrence = rule.transactions.order(:date).first!
+    assert_no_difference "OccurrenceExclusion.count" do
+      assert_raises(RuntimeError) do
+        TransferCommand.destroy(occurrence, exclude_occurrence: true) { raise "audit unavailable" }
+      end
+    end
+    assert Transaction.exists?(occurrence.id)
+  end
+
+  test "occurrence persistence rechecks exclusions after projection candidates were selected" do
+    rule = raw_rule
+    rule.save!
+    rule.occurrence_exclusions.create!(date: Date.current)
+    assert_no_difference "Transaction.count" do
+      assert_nil TransferCommand.create_occurrence(account: @account, recurring_rule: rule,
+        description: rule.description, amount: -10, date: Date.current, status: :estimated)
+    end
+  end
+
+  test "deleting a rule removes its exclusions" do
+    rule = RecurringRuleCommand.create(raw_rule)
+    TransferCommand.destroy(rule.transactions.first!, exclude_occurrence: true)
+    assert_difference "OccurrenceExclusion.count", -1 do
+      RecurringRuleCommand.destroy(rule)
+    end
+  end
+
   private
 
   def raw_rule(**attributes)

@@ -58,6 +58,36 @@ class AccountReconciliationTest < ActiveSupport::TestCase
     singleton.define_method(:destroy, original) if original
   end
 
+  test "same-day regeneration preserves reconciled recurring expenses and transfers" do
+    [ :expense, :transfer ].each do |kind|
+      rule = create_recurring_rule!(account: @account, description: kind.to_s, amount: 10,
+        rule_type: kind, destination_account: (kind == :transfer ? @other : nil),
+        frequency: :weekly, anchor_date: Date.current)
+      counterpart = rule.transactions.find_by(account: @other, date: Date.current)
+      reconcile(include_today: true)
+      ProjectionMaterializer.materialize(rule)
+      RecurringRuleCommand.update(rule, amount: 15)
+
+      assert_empty rule.transactions.where(account: @account, date: Date.current)
+      assert_equal 90, @account.reload.projected_balance(Date.current)
+      if counterpart
+        assert_nil counterpart.reload.linked_transaction_id
+        assert_equal 10, counterpart.amount
+      end
+    end
+  end
+
+  test "reconciling the receiving side retains the source without regenerating a pair" do
+    rule = create_recurring_rule!(account: @other, description: "Incoming", amount: 10,
+      rule_type: :transfer, destination_account: @account, frequency: :weekly, anchor_date: Date.current)
+    source = rule.transactions.find_by!(account: @other, date: Date.current)
+    reconcile(include_today: true)
+    ProjectionMaterializer.materialize(rule)
+    assert_empty rule.transactions.where(account: @account, date: Date.current)
+    assert_equal(-10, source.reload.amount)
+    assert_nil source.linked_transaction_id
+  end
+
   private
 
   def reconcile(include_today: false, **attributes)

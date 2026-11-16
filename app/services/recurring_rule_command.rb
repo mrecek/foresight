@@ -48,6 +48,7 @@ class RecurringRuleCommand
       scope = rule.transactions
         .where("date >= ?", Date.current)
         .not_user_modified
+        .where.not(date: rule.occurrence_exclusions.select(:date))
       destroy_occurrences(rule, scope)
     end
 
@@ -56,6 +57,7 @@ class RecurringRuleCommand
         .where(account_id: rule.account_id, status: :estimated)
         .where("date >= ?", Date.current)
         .not_user_modified
+        .where.not(date: rule.occurrence_exclusions.select(:date))
         .find_each do |transaction|
           TransferCommand.update(transaction, category_id: rule.category_id)
         end
