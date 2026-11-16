@@ -7,6 +7,8 @@ class SessionsController < ApplicationController
   layout "auth"
 
   def new
+    # A frame response triggers a second, full-page visit to this login URL.
+    flash.keep if turbo_frame_request?
     redirect_to root_path if authenticated?
   end
 

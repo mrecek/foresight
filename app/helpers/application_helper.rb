@@ -7,7 +7,11 @@ module ApplicationHelper
     css_class = [ variant_class, size_class, options[:class] ].compact.join(" ")
 
     if path
-      link_to text, path, class: css_class, method: method, **options.except(:class)
+      if method == :get
+        link_to text, path, class: css_class, **options.except(:class)
+      else
+        button_to text, path, class: css_class, method: method, **options.except(:class)
+      end
     else
       content_tag :button, text, class: css_class, **options.except(:class)
     end

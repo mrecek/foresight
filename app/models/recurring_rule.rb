@@ -6,6 +6,7 @@ class RecurringRule < ApplicationRecord
   belongs_to :destination_account, class_name: "Account", optional: true
   belongs_to :category, optional: true
   has_many :transactions, dependent: :destroy
+  has_many :occurrence_exclusions, dependent: :delete_all
 
   validates :description, presence: true
   validates :amount, presence: true, numericality: { greater_than: 0 }

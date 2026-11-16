@@ -15,7 +15,7 @@ class AccountReconciliation
       ids = scope.ids
       ids.each do |id|
         transaction = Transaction.find_by(id: id)
-        TransferCommand.destroy(transaction, pair: false) if transaction
+        TransferCommand.destroy(transaction, pair: false, exclude_occurrence: true) if transaction
       end
       AuditLog.log_update(account, audit_context)
       Result.new(account: account, deleted_count: ids.length)

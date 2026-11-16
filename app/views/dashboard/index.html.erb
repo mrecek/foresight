@@ -87,7 +87,7 @@
     <% end %>
 
     <!-- Add Account -->
-    <%= link_to new_account_path, class: "flex items-center justify-center p-5 rounded-xl border-2 border-dashed border-line-strong hover:border-primary-400 hover:bg-primary-subtle/50 min-w-[160px] transition-all group" do %>
+    <%= link_to new_account_path, data: { turbo_frame: "_top" }, class: "flex items-center justify-center p-5 rounded-xl border-2 border-dashed border-line-strong hover:border-primary-400 hover:bg-primary-subtle/50 min-w-[160px] transition-all group" do %>
       <div class="text-center">
         <div class="mx-auto w-10 h-10 rounded-full bg-surface-muted group-hover:bg-primary-muted flex items-center justify-center transition-colors">
           <svg class="h-5 w-5 text-muted group-hover:text-accent transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -116,7 +116,6 @@
         </div>
 
         <!-- Reconcile Row -->
-        <% # old_txn_count variable removed - now calculated dynamically by JS %>
         <div class="px-6 py-3 bg-surface-muted border-t border-line" data-controller="reconcile-confirm">
           
           <!-- Normal Form State -->
@@ -185,7 +184,6 @@
                   <input type="checkbox" 
                       id="include_today_transactions"
                       data-reconcile-confirm-target="includeToday"
-                      data-action="change->reconcile-confirm#updateTodayCount"
                       class="w-4 h-4 rounded border-line-strong text-caution focus:ring-warning-500">
                   <span class="text-sm text-secondary">
                     Also clear <strong data-reconcile-confirm-target="todayCount">0</strong> transaction<span data-reconcile-confirm-target="todayPlural">s</span> from today
@@ -529,7 +527,7 @@
       </svg>
       <p class="mt-4 text-lg text-secondary">No accounts yet</p>
       <p class="mt-2 text-sm text-muted">Create your first account to start tracking your finances</p>
-      <%= design_button "Create Account", new_account_path, variant: :primary, class: "mt-6" %>
+      <%= design_button "Create Account", new_account_path, variant: :primary, class: "mt-6", data: { turbo_frame: "_top" } %>
     </div>
   <% end %>
 </div>

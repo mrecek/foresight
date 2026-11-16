@@ -59,11 +59,11 @@ class ProjectionMaterializer
     def dates_to_skip(rule)
       modified_dates = rule.transactions.where(user_modified: true).pluck(:date).to_set
       original_dates = rule.transactions.where.not(original_date: nil).pluck(:original_date).to_set
-      modified_dates | original_dates
+      modified_dates | original_dates | rule.occurrence_exclusions.pluck(:date).to_set
     end
 
     def create_occurrence(rule, date)
-      TransferCommand.create(
+      TransferCommand.create_occurrence(
         account: rule.account,
         destination_account_id: rule.transfer? ? rule.destination_account_id : nil,
         recurring_rule: rule,

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_10_020000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_16_000000) do
   create_table "accounts", force: :cascade do |t|
     t.integer "account_type", default: 0, null: false
     t.date "balance_date", null: false
@@ -53,6 +53,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_020000) do
     t.string "name", null: false
     t.datetime "updated_at", null: false
     t.index ["name"], name: "index_category_groups_on_name", unique: true
+  end
+
+  create_table "occurrence_exclusions", force: :cascade do |t|
+    t.integer "recurring_rule_id", null: false
+    t.date "date", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["recurring_rule_id", "date"], name: "index_occurrence_exclusions_on_recurring_rule_id_and_date", unique: true
+    t.index ["recurring_rule_id"], name: "index_occurrence_exclusions_on_recurring_rule_id"
   end
 
   create_table "recurring_rules", force: :cascade do |t|
@@ -113,6 +122,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_020000) do
   end
 
   add_foreign_key "categories", "category_groups"
+  add_foreign_key "occurrence_exclusions", "recurring_rules"
   add_foreign_key "recurring_rules", "accounts"
   add_foreign_key "recurring_rules", "accounts", column: "destination_account_id"
   add_foreign_key "recurring_rules", "categories"

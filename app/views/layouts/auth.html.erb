@@ -7,6 +7,7 @@
     <meta name="application-name" content="Foresight">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#09090b">
+    <%= turbo_page_requires_reload if turbo_frame_request? %>
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
 

@@ -4,7 +4,7 @@ require "test_helper"
 
 class ReadOnlyRequestsTest < ActionDispatch::IntegrationTest
   APPLICATION_TABLES = %w[
-    accounts audit_logs categories category_groups recurring_rules settings transactions
+    accounts occurrence_exclusions audit_logs categories category_groups recurring_rules settings transactions
   ].freeze
 
   setup do

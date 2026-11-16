@@ -29,14 +29,13 @@ Node.js is not required; Rails owns the Importmap and Tailwind toolchain.
 
 ## Test data
 
-For disposable local data and authentication-free browser testing:
+Demo seeding replaces all financial records in the selected database and preserves
+existing configured credentials. Use a fresh, separate database for sample data
+and a guaranteed `demo` / `demo1234` login. See the
+[disposable demo workflow](.agents/skills/foresight-dev/references/runtime-and-demo-mode.md#disposable-demo-database).
 
-```bash
-SEED_DEMO_DATA=true bin/rails db:seed
-TEST_MODE=true bin/dev
-```
-
-Test mode cannot activate in production.
+For authentication-free browser testing, run `TEST_MODE=true bin/dev` against that
+disposable database. Test mode cannot activate in production.
 
 ## Validation
 
