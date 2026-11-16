@@ -26,3 +26,10 @@ pair deletion, recurring cleanup, account reconciliation, and account deletion
 therefore share the same database transaction boundary. Reconciliation and
 account deletion intentionally retain the other account's historical side as an
 unlinked regular transaction; explicit transfer deletion removes both sides.
+
+Recurring transfer rules must also use different source and destination accounts.
+The database owns this guard through the named
+`recurring_rules_different_transfer_accounts` CHECK constraint. It is preserved
+in `db/schema.rb`, so migration-based upgrades and schema-based installations
+enforce the same rule even when model validation is bypassed. Migration refuses
+existing self-transfer rules for explicit review; it does not rewrite them.

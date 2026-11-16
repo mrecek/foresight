@@ -70,7 +70,7 @@ class ProjectionMaterializerTest < ActiveSupport::TestCase
   end
 
   test "batch processing reports a bad rule after materializing later rules" do
-    invalid = raw_rule(rule_type: :transfer, destination_account: @account)
+    invalid = raw_rule(description: "")
     invalid.save!(validate: false)
     valid = raw_rule(description: "Later valid rule")
     valid.save!
