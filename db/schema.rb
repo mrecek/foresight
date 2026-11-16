@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_16_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_16_010000) do
   create_table "accounts", force: :cascade do |t|
     t.integer "account_type", default: 0, null: false
     t.date "balance_date", null: false
@@ -82,6 +82,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_000000) do
     t.index ["account_id"], name: "index_recurring_rules_on_account_id"
     t.index ["category_id"], name: "index_recurring_rules_on_category_id"
     t.index ["destination_account_id"], name: "index_recurring_rules_on_destination_account_id"
+    t.check_constraint "rule_type != 2 OR account_id != destination_account_id", name: "recurring_rules_different_transfer_accounts"
   end
 
   create_table "settings", force: :cascade do |t|
