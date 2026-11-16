@@ -309,13 +309,13 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href='#{return_url}']", text: "Cancel"
   end
 
-  test "mark actual redirects to the originating dashboard state" do
+  test "mark actual preserves server direction despite a forged sign and returns to the dashboard" do
     txn = estimated_transaction(amount: -75.0)
     return_url = "/?account_id=#{@checking.id}&months=6"
 
     patch mark_actual_transaction_path(txn), params: {
       amount: "82.45",
-      original_sign: "-1",
+      original_sign: "1",
       return_url: return_url
     }
 

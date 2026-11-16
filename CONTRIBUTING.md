@@ -55,8 +55,23 @@ bin/validate test
 bin/validate lint
 bin/validate security-ruby security-js
 bin/validate runtime architecture
-bin/rails test test/path/to/example_test.rb
+bin/test test/services
+bin/test test/services/transaction_change_test.rb:15 --seed 1234
 ```
+
+`bin/test` prepares the test database and compiled Tailwind assets, then runs
+the complete suite by default, including browser and standalone process tests. It accepts Rails file, directory, line, name and seed selections;
+a selection that executes no tests fails. Use `--help` for runner options.
+
+Required singleton settings are created by `bin/rails db:prepare`, independently
+of application initialization. For installation inspection, use `bin/doctor` or
+`bin/doctor --json`; see [Installation diagnostics](docs/diagnostics.md).
+
+[Financial operations](docs/financial-operations.md) maps application behavior to
+its operation and focused tests. Operations own financial transaction/audit
+boundaries; controllers translate HTTP; models own record-local validation and
+associations; jobs invoke application operations. Calculation objects derive
+dates and balances without owning persistence side effects.
 
 The test stage includes a deliberately small real-browser suite for the critical authentication and financial workflows. Browser failures leave screenshots in `tmp/system-test-artifacts`.
 

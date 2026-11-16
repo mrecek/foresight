@@ -1,0 +1,41 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+json = ARGV.include?("--json")
+begin
+  # Bundler resolves dependencies without application initialization or Bootsnap writes.
+  ENV["BUNDLE_GEMFILE"] ||= File.expand_path("../Gemfile", __dir__)
+  require "bundler/setup"
+  require "json"
+
+  unless (ARGV - [ "--json", "--help" ]).empty? && ARGV.uniq == ARGV
+    report = { schema_version: 1, status: "error", error: "Usage: bin/doctor [--json] [--help]" }
+    puts(json ? JSON.generate(report) : report[:error])
+    exit 2
+  end
+  if ARGV.include?("--help")
+    puts "Usage: bin/doctor [--json]\nRead-only local installation checks. Exit: 0 healthy, 1 unhealthy, 2 invocation/internal error."
+    exit 0
+  end
+
+  require_relative "../lib/foresight/diagnostics"
+  report = Foresight::Diagnostics.new(root: File.expand_path("..", __dir__)).call
+  if json
+    puts JSON.generate(report)
+  else
+    puts "Foresight: #{report[:status]} (Ruby #{report[:runtime][:ruby]}, Rails #{report[:runtime][:rails]})"
+    report[:checks].each do |check|
+      puts "#{check[:status].upcase} #{check[:id]}: #{check[:evidence] || check[:next_action]}"
+      puts "  #{check[:next_action]}" if check[:evidence] && check[:next_action]
+    end
+  end
+  exit(report[:status] == "healthy" ? 0 : 1)
+rescue StandardError, LoadError
+  report = { schema_version: 1, status: "error", error: "Diagnostic execution failed; check the supported runtime and installed dependencies." }
+  if json
+    puts '{"schema_version":1,"status":"error","error":"Diagnostic execution failed; check the supported runtime and installed dependencies."}'
+  else
+    puts report[:error]
+  end
+  exit 2
+end

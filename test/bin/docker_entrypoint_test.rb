@@ -170,6 +170,20 @@ class DockerEntrypointTest < Minitest::Test
     assert_equal [ "worker" ], stdout.lines.map(&:strip)
   end
 
+  def test_diagnostic_dispatch_does_not_create_a_session_key
+    FileUtils.mkdir_p(File.join(@directory, "bin"))
+    doctor = File.join(@directory, "bin/doctor")
+    File.write(doctor, "#!#{RbConfig.ruby}\nputs 'diagnostic probe'\nexit 1\n")
+    FileUtils.chmod(0o700, doctor)
+    stdout, stderr, status = Open3.capture3(
+      { "SECRET_KEY_BASE" => nil, "SECRET_KEY_BASE_FILE" => @secret_file },
+      RbConfig.ruby, ENTRYPOINT, "bin/doctor", "--json", chdir: @directory
+    )
+    assert_equal 1, status.exitstatus, stderr
+    assert_equal "diagnostic probe\n", stdout
+    refute File.exist?(@secret_file)
+  end
+
   private
 
   def run_entrypoint(environment = {})

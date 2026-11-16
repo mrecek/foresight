@@ -1,6 +1,9 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+# Inspection must work before preparation or session-key creation.
+exec(*ARGV) if [ "bin/doctor", "/rails/bin/doctor" ].include?(ARGV.first)
+
 require "securerandom"
 
 legacy_jobs = ENV["SOLID_QUEUE_IN_PUMA"]

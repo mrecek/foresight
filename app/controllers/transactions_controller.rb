@@ -41,19 +41,8 @@ class TransactionsController < ApplicationController
         alert: "Review this transfer from its sending account before saving."
     end
 
-    ActiveRecord::Base.transaction do
-      # Track user modifications for rule-linked transactions
-      if @transaction.recurring_rule.present?
-        track_user_modifications
-      end
-
-      attributes = transaction_params.to_h.merge(
-        user_modified: @transaction.user_modified,
-        original_date: @transaction.original_date
-      )
-      TransferCommand.update(@transaction, attributes) { |transaction| AuditLog.log_update(transaction, request) }
-      redirect_to transaction_return_url, notice: "Transaction updated."
-    end
+    TransactionChange.update(@transaction, attributes: transaction_params, audit_context: AuditContext.from_request(request))
+    redirect_to transaction_return_url, notice: "Transaction updated."
   rescue ActiveRecord::RecordInvalid => error
     @transaction = error.record
     @return_url = transaction_return_url
@@ -72,38 +61,9 @@ class TransactionsController < ApplicationController
   end
 
   def mark_actual
-    # Validate required parameters
-    unless params[:amount].present? && params[:original_sign].present?
-      return render_confirm_actual_error("Missing required parameters.")
-    end
-
-    # User enters positive amount, original_sign preserves the transaction type
-    begin
-      entered_amount = BigDecimal(params[:amount].to_s).abs
-    rescue ArgumentError
-      return render_confirm_actual_error("Invalid amount format.")
-    end
-
-    if entered_amount <= 0
-      return render_confirm_actual_error("Amount must be greater than zero.")
-    end
-
-    sign = params[:original_sign].to_i
-
-    unless sign == 1 || sign == -1
-      return render_confirm_actual_error("Invalid sign parameter.")
-    end
-
-    new_amount = entered_amount * sign
-
-    ActiveRecord::Base.transaction do
-      TransferCommand.update(@transaction, status: :actual, amount: new_amount, user_modified: true) do |transaction|
-        AuditLog.log_update(transaction, request)
-      end
-    end
-
-    # Redirect to where the user originally came from
-    redirect_to transaction_return_url, notice: "Marked as actual with amount #{helpers.number_to_currency(entered_amount)}."
+    TransactionChange.confirm_actual(@transaction, amount: params[:amount], audit_context: AuditContext.from_request(request))
+    redirect_to transaction_return_url,
+      notice: "Marked as actual with amount #{helpers.number_to_currency(@transaction.amount.abs)}."
   rescue ActiveRecord::RecordInvalid => e
     render_confirm_actual_error("Failed to update transaction: #{e.message}")
   end
@@ -120,64 +80,6 @@ class TransactionsController < ApplicationController
 
   def transaction_params
     params.require(:transaction).permit(:account_id, :description, :amount, :date, :status, :category_id, :destination_account_id)
-  end
-
-  def track_user_modifications
-    params_hash = transaction_params
-    changes_made = false
-
-    # Check for amount change
-    if params_hash[:amount].present?
-      new_amount = BigDecimal(params_hash[:amount].to_s)
-      changes_made = true if @transaction.amount != new_amount
-    end
-
-    # Check for description change
-    if params_hash[:description].present? && @transaction.description != params_hash[:description]
-      changes_made = true
-    end
-
-    # Check for date change (special handling for original_date)
-    if params_hash[:date].present?
-      new_date = Date.parse(params_hash[:date].to_s)
-      if @transaction.date != new_date
-        changes_made = true
-        handle_date_change(new_date)
-      end
-    end
-
-    if params_hash[:account_id].present? && @transaction.account_id != params_hash[:account_id].to_i
-      changes_made = true
-    end
-
-    if params_hash.key?(:destination_account_id)
-      destination_id = params_hash[:destination_account_id].presence&.to_i
-      changes_made = true if @transaction.linked_transaction&.account_id != destination_id
-    end
-
-    if params_hash[:status].present? && @transaction.status != params_hash[:status]
-      changes_made = true
-    end
-
-    if params_hash.key?(:category_id)
-      category_id = params_hash[:category_id].presence&.to_i
-      changes_made = true if @transaction.category_id != category_id
-    end
-
-    @transaction.user_modified = true if changes_made
-  end
-
-  def handle_date_change(new_date)
-    # Determine the "true original" date (either stored original_date or current date)
-    true_original = @transaction.original_date || @transaction.date
-
-    if new_date == true_original
-      # User moved transaction back to original date - clear original_date
-      @transaction.original_date = nil
-    else
-      # User moved transaction away from original - track it
-      @transaction.original_date = true_original
-    end
   end
 
   def transaction_return_url
