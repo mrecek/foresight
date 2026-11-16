@@ -20,7 +20,8 @@ Run a targeted test directly with:
 bin/test test/models/recurring_rule_test.rb
 ```
 
-`bin/test` accepts file, directory, line, name and seed selection. The default
+`bin/test` prepares its database and compiled Tailwind assets and accepts file,
+directory, line, name and seed selection. The default
 suite includes browser and standalone process tests; an empty selection fails.
 Use a failing test's printed path and `--seed` to reproduce it. For financial
 changes, consult [operation ownership](../../../../docs/financial-operations.md)

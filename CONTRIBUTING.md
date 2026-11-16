@@ -59,8 +59,8 @@ bin/test test/services
 bin/test test/services/transaction_change_test.rb:15 --seed 1234
 ```
 
-`bin/test` runs the complete suite by default, including browser and standalone
-process tests. It accepts Rails file, directory, line, name and seed selections;
+`bin/test` prepares the test database and compiled Tailwind assets, then runs
+the complete suite by default, including browser and standalone process tests. It accepts Rails file, directory, line, name and seed selections;
 a selection that executes no tests fails. Use `--help` for runner options.
 
 Required singleton settings are created by `bin/rails db:prepare`, independently

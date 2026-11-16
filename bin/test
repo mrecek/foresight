@@ -26,5 +26,8 @@ module Minitest
 end
 Minitest.extensions << "foresight"
 
-abort "Test database preparation failed" unless system("bin/rails", "db:test:prepare")
+unless ARGV.any? { |argument| [ "--help", "-h" ].include?(argument) }
+  abort "Test database preparation failed" unless system("bin/rails", "db:test:prepare")
+  abort "Test asset compilation failed" unless system("bin/rails", "tailwindcss:build")
+end
 Rails::TestUnit::Runner.run(ARGV)
