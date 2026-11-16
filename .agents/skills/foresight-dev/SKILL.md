@@ -22,6 +22,12 @@ Own local development and validation tasks for this repository.
 - For `TEST_MODE`, demo data, demo credentials, and shutting down the dev server, read [references/runtime-and-demo-mode.md](references/runtime-and-demo-mode.md).
 - For local verification, targeted tests, RuboCop, and Brakeman, read [references/testing-and-validation.md](references/testing-and-validation.md).
 
+For installation diagnosis, run `bin/doctor --json` using the installation's
+application environment and storage. Interpret the report using
+[Installation diagnostics](../../../docs/diagnostics.md); it observes state and
+does not prepare or repair it. Financial operation ownership and focused tests
+are mapped in [Financial operations](../../../docs/financial-operations.md).
+
 ## Working Rules
 
 - Prefer the lightest command that proves the requested change.

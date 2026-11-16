@@ -1,6 +1,11 @@
 ENV["RAILS_ENV"] ||= "test"
+# Puma must not supply a development Rack environment during system tests.
+ENV["RACK_ENV"] = "test"
 require_relative "../config/environment"
 require "rails/test_help"
+
+# Required installation state is explicit in the test setup.
+Setting.ensure_instance!
 
 module ActiveSupport
   class TestCase

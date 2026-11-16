@@ -14,6 +14,7 @@ volume_name="foresight-validation-${suffix}"
 second_volume_name="foresight-validation-second-${suffix}"
 probe_directory=""
 
+# shellcheck disable=SC2329 # Invoked by the EXIT trap.
 cleanup() {
   if [ "${smoke_passed:-false}" != "true" ]; then
     docker logs "$container_name" 2>/dev/null || true
@@ -109,6 +110,22 @@ restart_fingerprint="$(docker exec "$container_name" ruby -rdigest -e 'print Dig
 }
 
 docker volume create "$second_volume_name" >/dev/null
+installation_inventory="$(docker run --rm --read-only --entrypoint ruby \
+  --volume "$second_volume_name:/rails/storage:ro" "$image" -rjson \
+  -e 'print JSON.generate(Dir.children("/rails/storage").sort)')"
+if diagnostic_output="$(docker run --rm --read-only \
+  --volume "$second_volume_name:/rails/storage:ro" "$image" bin/doctor --json)"; then
+  echo "Diagnostic incorrectly accepted an unprepared installation." >&2
+  exit 1
+else
+  [[ "$?" == "1" ]] || { echo "Unprepared diagnostic did not return unhealthy status." >&2; exit 1; }
+fi
+docker run --rm --read-only --entrypoint ruby \
+  --volume "$second_volume_name:/rails/storage:ro" "$image" -rjson -e '
+    report = JSON.parse(ARGV.fetch(0))
+    raise "invalid diagnostic report" unless report.fetch("status") == "unhealthy"
+    raise "inspection created installation state" unless Dir.children("/rails/storage").sort == JSON.parse(ARGV.fetch(1))
+  ' "$diagnostic_output" "$installation_inventory"
 second_fingerprint="$(docker run --rm \
   --volume "$second_volume_name:/rails/storage" \
   "$image" ruby -rdigest -e 'print Digest::SHA256.hexdigest(ENV.fetch("SECRET_KEY_BASE"))')"
@@ -147,6 +164,7 @@ docker logs "$worker_name"
 }
 docker start "$worker_name" >/dev/null
 run_queued_maintenance
+docker exec "$container_name" bin/docker-entrypoint bin/doctor --json
 
 docker exec "$container_name" bin/docker-entrypoint bin/rails runner script/maintenance_smoke.rb claim_shutdown_probe
 stop_cleanly "$worker_name" "worker" "in-flight maintenance"

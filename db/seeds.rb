@@ -1,5 +1,5 @@
 # Ensure Settings exists
-Setting.first_or_create!(default_view_months: 3)
+Setting.ensure_instance!
 
 unless ENV["SEED_DEMO_DATA"] == "true"
   puts "Skipping demo data (set SEED_DEMO_DATA=true to seed)"

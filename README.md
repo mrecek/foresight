@@ -197,6 +197,14 @@ environment:
 
 OIDC mode exposes no password form or fallback route. For operator recovery, restart with `AUTH_MODE=password`, remove the OIDC variables, and supply both `AUTH_USERNAME` and `AUTH_PASSWORD`. Signing out ends only the local Foresight session; it does not sign the person out of other applications at the identity provider.
 
+## Installation diagnostics
+
+Run `docker compose exec foresight bin/doctor` for local installation checks, or
+add `--json` for machine-readable evidence. The command inspects configuration,
+storage, schema and worker activity without preparing or repairing state.
+[Installation diagnostics](docs/diagnostics.md) explains exit codes, evidence
+limits and recovery guidance. `/up` checks HTTP liveness.
+
 ## Backups
 
 All durable application state lives under `/rails/storage`, but a live database file should not be copied directly. `bin/backup` uses SQLite's online backup API and packages the primary database with its checksum, schema version, integrity result, and material record counts.

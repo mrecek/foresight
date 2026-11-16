@@ -43,26 +43,10 @@ class AccountsController < ApplicationController
   end
 
   def reconcile
-    Account.transaction do
-      @account.update!(reconcile_params)
-      # Delete transactions before (or on, if include_today is set) the new balance date
-      transactions_to_delete = if params[:include_today] == "1"
-        @account.transactions.where("date <= ?", @account.balance_date)
-      else
-        @account.transactions.where("date < ?", @account.balance_date)
-      end
-
-      deleted_count = transactions_to_delete.count
-      transactions_to_delete.ids.each do |transaction_id|
-        transaction = Transaction.find_by(id: transaction_id)
-        TransferCommand.destroy(transaction, pair: false) if transaction
-      end
-
-      AuditLog.log_update(@account, request)
-
-      redirect_to root_path(account_id: @account.id),
-        notice: "Reconciled! Removed #{deleted_count} old transaction#{'s' unless deleted_count == 1}."
-    end
+    result = AccountReconciliation.call(account: @account, attributes: reconcile_params,
+      include_today: params[:include_today] == "1", audit_context: AuditContext.from_request(request))
+    redirect_to root_path(account_id: @account.id),
+      notice: "Reconciled! Removed #{result.deleted_count} old transaction#{'s' unless result.deleted_count == 1}."
   rescue ActiveRecord::RecordInvalid
     redirect_to root_path(account_id: @account.id),
       alert: "Failed to reconcile: #{@account.errors.full_messages.join(', ')}"
