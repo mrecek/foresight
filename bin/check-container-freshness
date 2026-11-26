@@ -5,7 +5,7 @@ require "open3"
 require "time"
 
 image, platform, started_at = ARGV
-abort "Usage: bin/check-container-freshness IMAGE@DIGEST PLATFORM [BUILD_STARTED_AT]" unless (2..3).cover?(ARGV.length)
+abort "Usage: bin/check-container-freshness IMAGE@DIGEST PLATFORM BUILD_STARTED_AT" unless ARGV.length == 3
 abort "Image must be pinned by digest" unless image.match?(/\A[^\s]+@sha256:[0-9a-f]{64}\z/)
 abort "Unsupported platform" unless %w[linux/amd64 linux/arm64].include?(platform)
 
@@ -24,7 +24,7 @@ begin
   raise ArgumentError unless marker.match?(/\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\z/)
   refreshed = Time.iso8601(marker)
   raise ArgumentError unless refreshed.utc.iso8601 == marker
-  earliest = Time.iso8601(started_at) if started_at
+  earliest = Time.iso8601(started_at)
 rescue ArgumentError
   abort "Invalid OS refresh evidence or build start for #{image} (#{platform})"
 end
@@ -32,6 +32,5 @@ now = Time.now.utc
 age = now - refreshed
 puts "OS refresh: #{image} (#{platform}); completed=#{marker}; age_seconds=#{age.to_i}"
 abort "OS refresh evidence is in the future" if age < -300
-abort "OS refresh is older than seven days; inspect the release workflow" if age > 7 * 24 * 60 * 60
-abort "OS refresh predates this build" if earliest && refreshed < earliest
+abort "OS refresh predates this build" if refreshed < earliest
 puts "OS refresh policy passed."

@@ -10,7 +10,7 @@ on:
         type: choice
         options: [manual, security, validation]
   schedule:
-    - cron: "37 7 * * *"
+    - cron: "37 17 * * 3"
   push:
     branches: [main]
 
@@ -49,6 +49,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Ruby
+        uses: ./.github/actions/setup-runtime
+
+      - name: Audit locked Ruby dependencies
+        run: bin/bundler-audit check --update
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4
 
@@ -58,12 +64,6 @@ jobs:
           version: ${{ env.BUILDX_VERSION }}
           driver-opts: |
             image=${{ env.BUILDKIT_IMAGE }}
-
-      - name: Set up Ruby
-        uses: ./.github/actions/setup-runtime
-
-      - name: Validate application at candidate source
-        run: bin/validate --ci
 
       - name: Log in to Container Registry
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4

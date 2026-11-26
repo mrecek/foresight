@@ -10,15 +10,14 @@ class ContainerFreshnessTest < ActiveSupport::TestCase
     assert_nil probe((NOW - 60).iso8601)[:exit]
   end
 
-  test "stale missing malformed and future evidence fail" do
-    [ (NOW - 7.days - 1).iso8601, "", "not-a-date", (NOW + 301).iso8601 ].each do |marker|
+  test "missing malformed and future evidence fail" do
+    [ "", "not-a-date", (NOW + 301).iso8601 ].each do |marker|
       assert_equal 1, probe(marker)[:exit], marker
     end
     assert_equal 1, probe(NOW.iso8601, missing: true)[:exit]
   end
 
-  test "seven day boundary is inclusive and current build rejects older refresh" do
-    assert_nil probe((NOW - 7.days).iso8601)[:exit]
+  test "current build rejects older refresh" do
     assert_equal 1, probe((NOW - 60).iso8601, started: NOW.iso8601)[:exit]
     assert_nil probe(NOW.iso8601, started: NOW.iso8601)[:exit]
   end
@@ -47,9 +46,9 @@ class ContainerFreshnessTest < ActiveSupport::TestCase
     target.define_singleton_method(name, original)
   end
 
-  def probe(marker, started: nil, missing: false)
+  def probe(marker, started: (NOW - 120).iso8601, missing: false)
     saved = ARGV.dup
-    ARGV.replace([ IMAGE, "linux/arm64", started ].compact)
+    ARGV.replace([ IMAGE, "linux/arm64", started ])
     success = Struct.new(:success?).new(true)
     failure = Struct.new(:success?).new(false)
     result = {}

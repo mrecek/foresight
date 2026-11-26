@@ -236,11 +236,9 @@ The production image runs Puma behind your reverse proxy and starts Solid Queue 
 
 ## Maintenance and security
 
-Dependabot proposes direct and indirect gem patch/minor updates and the pinned Ruby container base. Security proposals remain separate; major modernization is reviewed manually. Gem patch/minor and Ruby base patch proposals may merge only after every required check passes. The Dockerfile is the sole Ruby version declaration: local mise and CI derive their version with `bin/ruby-version`. GitHub Actions, major dependency versions, and Ruby minor or major upgrades remain under human review.
+Dependabot proposes weekly patches for direct and indirect gems and the pinned Ruby base. Eligible patches auto-merge after required PR checks pass. Dependabot security proposals stay enabled. Minor, major, and GitHub Actions upgrades are handled during periodic review. Local development and CI read the Ruby version from the Dockerfile.
 
-The release workflow rebuilds the production image daily against current Debian repositories. Every candidate passes application validation, smoke tests on native `linux/amd64` and `linux/arm64` runners, including real queued maintenance and three strict shutdown/restart cycles for web and jobs, fixable HIGH/CRITICAL vulnerability checks, manifest checks, and provenance/SBOM verification before publication. Scheduled builds publish even when package versions are unchanged. This also picks up dependency updates merged by automation whose GitHub token suppresses push-triggered releases; every accepted human main-branch change, including maintenance policy changes, enters the release lane immediately. GitHub schedules are best effort, so daily publication is an expectation rather than a delivery guarantee.
-
-A separate daily audit scans the exact published digest and checks the effective runtime gems inside each platform image. Its narrowly scoped exception for an inactive bundled default gem requires the loaded replacement to satisfy the specific advisory's safe version. Unknown advisories fail closed. The audit reports unfixed HIGH/CRITICAL findings and blocks fixable findings; it also fails if the completed OS refresh is older than seven days. A timestamp written only after a successful strict package refresh is checked in both native release verification and the published-image audit; Docker creation timestamps and publication labels are not refresh evidence. Audit failures point to the affected dependency or release workflow without dispatching another rebuild.
+The release workflow runs on pushes to `main`, weekly, and on manual request. The weekly run refreshes Debian packages and picks up bot merges that GitHub may omit from push-triggered workflows. PR checks run the full application suite. Publication audits the locked gems, verifies the fresh image on native AMD64 and ARM64 runners, and promotes the exact digest only after smoke tests, vulnerability scans, and image metadata checks pass.
 
 Source releases, refreshes, retention, and rollback share one serialized production lane. Manual rollback selects a retained immutable release tag and supplies the expected current digest, preventing an operator from overwriting a newer release accidentally. Manual retention runs are dry-run by default; scheduled cleanup keeps the latest 30 promoted digests, preserves the current release and attestation metadata, and expires candidate-only artifacts after 14 days.
 
@@ -248,28 +246,7 @@ Foresight is maintained primarily for the author's own use and shared in the hop
 
 ### Maintenance failures
 
-Bundler maintenance includes direct and indirect gems. If a grouped proposal fails
-security validation, inspect the complete audit output and update every affected
-dependency in that proposal; rebuilding the unchanged lockfile cannot repair it.
-A failure reporter opens or updates one active GitHub maintenance issue assigned to
-`mrecek`, preserving the first failure, latest failed run per workflow, and operator
-notes. The owner records the affected digest, diagnosis and next action, reviews
-new advisories, and escalates fixable security blockers unresolved after 24 hours.
-Repeat failures update the issue body without daily comments. GitHub's individual
-workflow emails remain controlled by personal notification settings.
-
-Recovery is explicit: close the issue only after affected checks and the exact
-released-image audit recover. Successful or cancelled runs never close it
-automatically. Portfolio records implementation and qualification, while the GitHub
-issue is the active incident record. The reporter cannot rebuild, merge, publish
-or deploy. A stale refresh can be a consequence of a blocked release; retain both
-pieces of evidence in the same issue.
-
-An unsupported Ruby installer leaves the Dependabot proposal visible with failing
-required CI. Update the pinned installer in the shared setup action through review
-before retrying. Runtime patch updates use ordinary Dependabot pull-request checks;
-there is no second updater, workflow-dispatch bridge or long-lived bot credential.
-
+GitHub Actions sends workflow failure notifications according to your settings. Open the failed run for the affected check. If a Ruby audit lists several vulnerable gems, update them together in one PR. If CI cannot install a proposed Ruby patch, review an update to the pinned Ruby installer before retrying.
 
 ## Development
 

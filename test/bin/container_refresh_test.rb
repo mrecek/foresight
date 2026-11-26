@@ -47,7 +47,7 @@ class ContainerRefreshTest < ActiveSupport::TestCase
     assert_includes output, "has no SBOM metadata"
   end
 
-  test "promotion requires source validation and both native verification jobs" do
+  test "promotion requires the dependency audit and both native verification jobs" do
     config = workflow_config("docker")
     jobs = config.fetch("jobs")
     build = jobs.fetch("build")
@@ -63,7 +63,7 @@ class ContainerRefreshTest < ActiveSupport::TestCase
     assert_equal "${{ needs.build.outputs.digest }}", verify.dig("env", "DIGEST")
 
     {
-      build => [ "Verify candidate platforms", "Verify candidate provenance and SBOM", "Validate application at candidate source" ],
+      build => [ "Verify candidate platforms", "Verify candidate provenance and SBOM", "Audit locked Ruby dependencies" ],
       verify => [ "Verify candidate OS refresh", "Smoke test exact candidate on its native architecture", "Scan native candidate with Trivy", "Verify candidate runtime and vulnerability policy" ],
       promote => [ "Generate provenance attestation", "Promote verified candidate" ]
     }.each do |job, names|
@@ -79,32 +79,24 @@ class ContainerRefreshTest < ActiveSupport::TestCase
     assert_includes promotion.fetch("run"), "${{ needs.build.outputs.digest }}"
   end
 
-  test "daily rebuild and read-only audit do not depend on automated merge events" do
+  test "weekly refresh runs independently of automated merge events" do
     release = ROOT.join(".github/workflows/docker.yml").read
-    audit = ROOT.join(".github/workflows/security-audit.yml").read
+    config = workflow_config("docker")
+    triggers = config.fetch("on", config[true])
 
-    assert_includes release, 'cron: "37 7 * * *"'
+    assert_equal [ { "cron" => "37 17 * * 3" } ], triggers.fetch("schedule")
+    assert triggers.key?("workflow_dispatch")
     assert_includes release, "no-cache-filters: os-packages,runtime"
     assert_includes release, "scheduled-refresh"
-    assert_includes audit, 'bin/resolve-image-digest "${REGISTRY}/${IMAGE_NAME}:latest"'
-    refute_includes audit, "gh workflow run"
-    refute_includes audit, "actions: write"
-    refute_includes audit, "critical_due_at"
-    assert_includes audit, "bin/container-gem-versions"
+    refute_includes release, "bin/validate --ci"
   end
 
   test "registry scans select each native platform independently of local Docker images" do
-    { "docker" => "verify", "security-audit" => "image" }.each do |workflow, job_name|
-      job = workflow_config(workflow).fetch("jobs").fetch(job_name)
-      assert_native_matrix(job)
-      scan = job.fetch("steps").find { |step| step.fetch("uses", "").start_with?("aquasecurity/trivy-action@") }
-      assert_equal "remote", scan.fetch("env").fetch("TRIVY_IMAGE_SRC")
-      assert_equal "${{ matrix.platform }}", scan.fetch("env").fetch("TRIVY_PLATFORM")
-    end
-    audit = workflow_config("security-audit").fetch("jobs")
-    assert_equal "resolve", audit.fetch("image").fetch("needs")
-    assert_equal "${{ needs.resolve.outputs.digest }}", audit.dig("image", "env", "DIGEST")
-    refute audit.fetch("image").fetch("steps").any? { |step| step.fetch("run", "").include?("resolve-image-digest") }
+    verify = workflow_config("docker").fetch("jobs").fetch("verify")
+    assert_native_matrix(verify)
+    scan = verify.fetch("steps").find { |step| step.fetch("uses", "").start_with?("aquasecurity/trivy-action@") }
+    assert_equal "remote", scan.fetch("env").fetch("TRIVY_IMAGE_SRC")
+    assert_equal "${{ matrix.platform }}", scan.fetch("env").fetch("TRIVY_PLATFORM")
   end
 
   private

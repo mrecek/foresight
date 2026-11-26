@@ -12,10 +12,10 @@ if [[ "$ecosystem" == "docker" && "$dependency_names" == "library/ruby" && "$upd
   reason="Ruby base patch updates are eligible after required checks pass."
 elif [[ "$ecosystem" != "bundler" ]]; then
   eligible="false"
-  reason="Only Bundler patch/minor and Ruby base patch updates are eligible; ${ecosystem:-unknown} updates require manual review."
-elif [[ "$update_type" == "version-update:semver-patch" || "$update_type" == "version-update:semver-minor" ]]; then
+  reason="Only Bundler patch and Ruby base patch updates are eligible; ${ecosystem:-unknown} updates require manual review."
+elif [[ "$update_type" == "version-update:semver-patch" ]]; then
   eligible="true"
-  reason="Bundler patch and minor updates are eligible after required checks pass."
+  reason="Bundler patch updates are eligible after required checks pass."
 else
   eligible="false"
   reason="Bundler ${update_type:-unknown} updates require manual review."
