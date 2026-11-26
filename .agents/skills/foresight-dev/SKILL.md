@@ -1,14 +1,15 @@
 ---
 name: foresight-dev
 description: >
-  Local development, runtime, testing, and validation workflow for the Foresight Rails app.
+  Development, validation, and portable installation procedures for Foresight.
   Use when an agent needs to run the app, debug locally, start the dev server, enable test
-  mode, seed demo data, run tests, validate a code change, or smoke test the application.
+  mode, seed demo data, run tests, validate a code change, smoke test the application,
+  or operate a container installation.
 ---
 
 # Foresight Dev
 
-Own local development and validation tasks for this repository.
+Own local development, validation, and portable container operations.
 
 ## Source of Truth
 
@@ -18,14 +19,12 @@ Own local development and validation tasks for this repository.
 
 ## Read the Right Reference
 
-- For install, bootstrap, and standard startup, read [references/local-setup.md](references/local-setup.md).
+- For local development setup and startup, read [references/local-setup.md](references/local-setup.md).
 - For `TEST_MODE`, demo data, demo credentials, and shutting down the dev server, read [references/runtime-and-demo-mode.md](references/runtime-and-demo-mode.md).
 - For local verification, targeted tests, RuboCop, and Brakeman, read [references/testing-and-validation.md](references/testing-and-validation.md).
+- For container startup, upgrades, installation diagnosis, and backup or restore, read [references/installation.md](references/installation.md).
 
-For installation diagnosis, run `bin/doctor --json` using the installation's
-application environment and storage. Interpret the report using
-[Installation diagnostics](../../../docs/diagnostics.md); it observes state and
-does not prepare or repair it. Financial operation ownership and focused tests
+Financial operation ownership and focused tests
 are mapped in [Financial operations](../../../docs/financial-operations.md).
 
 ## Working Rules
