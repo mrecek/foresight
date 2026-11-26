@@ -24,7 +24,7 @@ Completion means every required check is present on the pull request and success
 - Dependabot owns weekly Bundler and pinned Ruby base patch proposals and separate security proposals.
 - Only Bundler patches and patches to the declared Ruby base can auto-merge after required checks. Review mixed updates, unfamiliar metadata, and other upgrades.
 - The Dockerfile declares the Ruby version. Local mise and shared CI setup read it with `bin/ruby-version`.
-- The weekly release refreshes Debian packages and includes bot merges that suppress push events. GitHub Actions reports failed runs.
+- The weekly release refreshes Debian packages and includes bot merges that suppress push events. Open the failed GitHub Actions run for the affected check. If the Ruby audit flags multiple gems, resolve them together and recheck the lockfile before retrying publication.
 
 Inspect Dependabot metadata and the eligibility script before changing an auto-merge boundary. Complete a change only when an unrelated Docker image, Ruby series change, ineligible ecosystem, and minor or major Bundler update still fail closed.
 

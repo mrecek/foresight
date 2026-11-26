@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # check=error=true
 
-# Production OCI image. See README.md for the web/jobs container contract,
+# Production OCI image. See docs/deployment.md for the web/jobs container contract,
 # shared local SQLite storage, preparation, and shutdown requirements.
 
 # This pinned base also declares the Ruby version used by local mise and CI. The digest pins the complete
