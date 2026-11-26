@@ -82,4 +82,4 @@ The test stage includes a deliberately small real-browser suite for the critical
 - Add regression coverage for changed behavior.
 - Keep deployment guidance portable and free of private infrastructure details.
 
-Pull requests merge by squash after all required checks pass. Dependency updates outside the low-risk Bundler patch/minor lane require human review.
+Pull requests merge by squash after all required checks pass. Weekly Bundler and Ruby base patches can auto-merge after required checks pass. Review larger upgrades and GitHub Actions updates separately.

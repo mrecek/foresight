@@ -8,10 +8,11 @@ require "yaml"
 class DependabotAutomationTest < ActiveSupport::TestCase
   ELIGIBILITY_SCRIPT = Rails.root.join(".github/scripts/dependabot-auto-merge-eligibility")
 
-  test "only Bundler patch and minor updates are eligible" do
+  test "only Bundler patch updates are eligible" do
     assert_equal "true", eligibility_for("bundler", "version-update:semver-patch").fetch("eligible")
-    assert_equal "true", eligibility_for("bundler", "version-update:semver-minor").fetch("eligible")
+    assert_equal "false", eligibility_for("bundler", "version-update:semver-minor").fetch("eligible")
     assert_equal "false", eligibility_for("bundler", "version-update:semver-major").fetch("eligible")
+    assert_equal "false", eligibility_for("bundler", "").fetch("eligible")
   end
 
   test "other ecosystems remain ineligible regardless of update size" do
@@ -25,21 +26,20 @@ class DependabotAutomationTest < ActiveSupport::TestCase
 
   test "Dependabot groups Bundler version and security updates separately" do
     bundler = dependabot_updates.fetch("bundler")
-    assert_equal [ { "dependency-type" => "all", "update-types" => %w[version-update:semver-patch version-update:semver-minor] } ], bundler.fetch("allow")
+    assert_equal [ { "dependency-type" => "all", "update-types" => %w[version-update:semver-patch] } ], bundler.fetch("allow")
     groups = bundler.fetch("groups")
 
-    assert_equal "version-updates", groups.fetch("minor-and-patch-gems").fetch("applies-to")
-    assert_equal %w[minor patch], groups.fetch("minor-and-patch-gems").fetch("update-types")
+    assert_equal "version-updates", groups.fetch("patch-gems").fetch("applies-to")
+    assert_equal [ "patch" ], groups.fetch("patch-gems").fetch("update-types")
     assert_equal "security-updates", groups.fetch("security-gems").fetch("applies-to")
     assert_equal [ "*" ], groups.fetch("security-gems").fetch("patterns")
   end
 
-  test "Actions stay monthly and Docker monitoring is configured" do
-    actions = dependabot_updates.fetch("github-actions")
+  test "weekly version updates cover Bundler and the Ruby base" do
     docker = dependabot_updates.fetch("docker")
 
-    assert_equal "monthly", actions.dig("schedule", "interval")
-    assert actions.fetch("groups").key?("actions")
+    assert_equal %w[bundler docker], dependabot_updates.keys
+    assert_equal "weekly", dependabot_updates.fetch("bundler").dig("schedule", "interval")
     assert_equal "weekly", docker.dig("schedule", "interval")
     ruby_ignore = docker.fetch("ignore").find { |entry| entry.fetch("dependency-name") == "library/ruby" }
     assert_equal %w[version-update:semver-minor version-update:semver-major],

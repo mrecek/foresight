@@ -12,29 +12,16 @@ updates:
       - dependency-type: all
         update-types:
           - "version-update:semver-patch"
-          - "version-update:semver-minor"
     open-pull-requests-limit: 5
     groups:
-      minor-and-patch-gems:
+      patch-gems:
         applies-to: version-updates
         patterns:
           - "*"
         update-types:
-          - minor
           - patch
       security-gems:
         applies-to: security-updates
-        patterns:
-          - "*"
-    labels:
-      - "dependencies"
-
-  - package-ecosystem: github-actions
-    directory: "/"
-    schedule:
-      interval: monthly
-    groups:
-      actions:
         patterns:
           - "*"
     labels:
